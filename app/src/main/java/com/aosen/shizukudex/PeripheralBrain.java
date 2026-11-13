@@ -1098,8 +1098,17 @@ public final class PeripheralBrain {
         });
     }
 
-    /** 未绑定(-1)时跟随当前串流屏；用户显式绑定一律尊重，绝不覆盖。 */
+    /**
+     * 外设实际落点：
+     * - 仅手机（无有线外屏）且当前有 Moonlight 串流 → 所有外设自动转交串流屏，
+     *   插在手机上的键鼠直接喂给对端，不再留在手机屏。
+     * - 否则：用户显式绑定（targetDisplayId>=0）一律尊重；未绑定的跟随当前串流屏，
+     *   没有串流时回退手机屏。
+     */
     private synchronized int effectiveTarget(VirtualSlot slot) {
+        if (wiredOrNull() == null && ScreenRegistry.get().hasStream()) {
+            return StreamTarget.UI_ID;
+        }
         if (slot.targetDisplayId >= 0) return slot.targetDisplayId;
         return ScreenRegistry.get().hasStream() ? StreamTarget.UI_ID : 0;
     }
