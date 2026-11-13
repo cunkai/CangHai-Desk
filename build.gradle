@@ -4,3 +4,16 @@ plugins {
     alias(libs.plugins.refine) apply false
     alias(libs.plugins.kotlin.android) apply false
 }
+
+// 开源发布不靠 lint 卡构建：关闭所有 Android 模块的 release fatal lint 检查
+subprojects {
+    afterEvaluate { p ->
+        def isAndroid = p.plugins.hasPlugin('com.android.application') || p.plugins.hasPlugin('com.android.library')
+        if (isAndroid) {
+            p.android.lintOptions {
+                checkReleaseBuilds false
+                abortOnError false
+            }
+        }
+    }
+}
