@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>办公套件</title>
+<style>
+:root{--bg:#dfe9f2;--pn:#ffffff;--tx:#16283c;--mt:#5a708a;--bd:rgba(22,40,60,.16);--pg:#fff;--pt:#222;--gold:#b18e46;--gold2:#c9a85c;--bar:#0d2f4d;--bar2:#123c61;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#071526;--pn:rgba(13,30,52,.92);--tx:#f2f6fb;--mt:rgba(230,238,250,.66);--bd:rgba(190,205,255,.16);--gold:#c9a85c;--gold2:#ecd28f;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#071526;--pn:rgba(13,30,52,.92);--tx:#f2f6fb;--mt:rgba(230,238,250,.66);--bd:rgba(190,205,255,.16);--gold:#c9a85c;--gold2:#ecd28f;color-scheme:dark}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{--ac:#c9a85c;background:var(--bg);color:var(--tx);font:15px/1.55 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;display:flex;flex-direction:column;overflow:hidden}
+#tt{background:linear-gradient(180deg,var(--bar2),var(--bar));color:#fff;display:flex;align-items:center;gap:6px;padding:6px 12px;flex-wrap:wrap}
+#tt b{margin-right:6px}#fn{background:transparent;border:1px solid transparent;color:#fff;padding:3px 8px;border-radius:4px;width:170px;font:inherit}
+#fn:hover,#fn:focus{background:rgba(255,255,255,.15);border-color:rgba(236,210,143,.6);outline:0}
+.at{background:transparent;border:0;color:rgba(255,255,255,.78);padding:5px 12px;cursor:pointer;font:inherit;border-radius:4px}.at.on{background:rgba(201,168,92,.28);color:#ecd28f}
+#tb{background:var(--pn);border-bottom:1px solid var(--bd);padding:6px 12px;display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+.b{border:1px solid transparent;background:transparent;color:var(--tx);padding:4px 9px;border-radius:4px;cursor:pointer;font:inherit}.b:hover{background:var(--bg);border-color:var(--gold)}
+.sp{width:1px;height:20px;background:var(--bd);margin:0 6px}
+select,#fx,#nb{border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:4px;padding:3px 6px;font:inherit}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--gold);outline-offset:1px}
+#wk{flex:1;min-height:0;position:relative}.app{position:absolute;inset:0;display:none}.app.on{display:flex}
+#a0{overflow:auto;justify-content:center;padding:20px 10px}
+#page{width:794px;max-width:100%;min-height:1050px;background:var(--pg);color:var(--pt);padding:72px 80px;box-shadow:0 4px 18px rgba(2,16,32,.35);outline:0;font-size:16px;line-height:1.8;height:max-content}
+#page h1{font-size:30px;margin:.4em 0}#page h2{font-size:22px;margin:.4em 0}#page p{margin:0 0 .6em}
+#a1{flex-direction:column;background:var(--pn)}
+#fb{display:flex;gap:6px;padding:5px 10px;border-bottom:1px solid var(--bd);align-items:center}#nb{width:64px;text-align:center}#fx{flex:1}
+#gw{flex:1;overflow:auto}table{border-collapse:collapse}th{background:var(--bg);color:var(--mt);font-weight:400;border:1px solid var(--bd);font-size:12px;position:sticky;top:0;z-index:1;padding:2px 0}
+th.r{position:sticky;left:0;top:auto;width:40px;z-index:1}td{border:1px solid var(--bd);padding:0}
+td input{width:96px;border:0;background:transparent;color:var(--tx);padding:4px 6px;font:inherit;font-size:13px;outline:0}td input:focus{outline:2px solid var(--ac);outline-offset:-2px;background:var(--pn)}
+#a2{background:var(--bg)}#th{width:176px;overflow:auto;padding:10px;border-right:1px solid var(--bd);background:var(--pn);flex:none}
+.th{display:flex;gap:6px;margin-bottom:10px;cursor:pointer;font-size:12px;color:var(--mt)}.th canvas{width:136px;height:76.5px;border:2px solid var(--bd);border-radius:2px}.th.on canvas{border-color:var(--ac)}
+#mid{flex:1;min-width:0;display:flex;flex-direction:column}
+#box{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:16px;overflow:hidden}
+#box canvas{box-shadow:0 2px 12px rgba(0,0,0,.3)}
+#box.play{position:fixed;inset:0;z-index:99;background:#000;padding:0;cursor:pointer}#box:fullscreen{background:#000;padding:0;cursor:pointer}
+#ed{padding:10px 16px;border-top:1px solid var(--bd);background:var(--pn);display:flex;flex-direction:column;gap:6px}#ed input,#ed textarea{border:1px solid var(--bd);background:var(--bg);color:var(--tx);border-radius:4px;padding:6px 8px;font:inherit;width:100%}#ed textarea{height:76px;resize:vertical}
+#sbar{background:var(--bar);color:rgba(255,255,255,.82);font-size:12px;padding:2px 12px;display:flex;justify-content:space-between}
+#toast{position:fixed;left:50%;bottom:50px;transform:translateX(-50%);background:#0d2f4d;color:#fff;padding:8px 16px;border-radius:6px;border:1px solid rgba(201,168,92,.55);opacity:0;transition:.3s;pointer-events:none;z-index:200}
+@media(max-width:700px){#th{width:90px}.th canvas{width:64px;height:36px}#page{padding:30px 22px}}
+</style></head><body data-app="0">
+<div id="tt"><b>办公套件</b><input id="fn" value="未命名"><span style="flex:1"></span>
+<button class="at on">📄 文档</button><button class="at">📊 表格</button><button class="at">🎞 演示</button></div>
+<div id="tb"></div>
+<div id="wk">
+<div class="app on" id="a0"><div id="page" contenteditable="true" spellcheck="false"><h1>项目计划书</h1><p>在这里直接输入和编辑内容。可使用上方工具栏设置标题、加粗、列表和对齐方式。</p><h2>里程碑</h2><ul><li>第 1 周：需求确认</li><li>第 2 周：原型评审</li><li>第 3 周：内测发布</li></ul><p>点击“打开”可导入 .docx / .txt / .html，点击“导出”可保存为 .docx。</p></div></div>
+<div class="app" id="a1"><div id="fb"><input id="nb" readonly value="A1"><span>fx</span><input id="fx"></div><div id="gw"></div></div>
+<div class="app" id="a2"><div id="th"></div><div id="mid"><div id="box"></div><div id="ed"><input id="st" placeholder="标题"><textarea id="sb" placeholder="正文（以 - 开头为列表）"></textarea></div></div></div>
+</div>
+<div id="sbar"><span id="s1"></span><span id="s2"></span></div><div id="toast"></div>
+<input type="file" id="fi" hidden>
+<!-- 依赖库放本地 lib/，离线可用（原 CDN 的 pptxgen 链接是 404，PPTX 导出本来就是坏的） -->
+<script src="lib/jszip.min.js"></script>
+<script src="lib/xlsx.full.min.js"></script>
+<script src="lib/pptxgen.bundle.js"></script>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+let app=0;const page=$('#page');
+function toast(m){const t=$('#toast');t.textContent=m;t.style.opacity=1;clearTimeout(toast.k);toast.k=setTimeout(()=>t.style.opacity=0,2200)}
+/* 导出：先走沧海下载接口（壳里写系统下载目录），400ms 内没回执或不在壳里就走浏览器锚点下载。
+   壳里没接下载接口时如实报失败，不假装已导出。 */
+function save(name,blob){return new Promise(resolve=>{const rd=new FileReader();rd.onload=()=>{
+const dataUrl=rd.result;
+try {
+  if (window.Canghai && typeof window.Canghai.saveDownload === 'function') {
+    window.Canghai.saveDownload(name, dataUrl);
+    toast('已保存至下载目录');
+    resolve();
+    return;
+  } else if (window.Aosen && typeof window.Aosen.saveDownload === 'function') {
+    window.Aosen.saveDownload(name, dataUrl);
+    toast('已保存至下载目录');
+    resolve();
+    return;
+  }
+} catch (e) {}
+const anchor=()=>{const a=document.createElement('a');a.href=dataUrl;a.download=name;document.body.appendChild(a);a.click();a.remove();toast('已发起导出');resolve()};
+if(!(window.parent&&window.parent!==window)){anchor();return}
+const reqId='dl'+Date.now()+Math.floor(Math.random()*1e6);let settled=false;
+const onMsg=ev=>{const m=ev&&ev.data;if(!m||m.canghai!=='downloadResult'||m.requestId!==reqId)return;
+  if(settled)return;settled=true;window.removeEventListener('message',onMsg);
+  if(m.ok){toast('已导出');resolve()}
+  else if(m.error==='NO_BRIDGE'){toast('导出失败：下载接口未接通');resolve()}
+  else anchor()};
+window.addEventListener('message',onMsg);
+try{window.parent.postMessage({canghai:'download',requestId:reqId,filename:name,dataUrl:dataUrl},'*')}catch(e){settled=true;window.removeEventListener('message',onMsg);anchor();return}
+setTimeout(()=>{if(settled)return;settled=true;window.removeEventListener('message',onMsg);anchor()},400)};
+rd.readAsDataURL(blob)})}
+const fname=()=>($('#fn').value.trim()||'未命名').replace(/[\\/:*?"<>|]/g,'_');
+// ---------- toolbar ----------
+const bt=(l,f,t)=>`<button class="b" onmousedown="event.preventDefault()" onclick="${f}" title="${t||l}">${l}</button>`;
+const TB=[
+ bt('📂 打开','openF()')+bt('📄 新建','newDoc()')+bt('💾 导出 DOCX','expDoc(\'docx\')')+bt('导出 TXT','expDoc(\'txt\')')+bt('导出 HTML','expDoc(\'html\')')+'<i class="sp"></i>'+bt('↶','cmd(\'undo\')','撤销')+bt('↷','cmd(\'redo\')','重做')+'<i class="sp"></i>'+bt('<b>B</b>','cmd(\'bold\')')+bt('<i>I</i>','cmd(\'italic\')')+bt('<u>U</u>','cmd(\'underline\')')+bt('清除格式','cmd(\'removeFormat\')')+'<i class="sp"></i>'+bt('标题 1','cmd(\'formatBlock\',\'<h1>\')')+bt('标题 2','cmd(\'formatBlock\',\'<h2>\')')+bt('正文','cmd(\'formatBlock\',\'<p>\')')+'<i class="sp"></i>'+bt('• 列表','cmd(\'insertUnorderedList\')')+bt('1. 列表','cmd(\'insertOrderedList\')')+'<i class="sp"></i>'+bt('居左','cmd(\'justifyLeft\')')+bt('居中','cmd(\'justifyCenter\')')+bt('居右','cmd(\'justifyRight\')'),
+ bt('📂 打开','openF()')+bt('💾 导出 XLSX','expSheet(\'xlsx\')')+bt('导出 CSV','expSheet(\'csv\')')+'<i class="sp"></i>'+bt('清空表格','clearSheet()')+bt('＋ 行','addRow()')+bt('＋ 列','addCol()'),
+ bt('📂 打开','openF()')+bt('💾 导出 PPTX','expPpt()')+'<i class="sp"></i>'+bt('➕ 新建','addS()')+bt('复制','dupS()')+bt('删除','delS()')+bt('↑ 上移','mvS(-1)')+bt('↓ 下移','mvS(1)')+'<i class="sp"></i><select id="thm" onchange="theme=+this.value;drawAll();saveState()"></select><i class="sp"></i><button class="b" style="background:var(--ac);color:#16283c;font-weight:600" onclick="present()">▶ 放映</button>'];
+const ACC=['.docx,.txt,.html,.htm,.md','.xlsx,.xls,.csv','.pptx'];
+function cmd(c,v){page.focus();document.execCommand(c,false,v);cnt()}
+function newDoc(){page.innerHTML='<p><br></p>';$('#fn').value='未命名';cnt();saveState();toast('已新建空白文档')}
+function setApp(i){app=i;document.body.dataset.app=i;document.querySelectorAll('.at').forEach((b,j)=>b.classList.toggle('on',j===i));document.querySelectorAll('.app').forEach((a,j)=>a.classList.toggle('on',j===i));
+$('#tb').innerHTML=TB[i];if(i===2){$('#thm').innerHTML=TH.map((t,j)=>`<option value="${j}"${j===theme?' selected':''}>主题：${t.n}</option>`).join('');rs()}stat();saveState()}
+document.querySelectorAll('.at').forEach((b,i)=>b.onclick=()=>setApp(i));
+function stat(){if(app===0)cnt();else if(app===1)$('#s1').textContent='行 '+RW+' × 列 '+CL;else $('#s1').textContent='幻灯片 '+(slide+1)+' / '+P.length;$('#s2').textContent=''}
+function cnt(){if(app===0){$('#s1').textContent='字数：'+page.innerText.replace(/\s/g,'').length}}
+page.oninput=()=>{cnt();saveState()};
+// ---------- open / export ----------
+function openF(){const f=$('#fi');f.accept=ACC[app];f.value='';f.onchange=()=>f.files[0]&&loadF(f.files[0]);f.click()}
+function readBuf(f){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(r.error);r.readAsArrayBuffer(f)})}
+async function loadF(f){const n=f.name,e=n.split('.').pop().toLowerCase();$('#fn').value=n.replace(/\.[^.]+$/,'');
+try{if(['docx','txt','md','html','htm'].includes(e)){setApp(0);if(e==='docx')await impDocx(await readBuf(f));else{const t=await f.text();page.innerHTML=(e==='html'||e==='htm')?clean(t):t.split(/\r?\n/).map(l=>'<p>'+(esc(l)||'<br>')+'</p>').join('')}cnt()}
+else if(['xlsx','xls','csv'].includes(e)){setApp(1);impSheet(await readBuf(f),e==='csv'?await f.text():null)}
+else if(e==='pptx'){setApp(2);await impPpt(await readBuf(f))}else toast('不支持的格式');saveState()}catch(x){console.error(x);toast('打开失败：文件无法解析')}}
+function clean(h){const d=new DOMParser().parseFromString(h,'text/html');d.querySelectorAll('script,style,link,iframe,object,embed,meta').forEach(n=>n.remove());d.body.querySelectorAll('*').forEach(n=>[...n.attributes].forEach(a=>{if(/^on/i.test(a.name)||/javascript:/i.test(a.value))n.removeAttribute(a.name)}));return d.body.innerHTML}
+// docx
+const X=s=>String(s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
+function runs(n,f){if(n.nodeType===3){if(!n.textContent)return'';return`<w:r><w:rPr>${f.b?'<w:b/>':''}${f.i?'<w:i/>':''}${f.u?'<w:u w:val="single"/>':''}${f.sz?`<w:sz w:val="${f.sz}"/>`:''}</w:rPr><w:t xml:space="preserve">${X(n.textContent)}</w:t></w:r>`}
+if(n.nodeType!==1)return'';if(n.tagName==='BR')return'<w:r><w:br/></w:r>';const m={B:{b:1},STRONG:{b:1},I:{i:1},EM:{i:1},U:{u:1}}[n.tagName]||{};return[...n.childNodes].map(c=>runs(c,{...f,...m})).join('')}
+function para(nodes,f,jc,pre){return`<w:p><w:pPr>${jc?`<w:jc w:val="${jc}"/>`:''}</w:pPr>${pre?runs(document.createTextNode(pre),f):''}${nodes.map(n=>runs(n,f)).join('')}</w:p>`}
+function blocks(root){let x='',buf=[];const fl=()=>{if(buf.some(n=>n.textContent.trim()||n.tagName==='BR'))x+=para(buf,{});buf=[]};
+for(const n of root.childNodes){if(n.nodeType===1&&/^(DIV|P|H[1-6]|UL|OL|BLOCKQUOTE)$/.test(n.tagName)){fl();const t=n.tagName,jc=({center:'center',right:'right'})[n.style.textAlign];
+if(t==='UL'||t==='OL')[...n.children].forEach((li,k)=>x+=para([...li.childNodes],{},jc,t==='UL'?'• ':(k+1)+'. '));
+else if(/^H/.test(t))x+=para([...n.childNodes],{b:1,sz:t==='H1'?44:t==='H2'?34:28},jc);
+else if(n.querySelector('div,p,ul,ol,h1,h2'))x+=blocks(n);else x+=para([...n.childNodes],{},jc)}else buf.push(n)}fl();return x}
+async function mkDocx(){const z=new JSZip();z.file('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+z.file('_rels/.rels','<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+z.file('word/document.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'+blocks(page)+'</w:body></w:document>');
+return z.generateAsync({type:'blob',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'})}
+async function expDoc(t){let b;if(t==='docx')b=await mkDocx();else if(t==='txt')b=new Blob([page.innerText],{type:'text/plain'});else b=new Blob(['<!doctype html><meta charset="utf-8"><title>'+esc(fname())+'</title><body>'+page.innerHTML],{type:'text/html'});await save(fname()+'.'+t,b)}
+async function impDocx(buf){const z=await JSZip.loadAsync(buf),x=await z.file('word/document.xml').async('string'),d=new DOMParser().parseFromString(x,'application/xml');let h='';
+for(const p of d.getElementsByTagName('w:p')){const st=(p.getElementsByTagName('w:pStyle')[0]||{getAttribute:()=>''}).getAttribute('w:val')||'',jc=(p.getElementsByTagName('w:jc')[0]||{getAttribute:()=>''}).getAttribute('w:val');let r='';
+for(const e of p.getElementsByTagName('w:r')){let s='';for(const c of e.childNodes){if(c.nodeName==='w:t')s+=esc(c.textContent);else if(c.nodeName==='w:br')s+='<br>';else if(c.nodeName==='w:tab')s+='&emsp;'}
+const pr=e.getElementsByTagName('w:rPr')[0],on=k=>{const q=pr&&pr.getElementsByTagName(k)[0];return q&&q.getAttribute('w:val')!=='0'&&q.getAttribute('w:val')!=='false'};
+if(on('w:b'))s='<b>'+s+'</b>';if(on('w:i'))s='<i>'+s+'</i>';if(on('w:u'))s='<u>'+s+'</u>';r+=s}
+const t=/Title|Heading1|^1$/.test(st)?'h1':/Heading2|^2$/.test(st)?'h2':'p';h+=`<${t}${jc==='center'||jc==='right'?` style="text-align:${jc}"`:''}>${r||'<br>'}</${t}>`}
+page.innerHTML=h||'<p><br></p>'}
+// ---------- sheet ----------
+let RW=50,CL=12,S=[];const cn=i=>String.fromCharCode(65+i);
+function initS(){S=Array.from({length:RW},()=>Array(CL).fill(''))}initS();
+[['产品','Q1','Q2','Q3','Q4','合计'],['笔记本',120,135,150,180,'=SUM(B2:E2)'],['平板',80,95,90,110,'=SUM(B3:E3)'],['手机',200,220,260,300,'=SUM(B4:E4)'],['合计','=SUM(B2:B4)','=SUM(C2:C4)','=SUM(D2:D4)','=SUM(E2:E4)','=SUM(F2:F4)']].forEach((r,i)=>r.forEach((v,j)=>S[i][j]=String(v)));
+function val(r,c,d){if(d>9)return NaN;const s=String((S[r]||[])[c]||'').trim();if(s[0]==='=')return ev(s,d);if(s==='')return 0;return isNaN(+s)?s:+s}
+function ev(s,d){let e=s.slice(1).toUpperCase();
+e=e.replace(/(SUM|AVERAGE|AVG|MAX|MIN|COUNT)\(([A-Z])(\d+):([A-Z])(\d+)\)/g,(m,f,a,r1,b,r2)=>{const v=[];for(let r=+r1-1;r<=+r2-1;r++)for(let c=a.charCodeAt(0)-65;c<=b.charCodeAt(0)-65;c++){const q=val(r,c,d+1);if(typeof q==='number'&&String((S[r]||[])[c]||'').trim()!=='')v.push(q)}
+const t=v.reduce((p,q)=>p+q,0);return f==='SUM'?t:f==='COUNT'?v.length:f==='MAX'?(v.length?Math.max(...v):0):f==='MIN'?(v.length?Math.min(...v):0):(v.length?t/v.length:0)});
+e=e.replace(/([A-Z])(\d+)/g,(m,c,r)=>{const q=val(+r-1,c.charCodeAt(0)-65,d+1);return typeof q==='number'?'('+q+')':'NaN'});
+if(!/^[\d+\-*/().\sNa]+$/.test(e))return'#ERR';try{const r=Function('return '+e)();return isFinite(r)?+r.toFixed(4):'#ERR'}catch(_){return'#ERR'}}
+const disp=(r,c)=>{const s=String((S[r]||[])[c]||'');if(s.trim()==='')return'';return String(val(r,c,0))};
+function buildGrid(){let h='<table><tr><th class="r"></th>'+Array.from({length:CL},(_,c)=>'<th>'+cn(c)+'</th>').join('')+'</tr>';
+for(let r=0;r<RW;r++){h+='<tr><th class="r">'+(r+1)+'</th>';for(let c=0;c<CL;c++)h+=`<td><input data-r="${r}" data-c="${c}"></td>`;h+='</tr>'}$('#gw').innerHTML=h+'</table>';refresh()}
+function refresh(){document.querySelectorAll('#gw input').forEach(i=>{if(i===document.activeElement)return;const d=disp(+i.dataset.r,+i.dataset.c);i.value=d;i.style.textAlign=/^-?[\d.]+$/.test(d)?'right':'left'})}
+let ar=0,ac=0;const gw=$('#gw');
+gw.addEventListener('focusin',e=>{const i=e.target;if(i.tagName!=='INPUT')return;ar=+i.dataset.r;ac=+i.dataset.c;i.value=S[ar][ac];$('#nb').value=cn(ac)+(ar+1);$('#fx').value=S[ar][ac]});
+gw.addEventListener('input',e=>{const i=e.target;S[+i.dataset.r][+i.dataset.c]=i.value;$('#fx').value=i.value;saveState()});
+gw.addEventListener('focusout',()=>setTimeout(refresh,0));
+gw.addEventListener('keydown',e=>{const mv=(dr,dc)=>{const n=gw.querySelector(`input[data-r="${ar+dr}"][data-c="${ac+dc}"]`);if(n){e.preventDefault();n.focus();n.select()}};
+if(e.key==='Enter')mv(e.shiftKey?-1:1,0);else if(e.key==='ArrowDown')mv(1,0);else if(e.key==='ArrowUp')mv(-1,0)});
+$('#fx').oninput=e=>{S[ar][ac]=e.target.value;const i=gw.querySelector(`input[data-r="${ar}"][data-c="${ac}"]`);if(i)i.value=e.target.value;saveState()};
+$('#fx').onblur=()=>setTimeout(refresh,0);
+function clearSheet(){initS();buildGrid();saveState()}
+function addRow(){if(RW>=300)return toast('已到最大行数');RW++;S.push(Array(CL).fill(''));buildGrid();stat();saveState()}
+function addCol(){if(CL>=26)return toast('已到最大列数');CL++;S.forEach(r=>r.push(''));buildGrid();stat();saveState()}
+function impSheet(buf,csv){const wb=csv!=null?XLSX.read(csv,{type:'string'}):XLSX.read(buf,{type:'array'}),ws=wb.Sheets[wb.SheetNames[0]];const rg=XLSX.utils.decode_range(ws['!ref']||'A1');
+RW=Math.min(Math.max(50,rg.e.r+10),300);CL=Math.min(Math.max(12,rg.e.c+2),26);initS();
+for(let r=rg.s.r;r<=Math.min(rg.e.r,RW-1);r++)for(let c=rg.s.c;c<=Math.min(rg.e.c,CL-1);c++){const k=ws[XLSX.utils.encode_cell({r,c})];if(k)S[r][c]=k.f?'='+k.f:(k.v==null?'':String(k.v))}buildGrid();stat()}
+async function expSheet(t){if(t==='csv'){let c='';const lr=S.reduce((a,r,i)=>r.some(x=>x!=='')?i:a,0);for(let r=0;r<=lr;r++)c+=S[r].map((_,k)=>{const d=disp(r,k);return /[",\n]/.test(d)?'"'+d.replace(/"/g,'""')+'"':d}).join(',')+'\n';await save(fname()+'.csv',new Blob(['\ufeff'+c],{type:'text/csv'}));return}
+const ws={};let mr=0,mc=0;S.forEach((row,r)=>row.forEach((s,c)=>{if(s==='')return;const a=XLSX.utils.encode_cell({r,c});ws[a]=s[0]==='='?{t:'n',f:s.slice(1)}:(s.trim()!==''&&!isNaN(+s)?{t:'n',v:+s}:{t:'s',v:s});mr=Math.max(mr,r);mc=Math.max(mc,c)}));
+ws['!ref']=XLSX.utils.encode_range({s:{r:0,c:0},e:{r:mr,c:mc}});const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
+await save(fname()+'.xlsx',new Blob([XLSX.write(wb,{type:'array',bookType:'xlsx'})],{type:'application/octet-stream'}))}
+// ---------- slides (three.js orthographic 2D rendering) ----------
+const TH=[{n:'简约白',bg:['#ffffff','#f3f4f6'],tc:'#1f2937',bc:'#374151',ac:'#c43e1c',hex:'FFFFFF',tx:'1F2937'},{n:'蓝紫渐变',bg:['#3b6cf6','#7a3bf6'],tc:'#ffffff',bc:'#eef1ff',ac:'rgba(255,255,255,.65)',hex:'3B6CF6',tx:'FFFFFF'},{n:'深色',bg:['#111827','#1f2937'],tc:'#ffffff',bc:'#d1d5db',ac:'#f59e0b',hex:'111827',tx:'FFFFFF'},{n:'青绿',bg:['#0ea5a4','#2563eb'],tc:'#ffffff',bc:'#e6fffe',ac:'rgba(255,255,255,.65)',hex:'0EA5A4',tx:'FFFFFF'},{n:'沧海',bg:['#0d2f4d','#123c61'],tc:'#ffffff',bc:'#d7e5f5',ac:'#c9a85c',hex:'0D2F4D',tx:'FFFFFF'},{n:'暖阳',bg:['#fdf6e3','#f5e6c8'],tc:'#5b4a1f',bc:'#7a6a3f',ac:'#c9a85c',hex:'FDF6E3',tx:'5B4A1F'}];
+let P=[{t:'年度工作汇报',b:'汇报人：张三\n2026 年 11 月'},{t:'核心成果',b:'- 完成三大产品迭代\n- 用户增长 35%\n- 团队规模扩大一倍'},{t:'谢谢观看',b:'欢迎提问与交流'}],slide=0,theme=1,playing=false,fake=false;
+function wrapT(x,tx,px,py,mw,lh){for(const raw of tx.split('\n')){const s=raw.startsWith('- ')?'• '+raw.slice(2):raw;let l='';for(const ch of s){if(x.measureText(l+ch).width>mw){x.fillText(l,px,py);py+=lh;l=ch}else l+=ch}x.fillText(l,px,py);py+=lh;if(py>700)break}}
+function drawSlide(x,p,i){const t=TH[theme],g=x.createLinearGradient(0,0,1280,720);g.addColorStop(0,t.bg[0]);g.addColorStop(1,t.bg[1]);x.fillStyle=g;x.fillRect(0,0,1280,720);
+let fs=68;x.font='bold '+fs+'px sans-serif';while(x.measureText(p.t).width>1120&&fs>32){fs-=4;x.font='bold '+fs+'px sans-serif'}
+x.textBaseline='alphabetic';x.fillStyle=t.tc;x.fillText(p.t,80,170);x.fillStyle=t.ac;x.fillRect(80,205,140,8);
+x.font='40px sans-serif';x.fillStyle=t.bc;wrapT(x,p.b,80,300,1120,64);x.font='22px sans-serif';x.fillStyle=t.ac;x.textAlign='right';x.fillText((i+1)+' / '+P.length,1220,690);x.textAlign='left'}
+/* 幻灯片舞台直接用 2D canvas：原来是把 2D 画布贴到 three.js 平面上，白白多一路 WebGL，静态画面没必要 */
+const box=$('#box');
+const sc=document.createElement('canvas');sc.width=1280;sc.height=720;box.appendChild(sc);
+function rs(){const w=box.clientWidth-(playing?0:32),h=box.clientHeight-(playing?0:32);if(w<=0||h<=0)return;const k=Math.max(40,Math.min(w,h*16/9));sc.style.width=k+'px';sc.style.height=k*9/16+'px'}
+addEventListener('resize',rs);new ResizeObserver(rs).observe(box);
+function stage(){drawSlide(sc.getContext('2d'),P[slide],slide)}
+function thumbs(){const el=$('#th');el.innerHTML=P.map((p,i)=>`<div class="th${i===slide?' on':''}" data-i="${i}"><span>${i+1}</span><canvas width="272" height="153"></canvas></div>`).join('');
+el.querySelectorAll('.th').forEach(d=>d.onclick=()=>go(+d.dataset.i));drawThumbs()}
+function drawThumbs(){document.querySelectorAll('#th canvas').forEach((c,i)=>{const x=c.getContext('2d');x.setTransform(272/1280,0,0,272/1280,0,0);drawSlide(x,P[i],i)})}
+function fillEd(){$('#st').value=P[slide].t;$('#sb').value=P[slide].b}
+function go(i){slide=Math.max(0,Math.min(P.length-1,i));fillEd();document.querySelectorAll('.th').forEach((d,j)=>d.classList.toggle('on',j===slide));stage();stat()}
+function drawAll(){thumbs();stage()}
+$('#st').oninput=e=>{P[slide].t=e.target.value;stage();drawThumbs();saveState()};$('#sb').oninput=e=>{P[slide].b=e.target.value;stage();drawThumbs();saveState()};
+function addS(){P.splice(slide+1,0,{t:'新幻灯片',b:'- 要点'});slide++;fillEd();thumbs();stage();stat();saveState()}
+function dupS(){P.splice(slide+1,0,{...P[slide]});slide++;fillEd();thumbs();stage();stat();saveState()}
+function delS(){if(P.length<2)return toast('至少保留一页');P.splice(slide,1);slide=Math.min(slide,P.length-1);fillEd();thumbs();stage();stat();saveState()}
+function mvS(d){const j=slide+d;if(j<0||j>=P.length)return;[P[slide],P[j]]=[P[j],P[slide]];slide=j;thumbs();stage();stat();saveState()}
+// fullscreen present
+function present(){playing=true;box.classList.add('play');const q=box.requestFullscreen?box.requestFullscreen():Promise.reject();
+Promise.resolve(q).then(()=>{box.classList.remove('play')}).catch(()=>{fake=true;try{history.pushState(null,'',location.href)}catch(e){}});setTimeout(rs,80)}
+function stopP(){if(!playing)return;playing=false;box.classList.remove('play');if(fake){fake=false}setTimeout(()=>{rs();stage()},60)}
+function next(){if(slide<P.length-1){go(slide+1)}else exitP()}
+function exitP(){if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});stopP()}
+box.addEventListener('click',()=>{if(playing)next()});
+document.addEventListener('fullscreenchange',()=>{if(document.fullscreenElement){setTimeout(rs,60)}else stopP()});
+addEventListener('popstate',()=>{if(playing&&fake)stopP()});
+addEventListener('keydown',e=>{if(playing){if(['ArrowRight','ArrowDown',' ','Enter','PageDown'].includes(e.key)){e.preventDefault();next()}else if(['ArrowLeft','ArrowUp','PageUp'].includes(e.key)){e.preventDefault();go(slide-1)}else if(e.key==='Escape')exitP()}});
+async function expPpt(){const pp=new PptxGenJS(),t=TH[theme];pp.layout='LAYOUT_16x9';
+P.forEach(p=>{const s=pp.addSlide();s.background={color:t.hex};s.addText(p.t,{x:.6,y:.5,w:8.8,h:1,fontSize:34,bold:true,color:t.tx});
+const ls=p.b.split('\n').filter(l=>l.trim());s.addText(ls.map(l=>({text:l.replace(/^- /,''),options:{bullet:l.startsWith('- '),breakLine:true}})),{x:.6,y:1.7,w:8.8,h:3.4,fontSize:22,color:t.tx,valign:'top'})});
+const b=await pp.write({outputType:'blob'});await save(fname()+'.pptx',b)}
+async function impPpt(buf){const z=await JSZip.loadAsync(buf),ns=Object.keys(z.files).filter(n=>/^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a,b)=>parseInt(a.match(/\d+/))-parseInt(b.match(/\d+/))),o=[];
+for(const n of ns){const d=new DOMParser().parseFromString(await z.file(n).async('string'),'application/xml');let t='',b=[],first=true;
+for(const sp of d.getElementsByTagName('p:sp')){const ps=[...sp.getElementsByTagName('a:p')].map(p=>[...p.getElementsByTagName('a:t')].map(x=>x.textContent).join('')).filter(Boolean);if(!ps.length)continue;const ph=sp.getElementsByTagName('p:ph')[0],ty=ph&&ph.getAttribute('type');
+if(!t&&(/title|ctrTitle/i.test(ty||'')||first)){t=ps[0];ps.slice(1).forEach(x=>b.push(x))}else ps.forEach(x=>b.push(ps.length>1?'- '+x:x));first=false}
+o.push({t:t||'（无标题）',b:b.join('\n')})}
+if(!o.length)throw 0;P=o;slide=0;drawAll();fillEd();stat()}
+// ---------- 状态保持：刷新后恢复（文件名、当前标签、文档、表格、幻灯片、主题） ----------
+const LS_KEY='canghai.office.v1';
+let saveT=null;
+function saveState(){clearTimeout(saveT);saveT=setTimeout(()=>{try{localStorage.setItem(LS_KEY,JSON.stringify({v:1,app:app,fn:$('#fn').value,doc:page.innerHTML,RW:RW,CL:CL,S:S,ar:ar,ac:ac,P:P,slide:slide,theme:theme}));const d=new Date(),p=n=>String(n).padStart(2,'0'),s2=$('#s2');if(s2)s2.textContent='已保存 '+p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds())}catch(e){}},300)}
+function loadState(){let s=null;try{s=JSON.parse(localStorage.getItem(LS_KEY)||'null')}catch(e){}
+if(!s||s.v!==1)return 0;
+try{
+if(typeof s.fn==='string')$('#fn').value=s.fn;
+if(typeof s.doc==='string'&&s.doc)page.innerHTML=s.doc;
+if(Number.isInteger(s.RW)&&Number.isInteger(s.CL)&&Array.isArray(s.S)){RW=Math.min(Math.max(1,s.RW),300);CL=Math.min(Math.max(1,s.CL),26);S=Array.from({length:RW},(_,r)=>{const row=Array.isArray(s.S[r])?s.S[r]:[];return Array.from({length:CL},(_,c)=>typeof row[c]==='string'?row[c]:(row[c]==null?'':String(row[c])))})}
+if(Number.isInteger(s.ar))ar=Math.min(Math.max(0,s.ar),RW-1);
+if(Number.isInteger(s.ac))ac=Math.min(Math.max(0,s.ac),CL-1);
+if(Array.isArray(s.P)&&s.P.length&&s.P.every(p=>p&&typeof p.t==='string'&&typeof p.b==='string'))P=s.P;
+if(Number.isInteger(s.slide))slide=Math.min(Math.max(0,s.slide),P.length-1);
+if(Number.isInteger(s.theme)&&TH[s.theme])theme=s.theme;
+}catch(e){}
+return Number.isInteger(s.app)?Math.min(Math.max(0,s.app),2):0}
+/* 沧海文件关联：桌面按扩展名把文件递进来 */
+window.CanghaiOffice={openFile:function(file){if(file)loadF(file)}};
+$('#fn').addEventListener('input',saveState);
+/* 拖文件到窗口上直接打开 */
+addEventListener('dragover',e=>{e.preventDefault()});
+addEventListener('drop',e=>{e.preventDefault();const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];if(f)loadF(f)});
+/* Ctrl/Cmd+S 导出当前标签的主格式 */
+addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();if(app===0)expDoc('docx');else if(app===1)expSheet('xlsx');else expPpt()}});
+// ---------- init ----------
+const _savedApp=loadState();buildGrid();thumbs();fillEd();setApp(_savedApp);stage();
+</script></body></html>

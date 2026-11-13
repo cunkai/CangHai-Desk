@@ -373,7 +373,12 @@ window.__chExportDone = function(raw){
 function bindAppFrameMessages(fr){ if(fr) fr._chBound = true; }
 window.addEventListener('message', function(e){
   var d = e && e.data;
-  if(!d || typeof d !== 'object' || !d.canghai) return;
+  if(!d || typeof d !== 'object') return;
+  /* 兼容子应用发来的 {type:'download', filename, dataUrl} 和 {canghai:'download', ...} 两种协议 */
+  if(!d.canghai && d.type === 'download'){
+    d = { canghai: 'download', filename: d.filename, dataUrl: d.dataUrl, requestId: d.requestId };
+  }
+  if(!d.canghai) return;
   if(d.canghai === 'toast'){ toast(String(d.text || '')); return; }
   if(d.canghai === 'openApp' && d.appId){ openApp(String(d.appId)); return; }
   if(d.canghai === 'closeSelf'){
@@ -413,8 +418,12 @@ window.addEventListener('message', function(e){
     try{ if(window.CHMsgCenter) CHMsgCenter.notify(d); }catch(err){}
     return;
   }
-  /* 应用请宿主把文件写到下载目录（安卓层接口 Canghai.saveDownload(filename, dataUrl)）。
-     没有这个接口时什么也不做：应用自己已经触发了浏览器下载 + 发了 notify。 */
+  /* 应用请宿主把文件写到下载目录。两条原生路（先老桥 Canghai.saveDownload，
+     再新桥 CanghaiCore.invoke('device','saveDownload')，安卓侧落盘成功须回
+     {saved:true, name, size}——老版本 device 分支不认方法名、一律回设备信息，
+     没有 saved 字段，绝不能当成功）。宿主一定给应用回执 downloadResult：
+     壳里的 WebView 会静默丢掉 a.download 兜底，没接口时应用必须如实报失败；
+     普通浏览器回 BROWSER_FALLBACK，应用走兜底。 */
   /* 应用要读写文件：应用只跟桌面说话（postMessage），桌面按发送方认 appId 后
      调 CanghaiCore.fs 转给安卓（方法名与 payload 以 CoreFs.java 为准）。
      绝不能信消息里自带的 appId 字段——只有文件管理器（file-manager，桌面
@@ -423,11 +432,37 @@ window.addEventListener('message', function(e){
      postMessage 回去 {canghai:'fsResult', ...}。 */
   if(d.canghai === 'fs'){ chHandleFsRequest(e, d); return; }
   if(d.canghai === 'download'){
+    var dlReqId = d.requestId, dlSrc = e.source, dlDone = false;
+    var dlReply = function(ok, error){
+      if(dlDone) return; dlDone = true;
+      try{ if(dlSrc) dlSrc.postMessage({canghai:'downloadResult', requestId:dlReqId, ok:!!ok, error:error||''}, '*'); }catch(err){}
+    };
+    var dlName = String(d.filename || 'download'), dlUrl = String(d.dataUrl || '');
     try{
       if(typeof Canghai !== 'undefined' && Canghai && Canghai.saveDownload){
-        Canghai.saveDownload(String(d.filename || 'download'), String(d.dataUrl || ''));
+        Canghai.saveDownload(dlName, dlUrl);
+        dlReply(true);
+        return;
       }
     }catch(err){}
+    /* 注意：CHCore.available() 在普通浏览器里也是 true——shared/core.js 垫片
+       永远定义了 window.CanghaiCore。原生在不在，只能看 invoke 的返回值：
+       回 NO_BRIDGE / 未就绪 = 没挂原生通道（普通浏览器），应用走兜底；
+       回 ok 但没有 saved = 原生在、方法没实现，兜底在 WebView 里会被丢掉，
+       必须报 NO_BRIDGE。 */
+    var dlCanInvoke = false;
+    try{ dlCanInvoke = !!(typeof CHCore !== 'undefined' && CHCore && CHCore.invoke); }catch(err){}
+    if(dlCanInvoke){
+      try{
+        CHCore.invoke('device', 'saveDownload', {filename: dlName, dataUrl: dlUrl}).then(function(r){
+          if(r && r.ok && r.data && r.data.saved){ dlReply(true); return; }
+          if(r && !r.ok && (r.error === 'NO_BRIDGE' || String(r.error || '').indexOf('未就绪') >= 0)) dlReply(false, 'BROWSER_FALLBACK');
+          else dlReply(false, 'NO_BRIDGE');
+        }, function(){ dlReply(false, 'NO_BRIDGE'); });
+      }catch(err){ dlReply(false, 'NO_BRIDGE'); }
+      return;
+    }
+    dlReply(false, 'BROWSER_FALLBACK');
     return;
   }
 });
@@ -524,14 +559,54 @@ window.__chAppIdForSource = chAppIdForSource;
    应用在注册表里写 handles: ['mp4','webm',...]。打开一个文件时，按扩展名找应用，
    打开它，等窗口里的 iframe 载好后把 File/Blob 递给应用的 openFile。 */
 var _chPendingFile = {}; // appId -> File/Blob（窗口还没载好时先存着）
-function chAppForExt(ext){
+function chAppsForExt(ext){
   ext = String(ext || '').toLowerCase().replace(/^\./, '');
-  if(!ext) return null;
+  if(!ext) return [];
+  var res = [];
   for(var i = 0; i < ALL_APPS.length; i++){
     var a = ALL_APPS[i];
-    if(a && a.handles && a.handles.indexOf(ext) >= 0) return a;
+    if(a && a.handles && a.handles.indexOf(ext) >= 0) res.push(a);
   }
-  return null;
+  return res;
+}
+function chAppForExt(ext){
+  var list = chAppsForExt(ext);
+  return list.length ? list[0] : null;
+}
+function chShowAppChooser(apps, fileName, onSelect){
+  var mask = document.createElement('div');
+  mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:999999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px);';
+  var box = document.createElement('div');
+  box.style.cssText = 'background:#0f1c2b;border:1px solid #24405a;border-radius:14px;padding:20px;max-width:340px;width:90%;color:#e6ebf7;box-shadow:0 12px 36px rgba(0,0,0,0.6);font-family:sans-serif;';
+  box.innerHTML = '<div style="font-weight:600;font-size:16px;margin-bottom:6px;">选择打开方式</div>'
+    + '<div style="font-size:12px;color:#8da3b8;margin-bottom:14px;word-break:break-all;">用以下哪个应用打开「' + String(fileName || '') + '」？</div>'
+    + '<div id="_chChooserList" style="display:flex;flex-direction:column;gap:8px;max-height:240px;overflow-y:auto;margin-bottom:14px;"></div>'
+    + '<div style="text-align:right;"><button id="_chChooserCancel" style="padding:6px 14px;background:rgba(255,255,255,0.08);border:1px solid #24405a;color:#e6ebf7;border-radius:8px;cursor:pointer;">取消</button></div>';
+  mask.appendChild(box);
+  var listEl = box.querySelector('#_chChooserList');
+  apps.forEach(function(a){
+    var item = document.createElement('div');
+    item.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,0.04);cursor:pointer;border:1px solid transparent;transition:background 0.15s;';
+    item.onmouseenter = function(){ item.style.background = 'rgba(201,168,92,0.15)'; item.style.borderColor = '#c9a85c'; };
+    item.onmouseleave = function(){ item.style.background = 'rgba(255,255,255,0.04)'; item.style.borderColor = 'transparent'; };
+    var iconEl = document.createElement('div');
+    iconEl.style.cssText = 'width:32px;height:32px;flex-shrink:0;';
+    iconEl.innerHTML = a.icon || '';
+    var nameEl = document.createElement('div');
+    nameEl.style.cssText = 'font-size:14px;font-weight:500;';
+    nameEl.textContent = a.name || a.id;
+    item.appendChild(iconEl);
+    item.appendChild(nameEl);
+    item.onclick = function(){
+      if(mask.parentNode) mask.parentNode.removeChild(mask);
+      if(typeof onSelect === 'function') onSelect(a);
+    };
+    listEl.appendChild(item);
+  });
+  box.querySelector('#_chChooserCancel').onclick = function(){
+    if(mask.parentNode) mask.parentNode.removeChild(mask);
+  };
+  document.body.appendChild(mask);
 }
 function chFlushPendingFile(appId, frI){
   var f = _chPendingFile[appId];
@@ -551,25 +626,31 @@ function chDeliverFile(appId, frI, file){
   }catch(e){}
   return false;
 }
-/* 打开一个文件：按扩展名找应用并打开，文件随后递进去。返回应用 id，没找到返回 ''。 */
+/* 打开一个文件：按扩展名找应用并打开，文件随后递进去。若多款软件支持，弹出选择窗。 */
 function chOpenFile(file, fileName){
   var name = String(fileName || (file && file.name) || '');
   var ext = name.indexOf('.') >= 0 ? name.split('.').pop() : '';
-  var app = chAppForExt(ext);
-  if(!app){ toast('没有能打开「' + ext + '」的软件'); return ''; }
-  _chPendingFile[app.id] = file;
-  openApp(app.id);
-  /* 窗口已开着时 iframe 可能已载好：直接递一次（载好时 chFlushPendingFile 还会再递，取走后是空操作） */
-  try{
-    var win = openWins[app.id];
-    if(win){
-      var fr = win.querySelector('iframe.appFrame');
-      if(fr && fr.contentWindow && fr.contentWindow.document && fr.contentWindow.document.readyState === 'complete'){
-        chFlushPendingFile(app.id, fr);
+  var apps = chAppsForExt(ext);
+  if(!apps || !apps.length){ toast('没有能打开「' + ext + '」的软件'); return ''; }
+  function doOpen(app){
+    _chPendingFile[app.id] = file;
+    openApp(app.id);
+    try{
+      var win = openWins[app.id];
+      if(win){
+        var fr = win.querySelector('iframe.appFrame');
+        if(fr && fr.contentWindow && fr.contentWindow.document && fr.contentWindow.document.readyState === 'complete'){
+          chFlushPendingFile(app.id, fr);
+        }
       }
-    }
-  }catch(e){}
-  return app.id;
+    }catch(e){}
+  }
+  if(apps.length === 1){
+    doOpen(apps[0]);
+    return apps[0].id;
+  }
+  chShowAppChooser(apps, name, doOpen);
+  return '';
 }
 window.__chOpenFile = chOpenFile;
 /* 手机端在外屏上点「投到屏幕」→ Native 推到这里，跟桌面自己双击图标走同一条路 */

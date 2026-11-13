@@ -2635,6 +2635,19 @@ public class DexHomeActivity extends Activity {
         }
 
         @JavascriptInterface
+        public String saveDownload(final String filename, final String dataUrl) {
+            try {
+                org.json.JSONObject res = CanghaiCore.saveDownloadDirect(DexHomeActivity.this, filename, dataUrl);
+                runOnUiThread(() -> Toast.makeText(DexHomeActivity.this, "已保存至下载目录: " + res.optString("name"), Toast.LENGTH_SHORT).show());
+                return res.toString();
+            } catch (Throwable t) {
+                Log.w(TAG, "DexHome.saveDownload 失败: " + t.getMessage(), t);
+                runOnUiThread(() -> Toast.makeText(DexHomeActivity.this, "保存失败: " + t.getMessage(), Toast.LENGTH_SHORT).show());
+                return "{\"saved\":false,\"error\":\"" + t.getMessage() + "\"}";
+            }
+        }
+
+        @JavascriptInterface
         public void switchMouseToDisplay(final int targetDisplayId) {
             runOnUiThread(() -> {
                 try {

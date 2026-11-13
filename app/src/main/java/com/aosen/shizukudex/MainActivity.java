@@ -1116,7 +1116,8 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
 
         new Thread(() -> {
             try {
-                final org.json.JSONArray arr = new org.json.JSONArray();
+                final org.json.JSONArray pkgArr = new org.json.JSONArray();
+                final List<org.json.JSONObject> docList = new java.util.ArrayList<>();
                 for (Uri u : uris) {
                     String name = getDisplayName(u);
                     String lower = (name == null) ? "" : name.toLowerCase();
@@ -1124,29 +1125,35 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
                         Log.i(TAG, "忽略外部 APK 文件: " + name);
                         continue;
                     }
-                    if (!lower.endsWith(".沧海软件") && !lower.endsWith(".canghai")
-                            && !lower.endsWith(".html") && !lower.endsWith(".htm") && !lower.endsWith(".zip")) {
-                        continue;
-                    }
-                    try (java.io.InputStream in = getContentResolver().openInputStream(u);
-                         java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream()) {
-                        if (in == null) continue;
-                        byte[] buf = new byte[32768];
-                        int n;
-                        while ((n = in.read(buf)) > 0) {
-                            bos.write(buf, 0, n);
+                    /* 1. 严格防止抢占：.沧海软件、.canghai、.html、.htm、.zip 绝对作为软件包处理 */
+                    if (lower.endsWith(".沧海软件") || lower.endsWith(".canghai")
+                            || lower.endsWith(".html") || lower.endsWith(".htm") || lower.endsWith(".zip")) {
+                        try (java.io.InputStream in = getContentResolver().openInputStream(u);
+                             java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream()) {
+                            if (in == null) continue;
+                            byte[] buf = new byte[32768];
+                            int n;
+                            while ((n = in.read(buf)) > 0) {
+                                bos.write(buf, 0, n);
+                            }
+                            org.json.JSONObject item = new org.json.JSONObject();
+                            item.put("name", name);
+                            item.put("uri", u.toString());
+                            item.put("b64", android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP));
+                            pkgArr.put(item);
+                        } catch (Throwable t) {
+                            Log.w(TAG, "读取外部软件包失败: " + u, t);
                         }
+                    } else {
+                        /* 2. 其它格式（md, docx, 图片等）作为文档文件，供内部应用打开 */
                         org.json.JSONObject item = new org.json.JSONObject();
                         item.put("name", name);
                         item.put("uri", u.toString());
-                        item.put("b64", android.util.Base64.encodeToString(bos.toByteArray(), android.util.Base64.NO_WRAP));
-                        arr.put(item);
-                    } catch (Throwable t) {
-                        Log.w(TAG, "读取外部软件包失败: " + u, t);
+                        docList.add(item);
                     }
                 }
-                if (arr.length() > 0) {
-                    final String json = arr.toString();
+                if (pkgArr.length() > 0) {
+                    final String json = pkgArr.toString();
                     runOnUiThread(() -> {
                         pendingIncomingFilesJson = json;
                         if (webPhoneHome != null) {
@@ -1156,10 +1163,92 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
                         }
                     });
                 }
+                if (!docList.isEmpty()) {
+                    runOnUiThread(() -> {
+                        for (org.json.JSONObject doc : docList) {
+                            dispatchOpenDocumentFile(doc.optString("uri"), doc.optString("name"));
+                        }
+                    });
+                }
             } catch (Throwable t) {
                 Log.w(TAG, "handleIncomingPackageIntent error", t);
             }
         }, "ch-pkg-receiver").start();
+    }
+
+    /** 外部打开普通文档/图片：匹配 handles，1 个直接打开，多个弹窗让用户选择 */
+    private void dispatchOpenDocumentFile(final String uriStr, final String fileName) {
+        if (uriStr == null || uriStr.isEmpty()) return;
+        String name = fileName;
+        if (name == null || name.isEmpty()) name = uriStr;
+        String ext = "";
+        int dot = name.lastIndexOf('.');
+        if (dot >= 0) ext = name.substring(dot + 1).toLowerCase();
+        if (ext.isEmpty()) return;
+
+        class AppTarget {
+            String id;
+            String name;
+            AppTarget(String i, String n) { id = i; name = n; }
+        }
+        List<AppTarget> matched = new ArrayList<>();
+        String[] builtins = new String[]{"markdown", "document", "photo-editor", "office"};
+        for (String bId : builtins) {
+            org.json.JSONObject meta = CanghaiStore.builtinAppMeta(this, bId);
+            if (meta != null && meta.has("handles")) {
+                org.json.JSONArray h = meta.optJSONArray("handles");
+                if (h != null) {
+                    for (int j = 0; j < h.length(); j++) {
+                        if (ext.equalsIgnoreCase(h.optString(j))) {
+                            String appName = meta.optString("name", bId);
+                            matched.add(new AppTarget(bId, appName));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (matched.isEmpty()) {
+            Toast.makeText(this, "没有能打开「" + ext + "」的沧海软件", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        final String finalName = name;
+        if (matched.size() == 1) {
+            AppTarget target = matched.get(0);
+            openHtmlAppWithFile(target.id, target.name, uriStr, finalName);
+            return;
+        }
+
+        // 多个匹配：弹出选择对话框让用户选
+        String[] titles = new String[matched.size()];
+        for (int i = 0; i < matched.size(); i++) {
+            titles[i] = matched.get(i).name;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("选择打开方式（" + finalName + "）")
+                .setItems(titles, (dialog, which) -> {
+                    AppTarget target = matched.get(which);
+                    openHtmlAppWithFile(target.id, target.name, uriStr, finalName);
+                })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
+    private void openHtmlAppWithFile(String appId, String title, String uriStr, String fileName) {
+        try {
+            Intent open = new Intent(this, HtmlAppActivity.class);
+            open.putExtra(HtmlAppActivity.EXTRA_APP_ID, appId);
+            open.putExtra(HtmlAppActivity.EXTRA_APP_TITLE, title);
+            open.putExtra(HtmlAppActivity.EXTRA_OPEN_FILE_URI, uriStr);
+            open.putExtra(HtmlAppActivity.EXTRA_OPEN_FILE_NAME, fileName);
+            open.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+            startActivity(open);
+        } catch (Throwable t) {
+            Log.w(TAG, "openHtmlAppWithFile failed", t);
+        }
+    }
     }
 
     private String getDisplayName(Uri uri) {
@@ -5290,6 +5379,16 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
             webPhoneHome.addJavascriptInterface(new PhoneHomeBridge(), "CanghaiDesk");
             /* 手机主页是 L1 宿主；与大屏桌面共用同一个 CanghaiCore / CoreFs 数据目录 */
             CanghaiCore.attach(this, webPhoneHome, null);
+            webPhoneHome.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+                try {
+                    String filename = android.webkit.URLUtil.guessFileName(url, contentDisposition, mimetype);
+                    CanghaiCore.saveDownloadDirect(MainActivity.this, filename, url);
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "已保存至下载目录: " + filename, Toast.LENGTH_SHORT).show());
+                } catch (Throwable t) {
+                    Log.w(TAG, "webPhoneHome 下载失败: " + t.getMessage(), t);
+                    runOnUiThread(() -> Toast.makeText(MainActivity.this, "保存失败: " + t.getMessage(), Toast.LENGTH_SHORT).show());
+                }
+            });
             /* 折叠屏开合（内屏 <-> 正方形外屏）或屏幕尺寸发生变动时，立即通知页面重算视口与安全区 */
             webPhoneHome.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) -> {
                 int w = right - left, h = bottom - top;
@@ -5696,6 +5795,19 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
         @android.webkit.JavascriptInterface
         public boolean isDebug() {
             return true;
+        }
+
+        @android.webkit.JavascriptInterface
+        public String saveDownload(final String filename, final String dataUrl) {
+            try {
+                org.json.JSONObject res = CanghaiCore.saveDownloadDirect(MainActivity.this, filename, dataUrl);
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "已保存至下载目录: " + res.optString("name"), Toast.LENGTH_SHORT).show());
+                return res.toString();
+            } catch (Throwable t) {
+                Log.w(TAG, "PhoneHomeBridge.saveDownload 失败: " + t.getMessage(), t);
+                runOnUiThread(() -> Toast.makeText(MainActivity.this, "保存失败: " + t.getMessage(), Toast.LENGTH_SHORT).show());
+                return "{\"saved\":false,\"error\":\"" + t.getMessage() + "\"}";
+            }
         }
 
         /* ============ 调试外设：输入探针入口 ============ */
@@ -6355,7 +6467,12 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
          */
         @android.webkit.JavascriptInterface
         public String openHtmlAppWindow(final String appId, final String title) {
-            Log.i(TAG, "openHtmlAppWindow appId=" + appId + " title=" + title);
+            return openHtmlAppWindowWithFile(appId, title, null, null);
+        }
+
+        @android.webkit.JavascriptInterface
+        public String openHtmlAppWindowWithFile(final String appId, final String title, final String fileUri, final String fileName) {
+            Log.i(TAG, "openHtmlAppWindow appId=" + appId + " title=" + title + " file=" + fileName);
             synchronized (mWindowLock) { mWindowResult = null; }
             runOnUiThread(() -> {
                 try {
@@ -6371,9 +6488,13 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
                     open.putExtra(HtmlAppActivity.EXTRA_APP_ID, appId);
                     String nm = (title == null || title.trim().isEmpty()) ? findHtmlAppName(appId) : title;
                     open.putExtra(HtmlAppActivity.EXTRA_APP_TITLE, nm);
-                    /* 这个应用已经开在后台（收起来没销毁）就直接提回来：
-                       页面里的游戏、填了一半的表单都还在，不会重新加载。 */
-                    if (HtmlAppActivity.focusExistingWindow(MainActivity.this, appId)) {
+                    if (fileUri != null && !fileUri.isEmpty()) {
+                        open.putExtra(HtmlAppActivity.EXTRA_OPEN_FILE_URI, fileUri);
+                        open.putExtra(HtmlAppActivity.EXTRA_OPEN_FILE_NAME, fileName);
+                    }
+                    /* 如果没有附带打开文件，且这个应用已经开在后台（收起来没销毁）就直接提回来；
+                       附带了新文件时，需要重新走 onNewIntent 传递给应用 */
+                    if ((fileUri == null || fileUri.isEmpty()) && HtmlAppActivity.focusExistingWindow(MainActivity.this, appId)) {
                         Log.i(TAG, "复用已开着的窗口 " + appId);
                         setResultReady("ok");
                         return;

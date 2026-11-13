@@ -1,8 +1,13 @@
 package com.aosen.shizukudex;
 
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Build;
+import android.os.Environment;
+import android.provider.MediaStore;
+import android.util.Base64;
 import android.util.Log;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
@@ -10,6 +15,9 @@ import android.webkit.WebView;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
 import java.lang.ref.WeakReference;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -178,11 +186,121 @@ public final class CanghaiCore {
                         .put("targetBitrate", 0).put("actualBitrate", 0).put("bitrateLimit", 0);
             case "webFps":
                 return true;
+            case "saveDownload":
+                return saveDownload(p);
             case "info":
             case "getInfo":
             default:
                 return deviceInfo();
         }
+    }
+
+    public static JSONObject saveDownloadDirect(Context ctx, String filename, String dataUrl) throws Exception {
+        JSONObject p = new JSONObject();
+        p.put("filename", filename);
+        p.put("dataUrl", dataUrl);
+        return doSaveDownload(ctx, p);
+    }
+
+    private JSONObject saveDownload(JSONObject p) throws Exception {
+        return doSaveDownload(this.ctx, p);
+    }
+
+    private static JSONObject doSaveDownload(Context ctx, JSONObject p) throws Exception {
+        if (p == null) throw new CoreFs.Err("INVALID_ARGS", "缺少参数");
+        String filename = p.optString("filename", "download");
+        if (filename == null || filename.trim().isEmpty()) filename = "download";
+        filename = filename.replaceAll("[\\\\/:*?\"<>|]", "_");
+
+        String dataUrl = p.optString("dataUrl", "");
+        byte[] bytes;
+        String mimeType = "application/octet-stream";
+        if (dataUrl.startsWith("data:")) {
+            int comma = dataUrl.indexOf(',');
+            if (comma >= 0) {
+                String meta = dataUrl.substring(5, comma);
+                int semi = meta.indexOf(';');
+                if (semi >= 0) {
+                    mimeType = meta.substring(0, semi);
+                } else if (!meta.isEmpty()) {
+                    mimeType = meta;
+                }
+                String b64 = dataUrl.substring(comma + 1);
+                bytes = Base64.decode(b64, Base64.DEFAULT);
+            } else {
+                bytes = dataUrl.getBytes("UTF-8");
+            }
+        } else {
+            bytes = dataUrl.getBytes("UTF-8");
+        }
+
+        // 优先尝试写到公共 Downloads 目录
+        boolean written = false;
+        long writtenSize = bytes.length;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Downloads.DISPLAY_NAME, filename);
+                values.put(MediaStore.Downloads.MIME_TYPE, mimeType);
+                values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Canghai");
+                Uri uri = ctx.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (uri != null) {
+                    try (OutputStream os = ctx.getContentResolver().openOutputStream(uri)) {
+                        if (os != null) {
+                            os.write(bytes);
+                            os.flush();
+                            written = true;
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "MediaStore 下载落盘失败，尝试文件兜底", t);
+            }
+        }
+
+        if (!written) {
+            File dlDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            File targetDir = new File(dlDir, "Canghai");
+            if (!targetDir.exists()) targetDir.mkdirs();
+            File dest = new File(targetDir, filename);
+            // 避免覆盖重名
+            if (dest.exists()) {
+                String base = filename;
+                String ext = "";
+                int dot = filename.lastIndexOf('.');
+                if (dot > 0) {
+                    base = filename.substring(0, dot);
+                    ext = filename.substring(dot);
+                }
+                dest = new File(targetDir, base + "_" + System.currentTimeMillis() + ext);
+            }
+            try (FileOutputStream fos = new FileOutputStream(dest)) {
+                fos.write(bytes);
+                fos.flush();
+                written = true;
+                filename = dest.getName();
+            } catch (Throwable t) {
+                // 如果公共目录由于权限无法写入，写到应用专属的外部下载目录
+                File appDl = ctx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                if (appDl != null) {
+                    if (!appDl.exists()) appDl.mkdirs();
+                    File destApp = new File(appDl, filename);
+                    try (FileOutputStream fos = new FileOutputStream(destApp)) {
+                        fos.write(bytes);
+                        fos.flush();
+                        written = true;
+                        filename = destApp.getName();
+                    }
+                }
+                if (!written) throw t;
+            }
+        }
+
+        JSONObject res = new JSONObject();
+        res.put("saved", true);
+        res.put("name", filename);
+        res.put("size", writtenSize);
+        return res;
     }
 
     private JSONObject deviceInfo() throws Exception {

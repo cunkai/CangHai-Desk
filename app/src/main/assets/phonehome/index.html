@@ -3624,7 +3624,41 @@
     </div>
 
 <script>
-      "use strict";
+      /* 手机端运行器 iframe 消息总线：转发下载和系统事件 */
+      window.addEventListener('message', function(e){
+        var d = e && e.data;
+        if(!d || typeof d !== 'object') return;
+        if(!d.canghai && d.type === 'download'){
+          d = { canghai: 'download', filename: d.filename, dataUrl: d.dataUrl, requestId: d.requestId };
+        }
+        if(!d.canghai) return;
+        if(d.canghai === 'toast'){ toast(String(d.text || '')); return; }
+        if(d.canghai === 'download'){
+          var dlReqId = d.requestId, dlSrc = e.source, dlDone = false;
+          var dlReply = function(ok, error){
+            if(dlDone) return; dlDone = true;
+            try{ if(dlSrc) dlSrc.postMessage({canghai:'downloadResult', requestId:dlReqId, ok:!!ok, error:error||''}, '*'); }catch(err){}
+          };
+          var dlName = String(d.filename || 'download'), dlUrl = String(d.dataUrl || '');
+          try{
+            var bridge = window.CanghaiPhone || window.AosenPhone || window.Canghai;
+            if(bridge && bridge.saveDownload){
+              var r = bridge.saveDownload(dlName, dlUrl);
+              dlReply(true);
+              return;
+            }
+          }catch(err){}
+          if(window.CanghaiCore && window.CanghaiCore.invoke){
+            window.CanghaiCore.invoke('device', 'saveDownload', {filename: dlName, dataUrl: dlUrl}).then(function(r){
+              if(r && r.ok && r.data && r.data.saved) dlReply(true);
+              else dlReply(false, 'NO_BRIDGE');
+            }, function(){ dlReply(false, 'NO_BRIDGE'); });
+            return;
+          }
+          dlReply(false, 'NO_BRIDGE');
+          return;
+        }
+      });
       window.addEventListener('error', function(e){
         try {
           var msg = (e && e.message) ? e.message : String(e);

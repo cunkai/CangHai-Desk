@@ -22,7 +22,10 @@ body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:-app
 #cv{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block}
 .app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:12px;gap:10px}
 header,#lb,#sheet{background:var(--panel);border:1px solid var(--line);border-radius:12px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
-header{display:flex;flex-wrap:wrap;align-items:center;gap:8px 8px;padding:8px 12px}
+/* header 与 #sheet 都有 backdrop-filter，各自成层叠上下文；后出现的 #sheet 会盖住
+   header 里的导出菜单（菜单在编辑器后面透出来、点不着）。header 提一层，菜单才
+   能浮在编辑器之上。 */
+header{position:relative;z-index:10;display:flex;flex-wrap:wrap;align-items:center;gap:8px 8px;padding:8px 12px}
 h1{font-size:15px;margin:0;font-weight:600;white-space:nowrap}
 .sp{flex:1}
 .grp{display:flex;gap:2px;align-items:center;max-width:100%;min-width:0;overflow-x:auto}
@@ -106,8 +109,8 @@ let lang=store('mdw-lang')||((navigator.language||'').toLowerCase().startsWith('
 
 /* ---------- 文案与命令 ---------- */
 const T={
- zh:{title:'Markdown 编辑器',ph:'输入 / 选择格式，或直接写 Markdown',exp:'导出',open:'打开',opened:'已打开',dlmd:'下载 Markdown',dlhtml:'下载 HTML',cpmd:'复制 Markdown',cphtml:'复制 HTML',ok:'确定',none:'没有匹配的格式',copied:'已复制',fail:'复制失败',sent:'已发起导出',theme:'切换主题',clear:'清除格式',copy:'复制',cut:'剪切'},
- en:{title:'Markdown Editor',ph:'Type / for formats, or write Markdown directly',exp:'Export',open:'Open',opened:'Opened',dlmd:'Download Markdown',dlhtml:'Download HTML',cpmd:'Copy Markdown',cphtml:'Copy HTML',ok:'OK',none:'No matching format',copied:'Copied',fail:'Copy failed',sent:'Export started',theme:'Toggle theme',clear:'Clear formatting',copy:'Copy',cut:'Cut'}};
+ zh:{title:'Markdown 编辑器',ph:'输入 / 选择格式，或直接写 Markdown',exp:'导出',open:'打开',opened:'已打开',dlmd:'下载 Markdown',dlhtml:'下载 HTML',cpmd:'复制 Markdown',cphtml:'复制 HTML',ok:'确定',none:'没有匹配的格式',copied:'已复制',fail:'复制失败',sent:'已发起导出',dldone:'已导出',dlfail:'导出失败：下载接口未接通',theme:'切换主题',clear:'清除格式',copy:'复制',cut:'剪切'},
+ en:{title:'Markdown Editor',ph:'Type / for formats, or write Markdown directly',exp:'Export',open:'Open',opened:'Opened',dlmd:'Download Markdown',dlhtml:'Download HTML',cpmd:'Copy Markdown',cphtml:'Copy HTML',ok:'OK',none:'No matching format',copied:'Copied',fail:'Copy failed',sent:'Export started',dldone:'Exported',dlfail:'Export failed: download bridge not connected',theme:'Toggle theme',clear:'Clear formatting',copy:'Copy',cut:'Cut'}};
 const CM=[
  {id:'p',zh:'正文',en:'Text',k:'zhengwen zw paragraph',g:'¶'},
  {id:'h1',zh:'标题 1',en:'Heading 1',k:'biaoti bt title h1',g:'H1',s:'#'},
@@ -448,7 +451,8 @@ function toHtml(){
   return '<!DOCTYPE html>\n<html><head><meta charset="utf-8"><title>'+esc(fname())+'</title><style>'+css+'</style></head><body>\n'+c.outerHTML.replace(/^<article[^>]*>|<\/article>$/g,'')+'\n</body></html>';
 }
 function fname(){const h=ed.querySelector('h1,h2,h3,p');const t=((h&&h.textContent)||'').trim().replace(/[\\/:*?"<>|\s\u200b]+/g,'-').slice(0,40);return t||'document';}
-/* 沧海下载接口：发消息给桌面（有原生接口时写设备下载目录），同时触发一次浏览器下载兜底（独立打开时用）。 */
+/* 沧海下载接口：先问桌面能不能原生落盘，再定走哪条路——壳里的 WebView 会静默
+   丢掉浏览器下载兜底，桌面没接口时必须如实报失败、不能假装发起了导出。 */
 function toast(t){const n=$('toast');n.textContent=t;n.classList.add('on');setTimeout(()=>n.classList.remove('on'),1600);}
 async function copy(text){
   try{await navigator.clipboard.writeText(text);toast(T[lang].copied);}
@@ -458,9 +462,48 @@ function save2(name,mime,text){
   const rd=new FileReader();
   rd.onload=()=>{
     const dataUrl=rd.result;
-    try{if(window.parent&&window.parent!==window)window.parent.postMessage({canghai:'download',filename:name,dataUrl:dataUrl},'*');}catch(e){}
-    const a=document.createElement('a');a.href=dataUrl;a.download=name;document.body.appendChild(a);a.click();a.remove();
-    toast(T[lang].sent);
+    const anchor=()=>{const a=document.createElement('a');a.href=dataUrl;a.download=name;document.body.appendChild(a);a.click();a.remove();toast(T[lang].sent);};
+
+    /* 1. 优先尝试原生桥直调（独立窗口/手机外屏顶层窗口运行，window.Canghai 或 window.CanghaiCore 在当前 window） */
+    try {
+      const bridge = window.Canghai || window.Aosen || (window.parent && (window.parent.Canghai || window.parent.Aosen));
+      if (bridge && typeof bridge.saveDownload === 'function') {
+        bridge.saveDownload(name, dataUrl);
+        toast(T[lang].dldone);
+        return;
+      }
+    } catch(e) {}
+
+    try {
+      const core = window.CanghaiCore || (window.parent && window.parent.CanghaiCore);
+      const nat = window.__CanghaiNative || (window.parent && window.parent.__CanghaiNative);
+      if (nat && typeof nat.invoke === 'function') {
+        const raw = nat.invoke('device', 'saveDownload', JSON.stringify({filename: name, dataUrl: dataUrl}));
+        const res = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        if (res && res.ok && res.data && res.data.saved) {
+          toast(T[lang].dldone);
+          return;
+        }
+      }
+    } catch(e) {}
+
+    /* 2. 如果在宿主 iframe 中，向父窗口 postMessage 代理下载（桌面 / 手机主页） */
+    if (window.parent && window.parent !== window) {
+      const reqId='dl'+Date.now()+Math.floor(Math.random()*1e6);
+      let settled=false;
+      const done=(fn)=>{if(settled)return;settled=true;window.removeEventListener('message',onMsg);fn();};
+      const onMsg=(ev)=>{const m=ev&&ev.data;if(!m||m.canghai!=='downloadResult'||m.requestId!==reqId)return;
+        if(m.ok)done(()=>toast(T[lang].dldone));
+        else if(m.error==='NO_BRIDGE')done(()=>toast(T[lang].dlfail));
+        else done(anchor);};
+      window.addEventListener('message',onMsg);
+      try{window.parent.postMessage({canghai:'download',requestId:reqId,filename:name,dataUrl:dataUrl},'*');}catch(e){done(anchor);return;}
+      setTimeout(()=>done(anchor),500);
+      return;
+    }
+
+    /* 3. 兜底走浏览器下载 */
+    anchor();
   };
   rd.readAsDataURL(new Blob([text],{type:mime}));
 }

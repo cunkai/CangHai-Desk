@@ -6,7 +6,7 @@
  * 加新应用：把应用文件夹（index.html + app.json + icon.svg）拖进 canghai/apps/
  *   → 重新跑一遍生成脚本（或由安卓层启动时扫描同一批文件夹生成同一份清单覆盖）。
  * 桥（Canghai.getState().htmlApps）里再报一遍这些 id 时，桌面去重，清单优先。
- * 生成日期：2026-11-13，共 11 个应用
+ * 生成日期：2026-11-14，共 11 个应用
  * ========================================================================== */
 (function (w) {
   'use strict';
@@ -33,22 +33,6 @@
     "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"><rect width=\"128\" height=\"128\" rx=\"24\" fill=\"#0b1e33\"/><rect x=\"28\" y=\"100\" width=\"72\" height=\"10\" rx=\"3\" fill=\"#1a5a8a\" stroke=\"#c9a85c\" stroke-width=\"1.5\"/><rect x=\"30\" y=\"24\" width=\"6\" height=\"78\" rx=\"3\" fill=\"#c9a85c\"/><circle cx=\"33\" cy=\"20\" r=\"6\" fill=\"#ecd28f\"/><path d=\"M36 28h60v32H36z\" fill=\"#262548\" stroke=\"#c9a85c\" stroke-width=\"2\"/><circle cx=\"66\" cy=\"44\" r=\"11\" fill=\"#ecd28f\"/><circle cx=\"71\" cy=\"42\" r=\"9\" fill=\"#262548\"/></svg>",
     "type": "builtin",
     "desc": "跳一跳"
-  },
-  {
-    "id": "document",
-    "kind": "html",
-    "name": "文档",
-    "installed": true,
-    "url": "../apps/document/index.html",
-    "grad": "linear-gradient(160deg,#1a5a8a,#0a2a4a)",
-    "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 96 96\">\n  <rect x=\"4\" y=\"4\" width=\"88\" height=\"88\" rx=\"20\" fill=\"#0a1628\"/>\n  <rect x=\"4\" y=\"4\" width=\"88\" height=\"88\" rx=\"20\" fill=\"none\" stroke=\"#c9a85c\" stroke-width=\"2\" opacity=\"0.7\"/>\n  <path d=\"M32 22 h22 l12 12 v40 a4 4 0 0 1 -4 4 H32 a4 4 0 0 1 -4 -4 V26 a4 4 0 0 1 4 -4 z\" fill=\"none\" stroke=\"#ecd28f\" stroke-width=\"3\" stroke-linejoin=\"round\"/>\n  <path d=\"M54 22 v12 h12\" fill=\"none\" stroke=\"#ecd28f\" stroke-width=\"3\" stroke-linejoin=\"round\"/>\n  <line x1=\"38\" y1=\"46\" x2=\"58\" y2=\"46\" stroke=\"#ecd28f\" stroke-width=\"3\" stroke-linecap=\"round\"/>\n  <line x1=\"38\" y1=\"56\" x2=\"58\" y2=\"56\" stroke=\"#ecd28f\" stroke-width=\"3\" stroke-linecap=\"round\"/>\n  <line x1=\"38\" y1=\"66\" x2=\"50\" y2=\"66\" stroke=\"#ecd28f\" stroke-width=\"3\" stroke-linecap=\"round\"/>\n</svg>",
-    "type": "builtin",
-    "desc": "文档",
-    "handles": [
-      "doc",
-      "docx"
-    ],
-    "iface": "CanghaiDocument"
   },
   {
     "id": "markdown",
@@ -133,6 +117,27 @@
     "desc": "打字练习"
   },
   {
+    "id": "office",
+    "kind": "html",
+    "name": "办公套件",
+    "installed": true,
+    "url": "../apps/office/index.html",
+    "grad": "linear-gradient(160deg,#1a5a8a,#0a2a4a)",
+    "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 100 100\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#123c61\"/><stop offset=\"1\" stop-color=\"#0a2a4a\"/></linearGradient></defs><rect width=\"100\" height=\"100\" rx=\"22\" fill=\"url(#g)\"/><path d=\"M30 20h28l12 12v48H30z\" fill=\"none\" stroke=\"#c9a85c\" stroke-width=\"3.5\" stroke-linejoin=\"round\"/><path d=\"M58 20v12h12\" fill=\"none\" stroke=\"#c9a85c\" stroke-width=\"3.5\" stroke-linejoin=\"round\"/><path d=\"M39 44h22M39 54h22M39 64h13\" stroke=\"#ecd28f\" stroke-width=\"3.5\" stroke-linecap=\"round\"/></svg>",
+    "type": "builtin",
+    "desc": "办公套件",
+    "handles": [
+      "docx",
+      "txt",
+      "md",
+      "xlsx",
+      "xls",
+      "csv",
+      "pptx"
+    ],
+    "iface": "CanghaiOffice"
+  },
+  {
     "id": "photo-editor",
     "kind": "html",
     "name": "图片编辑器",
@@ -141,7 +146,16 @@
     "grad": "linear-gradient(160deg,#1a5a8a,#0a2a4a)",
     "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><rect width=\"64\" height=\"64\" rx=\"14\" fill=\"#0a1628\"/><g transform=\"translate(33,3) scale(1.15)\"><path d=\"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z\" fill=\"#ecd28f\"/></g><path d=\"M8 50 22 34l10 10 6-7 18 13\" fill=\"none\" stroke=\"#c9a85c\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
     "type": "builtin",
-    "desc": "图片编辑器"
+    "desc": "图片编辑器",
+    "handles": [
+      "png",
+      "jpg",
+      "jpeg",
+      "webp",
+      "gif",
+      "bmp"
+    ],
+    "iface": "CanghaiPhotoEditor"
   }
 ];
   APPS.forEach(function (a) { w.CHApps.registerBuiltinApp(a); });

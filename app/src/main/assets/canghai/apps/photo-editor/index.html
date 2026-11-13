@@ -771,6 +771,20 @@ $('dl').onclick = async () => {
   const rd = new FileReader();
   rd.onload = () => {
     const dataUrl = rd.result;
+    var saved = false;
+    try {
+      if (window.Canghai && typeof window.Canghai.saveDownload === 'function') {
+        window.Canghai.saveDownload(name, dataUrl);
+        saved = true;
+      } else if (window.Aosen && typeof window.Aosen.saveDownload === 'function') {
+        window.Aosen.saveDownload(name, dataUrl);
+        saved = true;
+      }
+    } catch (e) {}
+    if (saved) {
+      toast('已保存至下载目录');
+      return;
+    }
     if (window.parent && window.parent !== window) {
       window.parent.postMessage({ type: 'download', filename: name, dataUrl }, '*');
     } else {
@@ -829,6 +843,11 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && LB.open) c
 /* ---------------- 选择 / 拖拽 / 粘贴 ---------------- */
 $('addBtn').onclick = $('pickBtn').onclick = () => $('file').click();
 $('file').onchange = () => { if ($('file').files.length) addFiles($('file').files); $('file').value = ''; };
+window.CanghaiPhotoEditor = {
+  openFile: function(file) {
+    if (file) addFiles([file]);
+  }
+};
 ['dragenter', 'dragover'].forEach(n => document.addEventListener(n, e => {
   if (!e.dataTransfer || ![...(e.dataTransfer.types || [])].includes('Files')) return;
   e.preventDefault(); document.body.classList.add('drag');

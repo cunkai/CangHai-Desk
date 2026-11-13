@@ -590,21 +590,30 @@ public final class CanghaiStore {
         return sid == null ? null : "file:///android_asset/" + BUILTIN_ROOT + sid + "/index.html";
     }
 
-    /** 内置应用显示名：app.json 的 name，取不到就退回 id。 */
-    public static String builtinAppName(Context c, String id) {
+    /** 获取内置应用 app.json 解析结果对象。 */
+    public static JSONObject builtinAppMeta(Context c, String id) {
         String sid = safeBuiltinId(id);
-        if (sid == null) return id == null ? "" : id;
+        if (sid == null) return null;
         try (InputStream in = c.getAssets().open(BUILTIN_ROOT + sid + "/app.json")) {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             byte[] buf = new byte[4096];
             int n;
             while ((n = in.read(buf)) > 0) bos.write(buf, 0, n);
-            JSONObject o = new JSONObject(new String(bos.toByteArray(), StandardCharsets.UTF_8));
+            return new JSONObject(new String(bos.toByteArray(), StandardCharsets.UTF_8));
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
+    /** 内置应用显示名：app.json 的 name，取不到就退回 id。 */
+    public static String builtinAppName(Context c, String id) {
+        JSONObject o = builtinAppMeta(c, id);
+        if (o != null) {
             String nm = o.optString("name", "");
             if (!nm.isEmpty()) return nm;
-        } catch (Throwable ignored) {
         }
-        return sid;
+        String sid = safeBuiltinId(id);
+        return sid != null ? sid : (id == null ? "" : id);
     }
 
     /** 兼容旧调用：不带渲染 PNG。 */

@@ -147,6 +147,55 @@
                 <data android:pathPattern=".*\\.%E6%B2%A7%E6%B5%B7%E8%BD%AF%E4%BB%B6" />
                 <data android:pathPattern=".*\\.%e6%b2%a7%e6%b5%b7%e8%bd%af%e4%bb%b6" />
             </intent-filter>
+            <!-- 4. 沧海内置工具支持的文档/图片等外部格式打开关联 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/x-markdown" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" />
+                <data android:mimeType="application/vnd.openxmlformats-officedocument.presentationml.presentation" />
+                <data android:mimeType="text/csv" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:pathPattern=".*\\.md" />
+                <data android:pathPattern=".*\\.markdown" />
+                <data android:pathPattern=".*\\.docx" />
+                <data android:pathPattern=".*\\.xlsx" />
+                <data android:pathPattern=".*\\.pptx" />
+                <data android:pathPattern=".*\\.csv" />
+                <data android:pathPattern=".*\\.txt" />
+                <data android:pathPattern=".*\\.png" />
+                <data android:pathPattern=".*\\.jpg" />
+                <data android:pathPattern=".*\\.jpeg" />
+                <data android:pathPattern=".*\\.webp" />
+                <data android:pathPattern=".*\\.gif" />
+                <data android:pathPattern=".*\\.bmp" />
+                <data android:pathSuffix=".md" />
+                <data android:pathSuffix=".markdown" />
+                <data android:pathSuffix=".docx" />
+                <data android:pathSuffix=".xlsx" />
+                <data android:pathSuffix=".pptx" />
+                <data android:pathSuffix=".csv" />
+                <data android:pathSuffix=".txt" />
+                <data android:pathSuffix=".png" />
+                <data android:pathSuffix=".jpg" />
+                <data android:pathSuffix=".jpeg" />
+                <data android:pathSuffix=".webp" />
+                <data android:pathSuffix=".gif" />
+                <data android:pathSuffix=".bmp" />
+            </intent-filter>
         </activity>
 
         <activity

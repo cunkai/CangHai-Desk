@@ -77,6 +77,8 @@ public class HtmlAppActivity extends Activity {
 
     public static final String EXTRA_APP_ID = "app_id";
     public static final String EXTRA_APP_TITLE = "app_title";
+    public static final String EXTRA_OPEN_FILE_URI = "open_file_uri";
+    public static final String EXTRA_OPEN_FILE_NAME = "open_file_name";
 
     /** 手机端打包源码工程时留的运行时占位标记，两侧必须一致。 */
 
@@ -204,6 +206,17 @@ public class HtmlAppActivity extends Activity {
                 return handleFileChooser(filePathCallback, fileChooserParams);
             }
         });
+        web.setDownloadListener((url, userAgent, contentDisposition, mimetype, contentLength) -> {
+            try {
+                String filename = android.webkit.URLUtil.guessFileName(url, contentDisposition, mimetype);
+                CanghaiCore.saveDownloadDirect(HtmlAppActivity.this, filename, url);
+                runOnUiThread(() -> Toast("已保存至下载目录: " + filename));
+            } catch (Throwable t) {
+                Log.w(TAG, "下载失败: " + t.getMessage(), t);
+                runOnUiThread(() -> Toast("保存失败: " + t.getMessage()));
+            }
+        });
+
         /* 旋转 / 尺寸变化通知：resize 系统本来就发，这里补一个带像素尺寸的 aosen:resize；
            顺便装上音频守护，按 Home 之后不会在后台继续放声音。 */
         final String boot = "<script>(function(){"
@@ -215,6 +228,12 @@ public class HtmlAppActivity extends Activity {
                 + "})();</script>";
 
         web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                deliverIncomingFileIfNeeded();
+            }
+
             @Override
             public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
                 Log.w(TAG, "HtmlAppActivity onRenderProcessGone: didCrash=" + (detail != null && detail.didCrash()));
@@ -443,6 +462,93 @@ public class HtmlAppActivity extends Activity {
         } catch (Throwable t) {
             Log.w(TAG, "resumePage: " + t);
         }
+    }
+
+    private boolean fileDelivered = false;
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        fileDelivered = false;
+        deliverIncomingFileIfNeeded();
+    }
+
+    private void deliverIncomingFileIfNeeded() {
+        Intent it = getIntent();
+        if (it == null) return;
+        String uriStr = it.getStringExtra(EXTRA_OPEN_FILE_URI);
+        if (uriStr == null && it.getData() != null) {
+            uriStr = it.getData().toString();
+        }
+        if (uriStr == null || uriStr.isEmpty()) return;
+        if (fileDelivered) return;
+        fileDelivered = true;
+
+        String fName = it.getStringExtra(EXTRA_OPEN_FILE_NAME);
+        if (fName == null || fName.isEmpty()) {
+            try {
+                Uri u = Uri.parse(uriStr);
+                if ("content".equals(u.getScheme())) {
+                    try (android.database.Cursor c = getContentResolver().query(
+                            u, new String[]{android.provider.OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+                        if (c != null && c.moveToFirst()) fName = c.getString(0);
+                    }
+                }
+                if (fName == null || fName.isEmpty()) fName = u.getLastPathSegment();
+            } catch (Throwable ignored) {}
+        }
+        if (fName == null || fName.isEmpty()) fName = "file";
+        final String finalName = fName;
+        final String finalUri = uriStr;
+
+        new Thread(() -> {
+            try {
+                Uri u = Uri.parse(finalUri);
+                byte[] data;
+                try (InputStream in = getContentResolver().openInputStream(u);
+                     java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream()) {
+                    if (in == null) return;
+                    byte[] buf = new byte[32768];
+                    int n;
+                    while ((n = in.read(buf)) > 0) bos.write(buf, 0, n);
+                    data = bos.toByteArray();
+                }
+                final String b64 = Base64.encodeToString(data, Base64.NO_WRAP);
+                String iface = "";
+                if (builtin) {
+                    org.json.JSONObject meta = CanghaiStore.builtinAppMeta(this, appId);
+                    if (meta != null) iface = meta.optString("iface", "");
+                }
+                final String finalIface = iface;
+                runOnUiThread(() -> {
+                    if (web == null) return;
+                    String script = "(function(){\n"
+                            + "  try {\n"
+                            + "    var bin = atob('" + b64 + "');\n"
+                            + "    var len = bin.length;\n"
+                            + "    var u8 = new Uint8Array(len);\n"
+                            + "    for (var i = 0; i < len; i++) u8[i] = bin.charCodeAt(i);\n"
+                            + "    var file = new File([u8], " + org.json.JSONObject.quote(finalName) + ");\n"
+                            + "    var iface = " + org.json.JSONObject.quote(finalIface) + ";\n"
+                            + "    var api = iface ? window[iface] : null;\n"
+                            + "    if (!api) {\n"
+                            + "      var cand = ['CanghaiMarkdown', 'CanghaiDocument', 'CanghaiPhotoEditor', 'CanghaiOffice'];\n"
+                            + "      for (var j = 0; j < cand.length; j++) {\n"
+                            + "        if (window[cand[j]] && typeof window[cand[j]].openFile === 'function') { api = window[cand[j]]; break; }\n"
+                            + "      }\n"
+                            + "    }\n"
+                            + "    if (api && typeof api.openFile === 'function') {\n"
+                            + "      api.openFile(file);\n"
+                            + "    }\n"
+                            + "  } catch(e) { console.warn('deliver file error', e); }\n"
+                            + "})();";
+                    web.evaluateJavascript(script, null);
+                });
+            } catch (Throwable t) {
+                Log.w(TAG, "deliverIncomingFileIfNeeded error", t);
+            }
+        }, "ch-deliver-file").start();
     }
 
     @Override
@@ -1007,6 +1113,20 @@ public class HtmlAppActivity extends Activity {
         @JavascriptInterface
         public void closeWindow() {
             runOnUiThread(HtmlAppActivity.this::finish);
+        }
+
+        /** 页面保存下载文件：写到系统公共下载目录并提示 */
+        @JavascriptInterface
+        public String saveDownload(final String filename, final String dataUrl) {
+            try {
+                org.json.JSONObject res = CanghaiCore.saveDownloadDirect(HtmlAppActivity.this, filename, dataUrl);
+                runOnUiThread(() -> Toast("已保存至下载目录: " + res.optString("name")));
+                return res.toString();
+            } catch (Throwable t) {
+                Log.w(TAG, "saveDownload 失败: " + t.getMessage(), t);
+                runOnUiThread(() -> Toast("保存失败: " + t.getMessage()));
+                return "{\"saved\":false,\"error\":\"" + t.getMessage() + "\"}";
+            }
         }
 
         /**
