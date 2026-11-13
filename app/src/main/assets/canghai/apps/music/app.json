@@ -1,0 +1,1 @@
+{"entry": "index.html", "handles": ["mp3", "flac", "wav", "ogg", "oga", "m4a", "aac", "opus", "wma", "aif", "aiff"], "icon": "icon.svg", "iface": "CanghaiMusic", "name": "音乐播放器", "perf": {"bg": 5, "dpr": 1.5, "fg": 60}}

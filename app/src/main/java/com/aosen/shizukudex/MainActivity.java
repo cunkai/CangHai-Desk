@@ -1192,7 +1192,7 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
             AppTarget(String i, String n) { id = i; name = n; }
         }
         List<AppTarget> matched = new ArrayList<>();
-        String[] builtins = new String[]{"markdown", "document", "photo-editor", "office"};
+        String[] builtins = new String[]{"markdown", "document", "photo-editor", "office", "music"};
         for (String bId : builtins) {
             org.json.JSONObject meta = CanghaiStore.builtinAppMeta(this, bId);
             if (meta != null && meta.has("handles")) {

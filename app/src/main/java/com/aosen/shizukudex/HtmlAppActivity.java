@@ -533,7 +533,7 @@ public class HtmlAppActivity extends Activity {
                             + "    var iface = " + org.json.JSONObject.quote(finalIface) + ";\n"
                             + "    var api = iface ? window[iface] : null;\n"
                             + "    if (!api) {\n"
-                            + "      var cand = ['CanghaiMarkdown', 'CanghaiDocument', 'CanghaiPhotoEditor', 'CanghaiOffice'];\n"
+                            + "      var cand = ['CanghaiMarkdown', 'CanghaiDocument', 'CanghaiPhotoEditor', 'CanghaiOffice', 'CanghaiMusic'];\n"
                             + "      for (var j = 0; j < cand.length; j++) {\n"
                             + "        if (window[cand[j]] && typeof window[cand[j]].openFile === 'function') { api = window[cand[j]]; break; }\n"
                             + "      }\n"

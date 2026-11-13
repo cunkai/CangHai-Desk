@@ -6,7 +6,7 @@
  * 加新应用：把应用文件夹（index.html + app.json + icon.svg）拖进 canghai/apps/
  *   → 重新跑一遍生成脚本（或由安卓层启动时扫描同一批文件夹生成同一份清单覆盖）。
  * 桥（Canghai.getState().htmlApps）里再报一遍这些 id 时，桌面去重，清单优先。
- * 生成日期：2026-11-14，共 11 个应用
+ * 生成日期：2026-11-13，共 12 个应用
  * ========================================================================== */
 (function (w) {
   'use strict';
@@ -33,6 +33,17 @@
     "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 128 128\"><rect width=\"128\" height=\"128\" rx=\"24\" fill=\"#0b1e33\"/><rect x=\"28\" y=\"100\" width=\"72\" height=\"10\" rx=\"3\" fill=\"#1a5a8a\" stroke=\"#c9a85c\" stroke-width=\"1.5\"/><rect x=\"30\" y=\"24\" width=\"6\" height=\"78\" rx=\"3\" fill=\"#c9a85c\"/><circle cx=\"33\" cy=\"20\" r=\"6\" fill=\"#ecd28f\"/><path d=\"M36 28h60v32H36z\" fill=\"#262548\" stroke=\"#c9a85c\" stroke-width=\"2\"/><circle cx=\"66\" cy=\"44\" r=\"11\" fill=\"#ecd28f\"/><circle cx=\"71\" cy=\"42\" r=\"9\" fill=\"#262548\"/></svg>",
     "type": "builtin",
     "desc": "跳一跳"
+  },
+  {
+    "id": "file-manager",
+    "kind": "html",
+    "name": "我的文件",
+    "installed": true,
+    "url": "../apps/file-manager/index.html",
+    "grad": "linear-gradient(160deg,#1a5a8a,#0a2a4a)",
+    "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><path d=\"M8 20a5 5 0 0 1 5-5h11.4c1.6 0 3.1.7 4 1.9L32 21h19a5 5 0 0 1 5 5v2H8z\" fill=\"#b18e46\"/><path d=\"M8 27h48v19a5 5 0 0 1-5 5H13a5 5 0 0 1-5-5z\" fill=\"#ecd28f\"/><path d=\"M8 27h48v4.5H8z\" fill=\"#f4e3b2\"/><path d=\"M8 27h48v19a5 5 0 0 1-5 5H13a5 5 0 0 1-5-5z\" fill=\"none\" stroke=\"#0a2a4a\" stroke-opacity=\".25\" stroke-width=\"1.5\"/></svg>",
+    "type": "builtin",
+    "desc": "我的文件"
   },
   {
     "id": "markdown",
@@ -130,6 +141,8 @@
       "docx",
       "txt",
       "md",
+      "html",
+      "htm",
       "xlsx",
       "xls",
       "csv",
@@ -146,16 +159,7 @@
     "grad": "linear-gradient(160deg,#1a5a8a,#0a2a4a)",
     "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><rect width=\"64\" height=\"64\" rx=\"14\" fill=\"#0a1628\"/><g transform=\"translate(33,3) scale(1.15)\"><path d=\"M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z\" fill=\"#ecd28f\"/></g><path d=\"M8 50 22 34l10 10 6-7 18 13\" fill=\"none\" stroke=\"#c9a85c\" stroke-width=\"3.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>",
     "type": "builtin",
-    "desc": "图片编辑器",
-    "handles": [
-      "png",
-      "jpg",
-      "jpeg",
-      "webp",
-      "gif",
-      "bmp"
-    ],
-    "iface": "CanghaiPhotoEditor"
+    "desc": "图片编辑器"
   }
 ];
   APPS.forEach(function (a) { w.CHApps.registerBuiltinApp(a); });
