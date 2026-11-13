@@ -1,0 +1,53 @@
+/* ==========================================================================
+ * 沧海 · Dock 栏唯一样式（外屏桌面 + 独立悬浮层共用）
+ * 改这里，桌面和悬浮层同时生效，不会出现两套 Dock 长得不一样。
+ * 依赖 head 里定义的 --surge 等 CSS 变量。
+ * ========================================================================== */
+/* 分辨率缩放 --rs（uiscale.js 按视口相对 1920×1080 算，低 0.72 / 高 1.6 夹紧）；
+   海拔阴影（Material Components Web 三层值）；--overshoot 只给 bounce 这类要回弹的 */
+:root{--rs:1;--overshoot:cubic-bezier(.22,1.18,.36,1);
+  --elev-1:0 2px 1px -1px rgba(0,0,0,.20),0 1px 1px 0 rgba(0,0,0,.14),0 1px 3px 0 rgba(0,0,0,.12);
+  --elev-3:0 3px 5px -1px rgba(0,0,0,.20),0 6px 10px 0 rgba(0,0,0,.14),0 1px 18px 0 rgba(0,0,0,.12)}
+/* ---------- Dock ---------- */
+#dockWrap{position:absolute;z-index:700;display:flex;pointer-events:none;bottom:calc(8px * var(--rs));left:0;right:0;justify-content:center;transition:transform .3s var(--surge)}
+#dockWrap.pos-bottom{left:0;right:0;bottom:calc(8px * var(--rs));justify-content:center}
+#dockWrap.hideDock.pos-bottom{transform:translateY(calc(100% + 18px))}
+/* 观海 · 碣石为岸：本体沉稳固定，图标不跳高不放大，杜绝裁切与抖动 */
+#dock{pointer-events:auto;display:flex;align-items:center;gap:calc(8px * var(--rs));padding:calc(6px * var(--rs)) calc(10px * var(--rs));border-radius:calc(20px * var(--rs));position:relative;
+  background:rgba(8,20,36,.68);backdrop-filter:blur(24px) saturate(1.5);-webkit-backdrop-filter:blur(24px) saturate(1.5);
+  border:1px solid rgba(255,255,255,.16);box-shadow:var(--elev-1),inset 0 1px 0 rgba(255,255,255,.22);
+  max-width:80vw;box-sizing:border-box}
+.dockItem{position:relative;width:calc(48px * var(--rs));height:calc(48px * var(--rs));display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;flex:none}
+.dockIcon{width:calc(44px * var(--rs));height:calc(44px * var(--rs));border-radius:calc(12px * var(--rs));display:flex;align-items:center;justify-content:center;
+  box-shadow:var(--elev-1),inset 0 1px 0 rgba(255,255,255,.35);
+  transition:filter .15s,box-shadow .15s}
+/* 鼠标 hover 图标从设计上杜绝调高与放大，只高亮光晕，不超出 Dock 栏 */
+.dockItem:hover .dockIcon{filter:brightness(1.18) contrast(1.05);box-shadow:0 0 0 2px rgba(236,210,143,.7),0 4px 12px rgba(0,0,0,.4);transform:none !important}
+.dockItem:active .dockIcon{transform:scale(.95) !important}
+.dockItem:focus{outline:none}
+.dockItem:focus .dockIcon,.dockItem.gamepad-focused .dockIcon{box-shadow:0 0 0 3px #ecd28f,0 0 14px rgba(201,168,92,.55);filter:brightness(1.22)}
+.dockItem:focus .dockTip,.dockItem.gamepad-focused .dockTip{opacity:1}
+.dockIcon svg{width:calc(26px * var(--rs));height:calc(26px * var(--rs))}
+.dockItem.recent .dockIcon{filter:saturate(.85) brightness(1.02)}
+/* 悬浮软件名：在图标正下方显示，完全居于 Dock 胶囊内部，绝不超过 Dock 大小 */
+.dockTip{position:absolute;bottom:0px;left:50%;transform:translateX(-50%);opacity:0;pointer-events:none;
+  background:rgba(8,18,30,.92);border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:1px 5px;
+  font-size:calc(10.5px * var(--rs));font-weight:600;color:#fff;white-space:nowrap;transition:opacity .14s;z-index:99;
+  box-shadow:0 2px 6px rgba(0,0,0,.6);max-width:76px;overflow:hidden;text-overflow:ellipsis}
+.dockItem:hover .dockTip{opacity:1}
+/* 运行指示：图标底部小圆点或倒影 */
+.runDot{position:absolute;bottom:1px;left:50%;transform:translateX(-50%);width:4px;height:4px;border-radius:50%;opacity:0;transition:opacity .2s,background .2s;
+  background:rgba(255,255,255,.8);box-shadow:0 0 4px rgba(201,168,92,.8)}
+.dockItem.running .runDot{opacity:1;background:#ecd28f;width:12px;border-radius:3px}
+.dockItem.minned .runDot{opacity:.85;background:rgba(255,255,255,.7);width:4px;border-radius:50%}
+/* 悬浮层自动隐藏 */
+body.dock-hidden #dockWrap{transform:translateY(calc(100% + 18px));opacity:0;pointer-events:none}
+body.dock-hidden #dockWrap{transition:transform .3s var(--surge),opacity .22s}
+.dockSep{width:1px;height:calc(28px * var(--rs));margin:0 4px;background:rgba(255,255,255,.25);flex:none;align-self:center}
+.dockItem.bounce .dockIcon{animation:bounce .6s var(--overshoot)}
+@keyframes bounce{0%{transform:translateY(0)}35%{transform:translateY(-26px)}70%{transform:translateY(0)}85%{transform:translateY(-9px)}100%{transform:translateY(0)}}
+#dockWrap.pos-left .dockItem.bounce .dockIcon{animation-name:bounceL}
+#dockWrap.pos-right .dockItem.bounce .dockIcon{animation-name:bounceR}
+@keyframes bounceL{0%{transform:translateX(0)}35%{transform:translateX(26px)}70%{transform:translateX(0)}85%{transform:translateX(9px)}100%{transform:translateX(0)}}
+@keyframes bounceR{0%{transform:translateX(0)}35%{transform:translateX(-26px)}70%{transform:translateX(0)}85%{transform:translateX(-9px)}100%{transform:translateX(0)}}
+@media (max-width:640px){ .dockIcon{width:calc(40px * var(--rs));height:calc(40px * var(--rs));border-radius:11px} .dockIcon svg{width:calc(24px * var(--rs));height:calc(24px * var(--rs))} .dockItem{width:calc(41px * var(--rs))} #dock{gap:calc(3px * var(--rs));padding:calc(7px * var(--rs)) calc(7px * var(--rs));border-radius:20px} .dockSep{margin:2px 1px} .dockItem .ripple{width:calc(42px * var(--rs));height:calc(42px * var(--rs));margin:calc(-21px * var(--rs)) 0 0 calc(-21px * var(--rs));top:calc(20px * var(--rs))} }

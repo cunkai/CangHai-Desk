@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>局域网大厅</title>
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:#0b1622;color:#e8f1fa;
+    font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+  .wrap{display:flex;flex-direction:column;height:100%}
+  .bar{display:flex;align-items:center;gap:8px;padding:8px 12px;
+    border-bottom:1px solid rgba(120,175,220,.16);background:#0f1e2e}
+  .dot{width:7px;height:7px;border-radius:50%;background:#6b7d8d;flex:none}
+  .dot.on{background:#4ade80}
+  .dot.off{background:#f87171}
+  .bar b{font-size:14px;font-weight:600;flex:none}
+  .bar span{font-size:11px;color:#8fa8bd;flex:1;overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .box{padding:8px 12px;background:#0d1a28;border-bottom:1px solid rgba(120,175,220,.1)}
+  .addr{display:flex;align-items:center;gap:8px}
+  .addr .u{flex:1;min-width:0;font:13px/1.6 ui-monospace,Consolas,monospace;
+    color:#8fe0b0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;user-select:all}
+  .pin{display:flex;align-items:baseline;gap:8px;margin-top:4px}
+  .pin .n{font:700 24px/1.1 ui-monospace,Consolas,monospace;letter-spacing:6px;
+    color:#ffd479;user-select:all}
+  .pin .t{font-size:11px;color:#6f879b}
+  button{border:1px solid rgba(120,175,220,.28);background:#17324b;color:#dcecf9;
+    border-radius:8px;padding:5px 10px;font-size:12px;cursor:pointer;flex:none}
+  button:hover{background:#1e4366}
+  .stage{flex:1;min-height:0;position:relative}
+  iframe{width:100%;height:100%;border:0;background:#0b1622;display:block}
+  .hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    text-align:center;padding:20px;font-size:12px;color:#8fa8bd;background:#0b1622}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <span class="dot" id="dot"></span>
+    <b>局域网大厅</b>
+    <span id="state">连接中…</span>
+  </div>
+  <div class="box">
+    <div class="addr">
+      <span class="u" id="lanUrl">--</span>
+      <button id="btnCopy">复制</button>
+    </div>
+    <div class="pin">
+      <span class="n" id="pin">------</span>
+      <span class="t">其它设备打开上面地址，输这 6 位</span>
+    </div>
+  </div>
+  <div class="stage">
+    <iframe id="frame" title="大厅"></iframe>
+    <div class="hint" id="hint">正在打开大厅…</div>
+  </div>
+</div>
+<script>
+(function(){
+  'use strict';
+  var LOC = 'http://127.0.0.1:53317/';
+  var $ = function(id){ return document.getElementById(id); };
+  var cur = '';
+
+  function invoke(ns, method, payload){
+    try{
+      var n = window.__CanghaiNative || (window.parent && window.parent.__CanghaiNative);
+      if(!n || !n.invoke) return null;
+      var raw = n.invoke(ns, method, JSON.stringify(payload || {}));
+      var r = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+      return (r && r.ok) ? r.data : null;
+    }catch(e){ return null; }
+  }
+
+  function copy(t){
+    try{
+      var ta = document.createElement('textarea');
+      ta.value = t;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if(ok) return true;
+    }catch(e){}
+    return false;
+  }
+
+  function refresh(){
+    var d = invoke('lan', 'status') || {};
+    var lan = d.lanUrl || '';
+    var url = d.url || LOC;
+    $('lanUrl').textContent = lan || '无局域网地址（先连 Wi-Fi）';
+    $('pin').textContent = d.pairCode || '------';
+    $('dot').className = 'dot ' + (d.port ? (d.ready ? 'on' : '') : 'off');
+    $('state').textContent = d.ready ? ('运行中 ' + d.port) : (d.port ? '启动中' : '未启动');
+    if(cur !== url){ cur = url; $('frame').src = url; }
+  }
+
+  $('btnCopy').addEventListener('click', function(){
+    var t = $('lanUrl').textContent;
+    if(!/^http/.test(t)){ $('state').textContent = '还没有地址'; return; }
+    $('state').textContent = copy(t) ? '已复制' : '复制失败，长按上面的地址';
+  });
+
+  $('frame').addEventListener('load', function(){ $('hint').style.display = 'none'; });
+
+  refresh();
+  setTimeout(refresh, 1200);
+  setTimeout(refresh, 3500);
+})();
+</script>
+</body>
+</html>

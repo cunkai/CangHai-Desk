@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2048</title>
+<style>
+:root{--ink:#ffe3ef;--muted:#d9a8cc;--pink:#ff5f9a;--rose:#ff6f9e;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;margin:0}
+body{background:radial-gradient(ellipse at 50% 44%,rgba(255,92,142,.22) 0%,transparent 55%),radial-gradient(ellipse at 50% 40%,#5b2a72 0%,#3a1650 48%,#1d0930 100%);color:var(--ink);font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;display:flex;flex-direction:column;overflow:hidden;user-select:none}
+#deco{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+#deco i{position:absolute;display:block}
+.bub{border-radius:50%;border:1.5px solid rgba(255,255,255,.55);background:radial-gradient(circle at 30% 28%,rgba(255,255,255,.75),rgba(255,255,255,.06) 55%);box-shadow:0 0 12px rgba(255,255,255,.18)}
+.spk{color:#ffd9a0;font-style:normal;text-shadow:0 0 10px rgba(255,200,120,.9),0 0 4px #fff}
+.spk.pink{color:#ff9ec6;text-shadow:0 0 10px rgba(255,120,170,.9),0 0 4px #fff}
+.gum{width:44px;height:44px;border-radius:15px;background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.9),transparent 42%),var(--c);box-shadow:inset -5px -7px 10px rgba(0,0,0,.18),0 0 20px rgba(255,255,255,.15)}
+.bok{border-radius:50%;background:radial-gradient(circle,rgba(255,120,170,.20),rgba(255,120,170,0) 70%)}
+.bok.violet{background:radial-gradient(circle,rgba(168,85,247,.22),rgba(168,85,247,0) 70%)}
+/* background life (user-approved exception to the no-infinite-animation rule:
+   transform/opacity only, very slow, pauses when the page is hidden) */
+@keyframes drift{from{transform:translate(0,0)}to{transform:translate(var(--dx,10px),var(--dy,-12px))}}
+@keyframes bob{from{transform:rotate(var(--rot,0deg)) translateY(-5px)}to{transform:rotate(var(--rot,0deg)) translateY(5px)}}
+@keyframes twinkle{from{opacity:.5;transform:scale(.85) rotate(0deg)}to{opacity:1;transform:scale(1.08) rotate(12deg)}}
+@keyframes breathe{from{opacity:.65;transform:translate(0,0) scale(1)}to{opacity:1;transform:translate(var(--dx,12px),var(--dy,8px)) scale(1.06)}}
+#deco .bub{animation:drift var(--dur,14s) ease-in-out var(--del,0s) infinite alternate}
+#deco .spk{animation:twinkle var(--dur,4s) ease-in-out var(--del,0s) infinite alternate}
+#deco .gum{animation:bob var(--dur,12s) ease-in-out var(--del,0s) infinite alternate}
+#deco .bok{animation:breathe var(--dur,24s) ease-in-out var(--del,0s) infinite alternate}
+#deco.paused *{animation-play-state:paused}
+@media (prefers-reduced-motion:reduce){#deco *{animation:none}}
+header,#stage{position:relative;z-index:1}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:18px 18px 2px;max-width:620px;width:100%;margin:0 auto}
+h1{margin:0;font-size:clamp(27px,7.2vw,38px);line-height:1.1;font-weight:800;letter-spacing:2px;white-space:nowrap;filter:drop-shadow(0 2px 0 #e85a8a) drop-shadow(0 5px 0 #a81e55) drop-shadow(0 8px 12px rgba(0,0,0,.45))}
+h1 .berry{font-size:.85em;margin-right:2px}
+h1 .grad{background:linear-gradient(180deg,#ffffff 5%,#ffe9f2 38%,#ff9ebb 78%,#ff7ba8 100%);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+.tr{display:flex;flex-direction:column;align-items:flex-end;gap:10px;flex-shrink:0}
+.scores{display:flex;gap:8px}
+.sc{position:relative;overflow:hidden;background:rgba(43,18,66,.72);border:1.5px solid rgba(255,255,255,.28);border-radius:18px;padding:5px 14px;text-align:center;min-width:70px;box-shadow:0 4px 16px rgba(0,0,0,.35),inset 0 2px 0 rgba(255,255,255,.15)}
+.sc::before{content:'';position:absolute;top:5px;left:9px;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 0 6px #fff}
+.sc small{display:block;font-size:13px;color:var(--muted);letter-spacing:1px}
+.sc span{font-size:21px;font-weight:800;display:inline-block;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.35);font-variant-numeric:tabular-nums}
+.sc span.bump{animation:bump .3s cubic-bezier(.3,1.8,.5,1)}
+@keyframes bump{0%{transform:scale(1)}40%{transform:scale(1.22)}100%{transform:scale(1)}}
+button{font:inherit;font-weight:700;border:0;border-radius:999px;padding:10px 18px;white-space:nowrap;color:#fff;text-shadow:0 2px 3px rgba(150,10,60,.4);background:linear-gradient(#ff9ab8,#ff5c8e);box-shadow:0 5px 18px rgba(255,92,142,.5),inset 0 3px 0 rgba(255,255,255,.55),inset 0 -3px 0 rgba(180,20,80,.35);cursor:pointer;transition:transform .15s cubic-bezier(.3,1.8,.5,1)}
+button:active{transform:translateY(2px) scale(1.05,.92)}
+button:focus-visible{outline:3px solid #ffd94d;outline-offset:2px}
+.btnRow{display:flex;gap:8px}
+.btnRow button{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+#snd{padding:10px 14px;background:rgba(43,18,66,.72);color:#fff;text-shadow:none;border:1.5px solid rgba(255,255,255,.28);box-shadow:0 4px 16px rgba(0,0,0,.35),inset 0 2px 0 rgba(255,255,255,.15)}
+#stage{flex:1;min-height:0;touch-action:none}
+#stage::after{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,rgba(255,217,77,.22),rgba(255,217,77,0) 62%);opacity:0;z-index:2}
+#stage.pulse::after{animation:stagePulse .9s ease-out forwards}
+@keyframes stagePulse{0%{opacity:0}22%{opacity:1}100%{opacity:0}}
+canvas{display:block;width:100%;height:100%}
+#ov{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(26,10,46,.82);text-align:center}
+#ov.on{display:flex;animation:pop .5s cubic-bezier(.3,1.8,.5,1)}
+#ov .card{background:rgba(58,22,80,.94);border:1.5px solid rgba(255,255,255,.22);border-radius:28px;padding:30px 38px 26px;box-shadow:0 18px 44px rgba(0,0,0,.5),inset 0 2px 0 rgba(255,255,255,.12);display:flex;flex-direction:column;align-items:center;gap:12px}
+#ov h2{margin:0;font-size:30px;font-weight:800;background:linear-gradient(180deg,#ffffff,#ff8fb3);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;filter:drop-shadow(0 2px 0 #a81e55) drop-shadow(0 6px 10px rgba(0,0,0,.4))}
+#ov p{margin:0;color:var(--ink)}
+#ov.win .card{border-color:rgba(255,217,77,.7);box-shadow:0 18px 44px rgba(0,0,0,.5),0 0 34px rgba(255,217,77,.28),inset 0 2px 0 rgba(255,255,255,.12)}
+#ov.win .card h2{background-image:linear-gradient(180deg,#fff,#ffd94d 55%,#ff9a3d);filter:drop-shadow(0 2px 0 #8a6d1a) drop-shadow(0 6px 10px rgba(0,0,0,.4))}
+.confetti{position:absolute;inset:0;overflow:hidden;pointer-events:none;display:none}
+#ov.win .confetti{display:block}
+.confetti i{position:absolute;left:50%;top:46%;font-style:normal;color:#ffd94d;text-shadow:0 0 10px rgba(255,217,77,.9);opacity:0;animation:celebrate 1.9s cubic-bezier(.15,.7,.3,1) forwards;animation-delay:var(--del,0s)}
+@keyframes celebrate{0%{opacity:0;transform:translate(-50%,-50%) scale(.5) rotate(0deg)}18%{opacity:1}100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1.2) rotate(var(--rot))}}
+@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+/* big-merge celebration */
+.mfx{position:absolute;z-index:3;pointer-events:none}
+.mfx .num{position:absolute;left:0;top:0;font-size:44px;font-weight:800;white-space:nowrap;background:linear-gradient(180deg,#fff,#ffd94d 55%,#ff9a3d);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent;filter:drop-shadow(0 2px 0 #a81e55) drop-shadow(0 6px 12px rgba(0,0,0,.45));animation:mfxPop 1.4s cubic-bezier(.3,1.6,.5,1) forwards}
+.mfx.big .num{font-size:58px}
+.mfx .praise{position:absolute;left:0;top:36px;font-size:15px;font-weight:700;color:#fff;text-shadow:0 2px 6px rgba(0,0,0,.55);white-space:nowrap;animation:mfxPop 1.4s cubic-bezier(.3,1.6,.5,1) forwards}
+.mfx.big .praise{top:46px}
+.mfx i{position:absolute;left:0;top:0;font-style:normal;color:#ffd94d;text-shadow:0 0 8px rgba(255,217,77,.9);animation:burst .9s cubic-bezier(.1,.7,.3,1) forwards}
+@keyframes mfxPop{0%{opacity:0;transform:translate(-50%,-50%) scale(.5)}18%{opacity:1;transform:translate(-50%,-50%) scale(1.15)}30%{transform:translate(-50%,-50%) scale(1)}75%{opacity:1}100%{opacity:0;transform:translate(-50%,-110%) scale(1)}}
+@keyframes burst{from{opacity:1;transform:translate(-50%,-50%) scale(.6) rotate(0deg)}to{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(1.25) rotate(var(--rot))}}
+#toast{position:fixed;left:50%;top:calc(14px + env(safe-area-inset-top,0px));transform:translate(-50%,-160%);z-index:50;display:flex;align-items:center;gap:10px;background:rgba(43,18,66,.94);border:1.5px solid rgba(255,217,77,.65);border-radius:999px;padding:10px 18px;box-shadow:0 10px 28px rgba(0,0,0,.45),0 0 18px rgba(255,217,77,.25);transition:transform .45s cubic-bezier(.3,1.6,.5,1);pointer-events:none;max-width:92vw}
+#toast.on{transform:translate(-50%,0)}
+#toast .ti{font-size:22px;flex-shrink:0}
+#toast b{color:#ffd94d;font-size:15px;white-space:nowrap}
+#toast span{color:var(--ink);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#toast.on .ti{animation:toastPop .5s cubic-bezier(.3,1.8,.5,1)}
+@keyframes toastPop{0%{transform:scale(.4) rotate(-18deg)}70%{transform:scale(1.25) rotate(6deg)}100%{transform:scale(1) rotate(0)}}
+#noruntime{display:none;align-items:center;justify-content:center;height:100%;color:var(--muted);font-size:14px;text-align:center;padding:20px}
+</style>
+</head>
+<body>
+<div id="deco"></div>
+<header>
+  <div><h1><span class="grad">2048</span></h1></div>
+  <div class="tr"><div class="scores"><div class="sc"><small>分数</small><span id="sc">0</span></div><div class="sc"><small>最高</small><span id="bs">0</span></div></div><div class="btnRow"><button id="snd">🔊</button><button id="nb">重新开始</button></div></div>
+</header>
+<div id="stage"><div id="noruntime">需要沧海 three 运行时才能显示 3D 棋盘。</div><div id="ov"><div class="card"><h2 id="ot"></h2><p id="od"></p><button id="ob"></button></div><div class="confetti"><i style="--dx:-150px;--dy:-170px;--rot:140deg;--del:0s;font-size:19px">✦</i><i style="--dx:130px;--dy:-190px;--rot:-120deg;--del:.08s;font-size:15px;color:#ff9ec6">★</i><i style="--dx:-90px;--dy:-220px;--rot:90deg;--del:.15s;font-size:13px">●</i><i style="--dx:170px;--dy:-120px;--rot:200deg;--del:.05s;font-size:21px;color:#fff">✦</i><i style="--dx:-190px;--dy:-60px;--rot:-160deg;--del:.2s;font-size:16px;color:#ff9ec6">✦</i><i style="--dx:200px;--dy:-40px;--rot:80deg;--del:.12s;font-size:14px">★</i><i style="--dx:-60px;--dy:150px;--rot:-70deg;--del:.25s;font-size:17px;color:#fff">●</i><i style="--dx:80px;--dy:170px;--rot:110deg;--del:.18s;font-size:19px">✦</i><i style="--dx:-160px;--dy:110px;--rot:-190deg;--del:.3s;font-size:13px;color:#ff9ec6">★</i><i style="--dx:150px;--dy:140px;--rot:60deg;--del:.22s;font-size:15px">✦</i></div></div></div>
+<div id="toast"><span class="ti">🏆</span><b id="toastName"></b><span id="toastDesc"></span></div>
+<script src="../../shared/three_runtime.js"></script>
+<script>var THREE = (window.CH_MODULES && window.CH_MODULES["three"]) || null;</script>
+<script src="../../shared/achievements.js"></script>
+<script>
+(function(){
+if(!THREE){ document.getElementById('noruntime').style.display = 'flex'; return; }
+// decorations: gentle background life (transform/opacity only, very slow).
+// The user asked for it: a fully static backdrop felt dead. Pauses when hidden.
+const dc=document.getElementById('deco'),rn=i=>{const x=Math.sin(i*127.1)*43758.5;return x-Math.floor(x)};
+let h='';
+for(let i=0;i<5;i++){const s=70+rn(i+3)*90;h+=`<i class="bok${i%2?' violet':''}" style="left:${rn(i+11)*90}%;top:${rn(i+31)*90}%;width:${s}px;height:${s}px;--dur:${20+rn(i+41)*8}s;--del:${-rn(i+42)*20}s;--dx:${(rn(i+43)*24-12)|0}px;--dy:${(rn(i+44)*16-8)|0}px"></i>`}
+for(let i=0;i<14;i++){const s=7+rn(i+9)*20;h+=`<i class="bub" style="left:${rn(i)*96}%;top:${rn(i+50)*96}%;width:${s}px;height:${s}px;--dur:${12+rn(i+60)*6}s;--del:${-rn(i+61)*12}s;--dx:${(rn(i+62)*16-8)|0}px;--dy:${(-6-rn(i+63)*10)|0}px"></i>`}
+for(let i=0;i<16;i++){h+=`<i class="spk${i%2?' pink':''}" style="left:${rn(i+20)*96}%;top:${rn(i+70)*96}%;font-size:${9+rn(i+5)*15}px;opacity:${.55+rn(i+8)*.45};--dur:${3+rn(i+80)*3}s;--del:${-rn(i+81)*4}s">✦</i>`}
+[[2,16,'#7be382',-16],[92,9,'#ff8fb3',18],[93,80,'#5ec8f2',-14],[3,88,'#ffd94d',12],[90,52,'#c99df2',-8]].forEach((g,i)=>{h+=`<i class="gum" style="left:${g[0]}%;top:${g[1]}%;--c:${g[2]};--rot:${g[3]}deg;--dur:${10+rn(i+90)*4}s;--del:${-rn(i+91)*10}s"></i>`});
+dc.innerHTML=h;
+
+const N=4,P=1.08,X=i=>(i-1.5)*P;
+const stage=document.getElementById('stage');
+
+// quality tiers (spec: default medium). Governor may override via {canghai:'quality'}.
+const QDPR={high:2,medium:1.5,low:1};
+let dprCap=QDPR.medium;
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,dprCap));
+stage.insertBefore(renderer.domElement,stage.firstChild);
+const scene=new THREE.Scene();
+const cam=new THREE.OrthographicCamera(-3,3,3,-3,.1,50);
+cam.up.set(0,0,-1);cam.position.set(0,10,.5);cam.lookAt(0,0,0);
+scene.add(new THREE.HemisphereLight(0xc9a0ff,0x3a1650,.35));
+renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1;
+(function(){const es=new THREE.Scene(),cv=document.createElement('canvas');cv.width=4;cv.height=256;const x=cv.getContext('2d'),g=x.createLinearGradient(0,0,0,256);
+g.addColorStop(0,'#6b3a8a');g.addColorStop(.5,'#a03a6e');g.addColorStop(1,'#1a0a2e');x.fillStyle=g;x.fillRect(0,0,4,256);
+const envT=new THREE.CanvasTexture(cv);if('colorSpace' in envT)envT.colorSpace=THREE.SRGBColorSpace;
+es.add(new THREE.Mesh(new THREE.SphereGeometry(20,16,16),new THREE.MeshBasicMaterial({map:envT,side:THREE.BackSide})));
+[[-7,9,6,6,4,2,0xfff0f5],[8,7,-4,3,6,1.2,0xffd9a0],[0,6,-11,7,3,1,0xc9a0ff],[-10,4,-3,2.5,3,.9,0x9be8ff],[6,5,8,3.5,2.5,1,0xff9ec6]].forEach(b=>{const m=new THREE.Mesh(new THREE.PlaneGeometry(b[3],b[4]),new THREE.MeshBasicMaterial({color:new THREE.Color(b[6]).multiplyScalar(b[5]),side:THREE.DoubleSide}));m.position.set(b[0],b[1],b[2]);m.lookAt(0,0,0);es.add(m)});
+const pm=new THREE.PMREMGenerator(renderer);scene.environment=pm.fromScene(es,.06).texture;pm.dispose()})();
+const key=new THREE.DirectionalLight(0xffffff,.7);key.position.set(-4,7,-5);scene.add(key);
+const fill=new THREE.DirectionalLight(0xffd6ec,.25);fill.position.set(4,6,4);scene.add(fill);
+const L1=new THREE.PointLight(0xfff0dc,.4,0,1),L2=new THREE.PointLight(0xff9ccc,.2,0,1);L1.position.set(-3.6,3,-4.2);L2.position.set(3.4,2,3.8);scene.add(L1,L2);
+
+function rr(s,r,cx,cy,K){const h=s/2,a=cx-h,b=cx+h,c=cy-h,d=cy+h,q=new K();
+q.moveTo(a+r,c);q.lineTo(b-r,c);q.quadraticCurveTo(b,c,b,c+r);q.lineTo(b,d-r);q.quadraticCurveTo(b,d,b-r,d);
+q.lineTo(a+r,d);q.quadraticCurveTo(a,d,a,d-r);q.lineTo(a,c+r);q.quadraticCurveTo(a,c,a+r,c);return q}
+function slab(sh,depth,bev){const g=new THREE.ExtrudeGeometry(sh,{depth,bevelEnabled:true,bevelThickness:bev,bevelSize:bev,bevelSegments:6,curveSegments:10});
+g.rotateX(-Math.PI/2);g.translate(0,bev,0);return g}
+const M=(c,r,e)=>new THREE.MeshPhysicalMaterial({color:c,emissive:c,emissiveIntensity:e,roughness:r,clearcoat:1,clearcoatRoughness:.08,envMapIntensity:.7});
+// glossy tray with real inset slots
+const base=new THREE.Mesh(slab(rr(4.8,.55,0,0,THREE.Shape),.06,.03),M(0xd6336c,.2,0));base.position.y=-.12;scene.add(base);
+const rs=rr(4.6,.45,0,0,THREE.Shape);
+for(let r=0;r<N;r++)for(let c=0;c<N;c++)rs.holes.push(rr(.98,.24,X(c),X(r),THREE.Path));
+const ring=new THREE.Mesh(slab(rs,.07,.04),M(0xe85a8a,.2,0));scene.add(ring);
+const shC=document.createElement('canvas');shC.width=shC.height=128;const shX=shC.getContext('2d');
+const shG=shX.createRadialGradient(64,64,10,64,64,64);shG.addColorStop(0,'rgba(255,92,142,.28)');shG.addColorStop(.55,'rgba(255,92,142,.12)');shG.addColorStop(1,'rgba(255,92,142,0)');
+shX.fillStyle=shG;shX.fillRect(0,0,128,128);
+const shM=new THREE.Mesh(new THREE.PlaneGeometry(6.6,6.6),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(shC),transparent:true,depthWrite:false,blending:THREE.AdditiveBlending}));
+shM.rotation.x=-Math.PI/2;shM.position.y=-.16;scene.add(shM);
+
+const CANDY={2:0xfff6ee,4:0xffd9b3,8:0xff6f9e,16:0xf23d76,32:0xffcf4d,64:0xff9a3d,128:0xff5a5a,256:0xa855f7,512:0x7c5cf0,1024:0x3ec6d3,2048:0xffd700};
+function colOf(v){return new THREE.Color(CANDY[v]||0xffd700)}
+const bodyG=(()=>{const g=new THREE.SphereGeometry(1,56,40),p=g.attributes.position,f=(v,n)=>Math.sign(v)*Math.pow(Math.abs(v),n);
+for(let i=0;i<p.count;i++){const x=p.getX(i),y=p.getY(i),z=p.getZ(i);p.setXYZ(i,f(x,.5)*.42,y>0?Math.pow(y,.7)*.44:-Math.pow(-y,.5)*.12,f(z,.5)*.42)}
+g.computeVertexNormals();const n=g.attributes.normal,m={};
+for(let i=0;i<p.count;i++){const k=p.getX(i).toFixed(3)+','+p.getY(i).toFixed(3)+','+p.getZ(i).toFixed(3);(m[k]=m[k]||[]).push(i)}
+for(const k in m){const a=m[k],v=new THREE.Vector3();a.forEach(i=>v.add(new THREE.Vector3(n.getX(i),n.getY(i),n.getZ(i))));v.normalize();a.forEach(i=>n.setXYZ(i,v.x,v.y,v.z))}
+return g})();
+const labG=new THREE.PlaneGeometry(.56,.56,14,14);labG.rotateX(-Math.PI/2);
+{const p=labG.attributes.position;for(let i=0;i<p.count;i++){const a=Math.pow(p.getX(i)/.42,2),b=Math.pow(p.getZ(i)/.42,2);p.setY(i,.44*Math.pow(Math.max(0,1-a*a-b*b),.35)+.006)}}
+const bodyC={},labC={},tileTexC={};
+// Candy/liquid depth: a vertical gradient texture. The dome is a deformed sphere,
+// so canvas top (v=1) is the dome face: lighter there, as if light scatters inside
+// the candy; the rim (v=.5) and underside go deep, as if light was absorbed.
+// No emissive: the glow comes from the gradient + clearcoat, not from added light.
+// Shade in sRGB space: lightness math on linear values bleaches candy colors.
+function shade(v,dl,ds){const c=colOf(v).convertLinearToSRGB(),hs={};c.getHSL(hs);
+c.setHSL(hs.h,Math.min(1,Math.max(0,hs.s+ds)),Math.min(.95,Math.max(0,hs.l+dl)));return c.convertSRGBToLinear()}
+function tileTex(v){if(tileTexC[v])return tileTexC[v];
+const cv=document.createElement('canvas');cv.width=8;cv.height=64;const x=cv.getContext('2d');
+const top=shade(v,.1,-.03),mid=shade(v,0,.05),deep=shade(v,-.2,.08),bot=shade(v,-.32,.1);
+const g=x.createLinearGradient(0,0,0,64);
+g.addColorStop(0,'#'+top.getHexString());g.addColorStop(.4,'#'+mid.getHexString());g.addColorStop(.55,'#'+deep.getHexString());g.addColorStop(1,'#'+bot.getHexString());
+x.fillStyle=g;x.fillRect(0,0,8,64);
+const t=new THREE.CanvasTexture(cv);if('colorSpace' in t)t.colorSpace=THREE.SRGBColorSpace;
+return tileTexC[v]=t}
+function bodyMat(v){if(bodyC[v])return bodyC[v];
+const m=new THREE.MeshPhysicalMaterial({map:tileTex(v),roughness:.14,clearcoat:1,clearcoatRoughness:.04,envMapIntensity:.65});
+// Watery rim: fresnel glow at grazing angles, like light caught in the edge of
+// a water drop. Face-on (dome centre) gets none; the rim glows in the tile hue.
+const fc=shade(v,.3,-.05);
+m.onBeforeCompile=sh=>{
+sh.uniforms.uFresnelColor={value:fc};
+sh.uniforms.uFresnelIntensity={value:.8};
+sh.vertexShader=sh.vertexShader
+.replace('#include <common>','#include <common>\nvarying vec3 vFresN;varying vec3 vFresV;')
+.replace('#include <fog_vertex>','#include <fog_vertex>\nvFresN=normalize(transformedNormal);vec4 fresMV=modelViewMatrix*vec4(transformed,1.0);vFresV=normalize(-fresMV.xyz);');
+sh.fragmentShader=sh.fragmentShader
+.replace('#include <common>','#include <common>\nvarying vec3 vFresN;varying vec3 vFresV;uniform vec3 uFresnelColor;uniform float uFresnelIntensity;')
+.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=uFresnelColor*pow(1.0-saturate(dot(normalize(vFresN),normalize(vFresV))),6.0)*uFresnelIntensity;');
+};
+return bodyC[v]=m}
+function labMat(v){if(labC[v])return labC[v];
+const cv=document.createElement('canvas');cv.width=cv.height=256;const x=cv.getContext('2d');
+const d=String(v).length,fs=d<=2?150:d==3?124:d==4?100:78;
+x.font='800 '+fs+'px "PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif';x.textAlign='center';x.textBaseline='middle';x.lineJoin='round';
+const hs={};new THREE.Color(colOf(v)).getHSL(hs,THREE.SRGBColorSpace);
+const light=hs.l>.9;
+// Pure white number, still pressed in: only the dark upper lip of the groove
+// stays, the white floor is the number itself.
+const lipD=light?'#b03060':'#'+new THREE.Color().setHSL(hs.h,Math.min(1,hs.s*.9+.2),.15,THREE.SRGBColorSpace).getHexString();
+x.fillStyle=lipD;x.fillText(v,128,131);
+x.fillStyle='#ffffff';x.fillText(v,128,134);
+const t=new THREE.CanvasTexture(cv);t.anisotropy=4;if('colorSpace' in t)t.colorSpace=THREE.SRGBColorSpace;
+return labC[v]=new THREE.MeshBasicMaterial({map:t,transparent:true,toneMapped:false})}
+
+let grid,tiles,dying,score,best=0,won,keep,over;
+try{best=+localStorage.getItem('jelly2048')||0}catch(e){}
+const $=id=>document.getElementById(id);
+// 合成音效 (WebAudio, 无音频文件). Everything runs through one master gain
+// so layered sounds (slide + merge + chime) never clip. Bright and light:
+// no low-frequency thump anywhere — the lowest note bottoms out at 210Hz.
+let AC=null,master=null,soundOn=true,noiseBuf=null,lastSlideAt=0;
+function ac(){if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();master=AC.createGain();master.gain.value=.9;master.connect(AC.destination)}catch(e){}}if(AC&&AC.state==='suspended')AC.resume();return AC}
+function tone(f0,f1,dur,type,vol,delay){
+if(!soundOn)return;const c=ac();if(!c||!master)return;
+const t=c.currentTime+(delay||0),o=c.createOscillator(),g=c.createGain();
+o.type=type||'sine';o.frequency.setValueAtTime(Math.max(30,f0),t);
+if(f1&&f1!==f0)o.frequency.exponentialRampToValueAtTime(Math.max(30,f1),t+dur);
+g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol||.12,t+.012);
+g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+o.connect(g);g.connect(master);o.start(t);o.stop(t+dur+.05)}
+// The slide: a feather-light filtered-noise whoosh + a faint high tick.
+// Gain stays tiny on purpose — this plays hundreds of times per game.
+// The bandpass centre wobbles a little each time so it never sounds mechanical.
+function sfxSlide(){
+const now=performance.now();if(now-lastSlideAt<60)return;lastSlideAt=now;
+if(!soundOn)return;const c=ac();if(!c||!master)return;
+if(!noiseBuf){noiseBuf=c.createBuffer(1,c.sampleRate*.12|0,c.sampleRate);const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1}
+const t=c.currentTime,src=c.createBufferSource();src.buffer=noiseBuf;
+const f=c.createBiquadFilter();f.type='bandpass';f.frequency.value=2100+Math.random()*600;f.Q.value=1.1;
+const g=c.createGain();g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.032,t+.008);g.gain.exponentialRampToValueAtTime(.0001,t+.07);
+src.connect(f);f.connect(g);g.connect(master);src.start(t);src.stop(t+.09);
+tone(1350+Math.random()*150,1650,.05,'sine',.018)}
+// Pentatonic ladder: each tile value is one step up the C major pentatonic
+// scale (C5 base), so bigger merges literally sound higher and brighter.
+const PENTA=[0,2,4,7,9];
+function pentaFreq(lv){const i=Math.max(0,lv-2);return 523.25*Math.pow(2,(12*Math.floor(i/5)+PENTA[i%5])/12)}
+function sfxMerge(v){
+const lv=Math.log2(v),f=pentaFreq(lv);
+tone(f,f,.14,'sine',.11);
+tone(f*2,f*2,.1,'triangle',.035,.01);
+if(lv>=9)tone(pentaFreq(lv+1),pentaFreq(lv+1),.12,'sine',.05,.06)}
+// Celebration chime for big merges, in sync with the visual burst.
+function sfxBig(v){
+tone(1318.5,1318.5,.18,'sine',.07);
+tone(1760,1760,.22,'sine',.06,.05);
+if(v>=2048)tone(2093,2093,.26,'sine',.06,.1)}
+// Achievement chime: two bright golden notes.
+function sfxAch(){tone(1046.5,1046.5,.16,'sine',.08);tone(1568,1568,.24,'sine',.07,.08)}
+function sfxWin(){[523.25,659.25,783.99,880,1046.5].forEach((f,i)=>tone(f,f,.2,'triangle',.1,i*.11))}
+function sfxOver(){tone(380,240,.3,'sine',.09);tone(300,210,.35,'triangle',.05,.1)}
+function sfxClick(){tone(700,620,.05,'sine',.05)}
+function sfxTick(){tone(880,760,.04,'sine',.04)}
+
+
+function mk(v,r,c){
+const g=new THREE.Group(),b=new THREE.Mesh(bodyG,bodyMat(v)),l=new THREE.Mesh(labG,labMat(v));
+g.add(b,l);scene.add(g);
+const t={v,r,c,g,b,l,x:X(c),z:X(r),tx:X(c),tz:X(r),vx:0,vz:0,p:0,pv:0,sp:0};tiles.push(t);grid[r][c]=t;return t}
+function setV(t){t.b.material=bodyMat(t.v);t.l.material=labMat(t.v)}
+function spawn(){const e=[];for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(!grid[r][c])e.push([r,c]);
+if(!e.length)return;const [r,c]=e[Math.random()*e.length|0];mk(Math.random()<.9?2:4,r,c)}
+let prevScore=0;
+function upd(){$('sc').textContent=score;$('bs').textContent=best;checkScoreAch();
+if(score>prevScore){const el=$('sc');el.classList.remove('bump');void el.offsetWidth;el.classList.add('bump')}
+prevScore=score}
+
+// ---------- big-merge celebration + achievements ----------
+// Big merges (128+) get a sparkle burst + a rising number at the tile.
+const BIGMERGE=128;
+const PRAISE={128:'不错！',256:'漂亮！',512:'厉害！',1024:'太强了！',2048:'糖果之王！',4096:'超凡入圣！',8192:'举世无双！',16384:'糖外有糖！'};
+let pulseT=0;
+function bigMerge(v,t){
+if(v<BIGMERGE)return;
+sfxBig(v);
+stage.classList.remove('pulse');void stage.offsetWidth;stage.classList.add('pulse');
+clearTimeout(pulseT);pulseT=setTimeout(()=>stage.classList.remove('pulse'),950);
+const p=new THREE.Vector3(t.tx,0,t.tz).project(cam);
+const x=(p.x*.5+.5)*stage.clientWidth,y=(-p.y*.5+.5)*stage.clientHeight;
+const big=v>=1024;
+const box=document.createElement('div');
+box.className='mfx'+(big?' big':'');box.style.left=x+'px';box.style.top=y+'px';
+const n=big?16:10;
+let ih=`<div class="num">${v}</div><div class="praise">${PRAISE[v]||'漂亮！'}</div>`;
+for(let i=0;i<n;i++){
+const a=Math.random()*Math.PI*2,d=34+Math.random()*(big?70:46);
+ih+=`<i style="--dx:${Math.cos(a)*d|0}px;--dy:${Math.sin(a)*d|0}px;--rot:${(Math.random()*240-120)|0}deg;font-size:${12+Math.random()*11|0}px">${'✦★●'[i%3]}</i>`;
+}
+box.innerHTML=ih;stage.appendChild(box);
+setTimeout(()=>box.remove(),1500);
+}
+// ---------- achievements: system-level store (canghai/shared/achievements.js) ----------
+// The game only REPORTS events. The shared CHAch engine owns definitions,
+// lifetime stats and unlocks in one store shared by every app, so progress
+// survives for years and is browsed in the Achievements Center — there is
+// no achievement list UI inside the game. Only the unlock moment stays
+// here: the toast, the effects and the sound, in this game's own style.
+// Every CHAch call goes through achCall: if the library is missing or
+// throws, achievements silently disable and the game keeps running.
+const ACH_APP='2048';
+const ACH=[
+{id:'tile-64',name:'小有成就',desc:'合成 64',icon:'🍬',stat:'bestTile',target:64},
+{id:'tile-128',name:'渐入佳境',desc:'合成 128',icon:'🍬',stat:'bestTile',target:128},
+{id:'tile-256',name:'势如破竹',desc:'合成 256',icon:'🍬',stat:'bestTile',target:256},
+{id:'tile-512',name:'所向披靡',desc:'合成 512',icon:'🍬',stat:'bestTile',target:512},
+{id:'tile-1024',name:'登峰造极',desc:'合成 1024',icon:'🍬',stat:'bestTile',target:1024},
+{id:'tile-2048',name:'糖果之王',desc:'合成 2048',icon:'🍬',stat:'bestTile',target:2048},
+{id:'tile-4096',name:'糖果传奇',desc:'合成 4096',icon:'🍬',stat:'bestTile',target:4096},
+{id:'tile-8192',name:'无上糖果',desc:'合成 8192',icon:'🍬',stat:'bestTile',target:8192},
+{id:'tile-16384',name:'糖外有糖',desc:'合成 16384',icon:'🍬',stat:'bestTile',target:16384},
+{id:'score-1000',name:'千分俱乐部',desc:'单局拿到 1000 分',icon:'⭐',stat:'bestScore',target:1000},
+{id:'score-5000',name:'五千分大师',desc:'单局拿到 5000 分',icon:'⭐',stat:'bestScore',target:5000},
+{id:'score-10000',name:'万分传说',desc:'单局拿到 10000 分',icon:'⭐',stat:'bestScore',target:10000},
+{id:'score-20000',name:'两万分神话',desc:'单局拿到 20000 分',icon:'⭐',stat:'bestScore',target:20000},
+{id:'score-50000',name:'五万分传说',desc:'单局拿到 50000 分',icon:'⭐',stat:'bestScore',target:50000},
+{id:'score-100000',name:'十万分神话',desc:'单局拿到 100000 分',icon:'⭐',stat:'bestScore',target:100000},
+{id:'combo-3',name:'连锁反应',desc:'一次移动合成 3 次或以上',icon:'🔥',stat:'bestCombo',target:3},
+{id:'combo-4',name:'大连锁',desc:'一次移动合成 4 次或以上',icon:'🔥',stat:'bestCombo',target:4},
+{id:'merge-100',name:'百炼成糖',desc:'累计合成 100 次',icon:'🍭',stat:'merges',target:100},
+{id:'merge-500',name:'糖果工匠',desc:'累计合成 500 次',icon:'🍭',stat:'merges',target:500},
+{id:'merge-1000',name:'千锤百炼',desc:'累计合成 1000 次',icon:'🍭',stat:'merges',target:1000},
+{id:'merge-5000',name:'糖果大师',desc:'累计合成 5000 次',icon:'🍭',stat:'merges',target:5000},
+{id:'merge-20000',name:'糖果宗师',desc:'累计合成 20000 次',icon:'🍭',stat:'merges',target:20000},
+{id:'merge-100000',name:'糖海无涯',desc:'累计合成 100000 次',icon:'🍭',stat:'merges',target:100000},
+{id:'games-5',name:'糖果学徒',desc:'开始 5 局游戏',icon:'🎮',stat:'games',target:5},
+{id:'games-20',name:'久经糖场',desc:'开始 20 局游戏',icon:'🎮',stat:'games',target:20},
+{id:'games-100',name:'百战糖场',desc:'开始 100 局游戏',icon:'🎮',stat:'games',target:100},
+{id:'games-500',name:'糖场老将',desc:'开始 500 局游戏',icon:'🎮',stat:'games',target:500},
+{id:'games-1000',name:'千局糖仙',desc:'开始 1000 局游戏',icon:'🎮',stat:'games',target:1000},
+{id:'win-1',name:'首次登顶',desc:'第一次达成 2048',icon:'👑',stat:'wins',target:1},
+{id:'wins-10',name:'十次登顶',desc:'达成 2048 共 10 次',icon:'👑',stat:'wins',target:10},
+{id:'wins-50',name:'五十次封王',desc:'达成 2048 共 50 次',icon:'👑',stat:'wins',target:50},
+{id:'days-30',name:'月月相糖',desc:'在 30 个不同日子里玩过',icon:'📅',stat:'days',target:30},
+{id:'days-365',name:'一年相伴',desc:'在 365 个不同日子里玩过',icon:'📅',stat:'days',target:365},
+{id:'days-1000',name:'千日之约',desc:'在 1000 个不同日子里玩过',icon:'📅',stat:'days',target:1000}
+];
+const toastQ=[];let toastBusy=false;
+function showToast(){
+if(toastBusy||!toastQ.length)return;toastBusy=true;
+const a=toastQ.shift();
+$('toast').querySelector('.ti').textContent='🏆';
+$('toastName').textContent='成就：'+a.name;$('toastDesc').textContent=a.desc;
+const t=$('toast');t.classList.add('on');sfxAch();
+setTimeout(()=>{t.classList.remove('on');setTimeout(()=>{toastBusy=false;showToast()},450)},2600);
+}
+// Stuck hint: no blocking overlay on game over (user's call). Each move
+// attempt while stuck replays the fail sound and re-shows this toast in
+// the same spot achievements use; the player restarts by hand.
+let stuckT=0;
+function stuckToast(){
+const t=$('toast');
+t.querySelector('.ti').textContent='😖';
+$('toastName').textContent='动不了啦';$('toastDesc').textContent='>_<';
+t.classList.add('on');clearTimeout(stuckT);
+stuckT=setTimeout(()=>{if($('toastName').textContent==='动不了啦')t.classList.remove('on')},1800)}
+let achOK=false;
+try{achOK=!!(window.CHAch&&typeof window.CHAch.register==='function')}catch(e){achOK=false}
+function achCall(fn){if(!achOK)return null;try{return fn(window.CHAch)}catch(e){achOK=false;return null}}
+achCall(C=>C.onUnlock((appId,def)=>{if(appId===ACH_APP){toastQ.push(def);showToast()}}));
+achCall(C=>C.register(ACH_APP,'2048',ACH));
+// One-time migration of the old per-game save: stats take the max, earned
+// achievements are kept. The old keys are left in place (harmless, and the
+// import is idempotent).
+let legacyStats={merges:0,games:0,wins:0,bestTile:2,bestCombo:0};
+try{Object.assign(legacyStats,JSON.parse(localStorage.getItem('jelly2048-stats')||'{}'))}catch(e){}
+let legacyGot={};
+try{legacyGot=JSON.parse(localStorage.getItem('jelly2048-ach')||'{}')}catch(e){legacyGot={}}
+for(const id in legacyGot){const m=/^tile-(\d+)$/.exec(id);if(m)legacyStats.bestTile=Math.max(legacyStats.bestTile,+m[1])}
+if(legacyGot['tile-2048']&&legacyStats.wins<1)legacyStats.wins=1;
+legacyStats.bestScore=best;
+achCall(C=>C.importData(ACH_APP,legacyStats,Object.keys(legacyGot)));
+// Guards so maxStats only write when a new personal best is actually set.
+let repTile=2,repCombo=0,repBest=best;
+achCall(C=>{const st=C.getState(ACH_APP).stats||{};repTile=Math.max(repTile,st.bestTile||0);repCombo=Math.max(repCombo,st.bestCombo||0);repBest=Math.max(repBest,st.bestScore||0)});
+function checkScoreAch(){if(score>repBest){repBest=score;achCall(C=>C.maxStat(ACH_APP,'bestScore',score))}}
+function checkTileAch(v){if(v>repTile){repTile=v;achCall(C=>C.maxStat(ACH_APP,'bestTile',v))}}
+function reset(){
+(tiles||[]).concat(dying||[]).forEach(t=>scene.remove(t.g));
+grid=Array.from({length:N},()=>Array(N).fill(null));tiles=[];dying=[];score=0;won=false;keep=false;over=false;
+$('ov').classList.remove('on','win');$('toast').classList.remove('on');clearTimeout(stuckT);achCall(C=>{C.stat(ACH_APP,'games',1);C.markDay(ACH_APP)});spawn();spawn();upd();kick()}
+function show(t,d,b,fn,win){$('ot').textContent=t;$('od').textContent=d;$('ob').textContent=b;$('ob').onclick=()=>{sfxTick();fn()};$('ov').classList.toggle('win',!!win);$('ov').classList.add('on')}
+function canMove(){for(let r=0;r<N;r++)for(let c=0;c<N;c++){const t=grid[r][c];if(!t)return true;
+if(c<N-1&&grid[r][c+1]&&grid[r][c+1].v==t.v)return true;if(r<N-1&&grid[r+1][c]&&grid[r+1][c].v==t.v)return true}return false}
+
+function move(dr,dc){
+if($('ov').classList.contains('on'))return;
+if(over){sfxOver();stuckToast();return;}
+let moved=false,hit=false;const merged=new Set();
+const rs=dr>0?[3,2,1,0]:[0,1,2,3],cs=dc>0?[3,2,1,0]:[0,1,2,3];
+for(const r of rs)for(const c of cs){
+let t=grid[r][c];if(!t)continue;let nr=r,nc=c;
+for(;;){const tr=nr+dr,tc=nc+dc;if(tr<0||tr>=N||tc<0||tc>=N)break;
+const o=grid[tr][tc];if(!o){nr=tr;nc=tc;continue}
+if(o.v==t.v&&!merged.has(o)){
+grid[r][c]=null;t.r=tr;t.c=tc;t.tx=X(tc);t.tz=X(tr);
+tiles.splice(tiles.indexOf(t),1);dying.push(t);
+o.v*=2;merged.add(o);score+=o.v;if(o.v==2048)hit=true;
+{const m=t;setTimeout(()=>{setV(o);sfxMerge(o.v);bigMerge(o.v,o);checkTileAch(o.v);o.pv+=3;scene.remove(m.g);const i=dying.indexOf(m);if(i>=0)dying.splice(i,1);kick()},110)}
+moved=true;t=null}
+break}
+if(t&&(nr!=r||nc!=c)){grid[r][c]=null;grid[nr][nc]=t;t.r=nr;t.c=nc;t.tx=X(nc);t.tz=X(nr);moved=true;{const m=t;setTimeout(()=>{m.pv+=2.5;kick()},110)}}}
+if(!moved){if(!canMove()){over=true;sfxOver();stuckToast()}return;}
+if(score>best){best=score;try{localStorage.setItem('jelly2048',best)}catch(e){}}
+upd();sfxSlide();kick();
+if(merged.size){achCall(C=>C.stat(ACH_APP,'merges',merged.size));if(merged.size>repCombo){repCombo=merged.size;achCall(C=>C.maxStat(ACH_APP,'bestCombo',merged.size))}}
+setTimeout(()=>{spawn();kick();
+if(hit&&!won&&!keep){won=true;achCall(C=>C.stat(ACH_APP,'wins',1));sfxWin();show('达成 2048！','你太棒啦，要继续挑战吗？','继续玩',()=>{keep=true;$('ov').classList.remove('on','win')},true)}
+else if(!canMove()){over=true}},90)}
+
+addEventListener('keydown',e=>{const m={ArrowLeft:[0,-1],a:[0,-1],ArrowRight:[0,1],d:[0,1],ArrowUp:[-1,0],w:[-1,0],ArrowDown:[1,0],s:[1,0]}[e.key];
+if(m){e.preventDefault();move(m[0],m[1])}});
+let sx,sy;
+stage.addEventListener('pointerdown',e=>{sx=e.clientX;sy=e.clientY});
+addEventListener('pointerup',e=>{if(sx==null)return;const dx=e.clientX-sx,dy=e.clientY-sy;sx=null;
+if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;
+Math.abs(dx)>Math.abs(dy)?move(0,dx>0?1:-1):move(dy>0?1:-1,0)});
+$('nb').onclick=()=>{sfxClick();reset()};
+$('snd').onclick=()=>{soundOn=!soundOn;$('snd').textContent=soundOn?'🔊':'🔇';if(soundOn)sfxClick()};
+
+function resize(){const w=stage.clientWidth,h=stage.clientHeight;if(!w||!h)return;renderer.setSize(w,h,false);
+const half=2.82,a=w/h;if(a>=1){cam.top=half;cam.bottom=-half;cam.left=-half*a;cam.right=half*a}
+else{cam.left=-half;cam.right=half;cam.top=half/a;cam.bottom=-half/a}cam.updateProjectionMatrix()}
+let resizeQueued=false;
+function resizeSoon(){if(resizeQueued)return;resizeQueued=true;requestAnimationFrame(()=>{resizeQueued=false;resize();kick()})}
+addEventListener('resize',resizeSoon);new ResizeObserver(resizeSoon).observe(stage);
+
+// Render on demand: the loop runs only while tiles are moving, then stops.
+// Idle board costs zero frames; hidden page renders nothing.
+let rafId=0,rendering=false,last=0;
+function kick(){if(rendering||document.hidden)return;rendering=true;last=performance.now();rafId=requestAnimationFrame(loop)}
+function settled(){
+for(const t of tiles.concat(dying)){
+if(Math.abs(t.vx)>.05||Math.abs(t.vz)>.05)return false;
+if(Math.abs(t.tx-t.x)>.005||Math.abs(t.tz-t.z)>.005)return false;
+if(Math.abs(t.pv)>.05||Math.abs(t.p)>.01)return false;if(t.sp<1)return false;if(t.die&&t.o>0)return false}
+return true}
+function snapAll(){for(const t of tiles.concat(dying)){t.x=t.tx;t.z=t.tz;t.p=0;t.vx=t.vz=t.pv=0;t.sp=1}}
+function applyTransforms(){
+for(const t of tiles.concat(dying)){
+const ax=Math.abs(t.vx),az=Math.abs(t.vz);
+// Spawn-in: new tiles grow in place (75%→100%, ease-out, uniform scale).
+// No spring overshoot, no squash-stretch, no drop — the old p=-1 spring
+// read as the tile falling from above and felt awful.
+const e=t.sp<1?1-Math.pow(1-t.sp,3):1,ss=.75+.25*e;
+const s=Math.max(.001,1+t.p)*ss;
+const sxs=Math.min(ax*.018,.12),szs=Math.min(az*.018,.12);
+t.g.position.set(t.x,.02,t.z);
+t.g.scale.set(s*(1+sxs-szs*.6),s*Math.max(.5,1-t.p*.5-(sxs+szs)*.8),s*(1+szs-sxs*.6))}}
+function loop(now){
+if(!rendering)return;
+const dt=Math.min((now-last)/1000,1/30);last=now;
+const all=tiles.concat(dying);
+for(let i=0;i<2;i++){const h=dt/2;
+for(const t of all){
+t.vx+=(260*(t.tx-t.x)-26*t.vx)*h;t.vz+=(260*(t.tz-t.z)-26*t.vz)*h;
+t.x+=t.vx*h;t.z+=t.vz*h;
+t.pv+=(320*(0-t.p)-26*t.pv)*h;t.p+=t.pv*h}}
+for(const t of all)if(t.sp<1)t.sp=Math.min(1,t.sp+dt/.28);
+const done=settled();
+if(done)snapAll();
+applyTransforms();
+renderer.render(scene,cam);
+if(done){rendering=false;rafId=0;return}
+rafId=requestAnimationFrame(loop)}
+document.addEventListener('visibilitychange',()=>{
+if(document.hidden){rendering=false;if(rafId)cancelAnimationFrame(rafId);rafId=0;dc.classList.add('paused')}
+else{dc.classList.remove('paused');kick()}});
+
+// Governor quality hint (perf spec section 7): {canghai:'quality', tier, fps, dpr}
+addEventListener('message',e=>{
+const d=e.data;
+if(!d||d.canghai!=='quality'||!d.tier||!QDPR[d.tier])return;
+dprCap=(typeof d.dpr==='number'&&d.dpr>0)?Math.min(d.dpr,QDPR[d.tier]):QDPR[d.tier];
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,dprCap));
+resize();kick()});
+
+addEventListener('pagehide',()=>{rendering=false;if(rafId)cancelAnimationFrame(rafId);try{renderer.dispose()}catch(e){}});
+
+resize();reset();
+})();
+</script>
+</body>
+</html>

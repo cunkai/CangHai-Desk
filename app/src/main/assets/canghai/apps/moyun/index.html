@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>打字练习</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--ink:#1d1b19;--ink-soft:#8a8377;--seal:#a8261d;--gold:#b18e46;--paper:#efe8d8;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+::selection{background:rgba(201,168,92,.35);color:var(--ink)}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--paper);color:var(--ink);font-family:"Noto Serif SC","Songti SC",serif;color-scheme:light}
+canvas{position:fixed;inset:0;display:block}
+#ui{position:fixed;inset:0;display:flex;flex-direction:column;pointer-events:none;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+header{display:flex;justify-content:space-between;align-items:flex-start;padding:22px 28px;gap:16px}
+.brand{display:flex;gap:12px;align-items:center}
+.seal{width:44px;height:44px;background:var(--seal);color:#f6ecd9;font:28px/44px "Ma Shan Zheng","STKaiti",serif;text-align:center;border-radius:3px;transform:rotate(-4deg)}
+.brand h1{margin:0;font:400 26px "Ma Shan Zheng","STKaiti",serif;letter-spacing:.2em}
+.brand p{margin:2px 0 0;font-size:13px;color:var(--ink-soft)}
+.stats{display:flex;gap:26px;text-align:center}
+.stats b{display:block;font:400 30px "Ma Shan Zheng","STKaiti",serif}
+.stats span{font-size:13px;color:var(--ink-soft)}
+main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:0 16px}
+#title{font-size:14px;color:var(--gold);letter-spacing:.3em}
+#line{display:flex;gap:clamp(6px,2vw,22px);flex-wrap:wrap;justify-content:center}
+.ch{display:flex;flex-direction:column;align-items:center;min-width:clamp(52px,11vw,108px)}
+.py{height:26px;font:600 clamp(14px,2.2vw,20px) "Noto Serif SC",serif;color:var(--ink-soft);letter-spacing:.06em}
+.py i{font-style:normal;color:var(--ink)}
+.zi{font:400 clamp(56px,11vw,112px)/1.15 "Ma Shan Zheng","STKaiti","KaiTi",serif;color:#9d968a;text-shadow:0 0 18px rgba(239,232,216,.9);transition:color .35s}
+.ch.cur .zi{color:#3a3631}
+.ch.cur .py{border-bottom:2px solid var(--seal)}
+.ch.done .zi{color:var(--ink)}
+.ch.shake{animation:sh .25s}
+@keyframes sh{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+#hint{font-size:13px;color:var(--ink-soft);min-height:20px}
+footer{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;padding:20px;pointer-events:auto}
+footer button{font:inherit;font-size:14px;color:var(--ink);background:rgba(239,232,216,.6);border:1px solid var(--ink-soft);padding:7px 16px;border-radius:2px;cursor:pointer;letter-spacing:.15em}
+footer button:hover{border-color:var(--ink)}
+footer button.on{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+footer button:focus-visible{outline:2px solid var(--seal);outline-offset:2px}
+#start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(239,232,216,.92);transition:opacity .8s;text-align:center;padding:24px}
+#start.hide{opacity:0;pointer-events:none}
+#start h2{font:400 clamp(56px,12vw,120px) "Ma Shan Zheng","STKaiti",serif;margin:0;letter-spacing:.25em;padding-left:.25em}
+#start p{margin:10px 0 0;color:var(--ink-soft);font-size:15px;line-height:1.8}
+#toast{position:fixed;left:50%;top:22%;transform:translateX(-50%);font:400 clamp(30px,6vw,56px) "Ma Shan Zheng","STKaiti",serif;opacity:0;transition:opacity .6s;text-align:center;white-space:nowrap}
+#toast small{display:block;font:14px "Noto Serif SC",serif;color:var(--ink-soft);margin-top:6px}
+/* ink selection box (keyboard navigation on the home page): a wobbly
+   brush-stroke frame that glides between items, with ink dots blooming
+   on each move, like the ink splashes while typing */
+#selBox{position:fixed;z-index:5;pointer-events:none;display:none;border:3px solid #1d1b19;border-radius:255px 15px 225px 15px/15px 225px 15px 255px;background:rgba(29,27,25,.05);box-shadow:0 2px 14px rgba(29,27,25,.18),inset 0 0 18px rgba(29,27,25,.06);transition:left .18s ease-out,top .18s ease-out,width .18s ease-out,height .18s ease-out}
+#selBox.pulse{animation:selPulse .35s ease-out}
+@keyframes selPulse{0%{box-shadow:0 0 0 0 rgba(29,27,25,.4),inset 0 0 18px rgba(29,27,25,.06)}100%{box-shadow:0 0 0 12px rgba(29,27,25,0),inset 0 0 18px rgba(29,27,25,.06)}}
+.inkdot{position:fixed;z-index:6;pointer-events:none;border-radius:47% 53% 55% 45%/52% 46% 54% 48%;background:radial-gradient(circle at 40% 38%,rgba(29,27,25,.5),rgba(29,27,25,.15) 55%,rgba(29,27,25,0) 72%);animation:inkBloom .55s ease-out forwards}
+@keyframes inkBloom{from{transform:translate(-50%,-50%) scale(.35) rotate(0deg);opacity:.95}to{transform:translate(-50%,-50%) scale(1.7) rotate(24deg);opacity:0}}
+/* achievement unlock toast: ink style, bottom center, never blocks input */
+.achToast{position:fixed;left:50%;bottom:8%;transform:translateX(-50%);z-index:20;pointer-events:none;display:flex;gap:10px;align-items:center;background:rgba(29,27,25,.88);color:#f6ecd9;padding:10px 18px;border-radius:255px 15px 225px 15px/15px 225px 15px 255px;box-shadow:0 4px 20px rgba(29,27,25,.35);animation:achIn .3s ease-out,achOut .4s ease-in 2.2s forwards}
+.achToast .achIcon{font-size:26px;line-height:1}
+.achToast b{display:block;font:400 18px "Ma Shan Zheng","STKaiti",serif;letter-spacing:.1em;color:#ecd28f}
+.achToast small{display:block;font-size:13px;color:#d8cfba}
+@keyframes achIn{from{opacity:0;transform:translateX(-50%) translateY(12px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes achOut{to{opacity:0}}
+.achHalo{position:fixed;z-index:19;pointer-events:none;width:130px;height:130px;border-radius:47% 53% 55% 45%/52% 46% 54% 48%;background:radial-gradient(circle,rgba(29,27,25,.28),rgba(29,27,25,0) 70%);animation:haloOut .8s ease-out forwards}
+@keyframes haloOut{from{transform:translate(-50%,-50%) scale(.4);opacity:1}to{transform:translate(-50%,-50%) scale(1.7);opacity:0}}
+@media (max-width:600px){header{padding:14px}.stats{gap:14px}.stats b{font-size:22px}}
+@media (prefers-reduced-motion:reduce){.ch.shake{animation:none}}
+body.home #ui,body.home #toast{display:none}
+body:not(.home) #home{display:none}
+#home{position:fixed;inset:0;overflow:auto;background:rgba(239,232,216,.94);padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+.wrap{max-width:920px;margin:0 auto;padding:34px 22px 60px}
+.hero{display:flex;align-items:center;gap:18px;margin-bottom:8px}
+.hero .seal{width:64px;height:64px;font-size:42px;line-height:64px}
+.hero h1{margin:0;font:400 clamp(44px,9vw,76px) "Ma Shan Zheng","STKaiti",serif;letter-spacing:.2em}
+.hero p{margin:0;color:var(--ink-soft);font-size:14px}
+h3{font:400 24px "Ma Shan Zheng","STKaiti",serif;letter-spacing:.2em;margin:30px 0 12px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.tabsRow{display:flex;align-items:flex-start;gap:8px}.tabsRow .tabs{flex:1;min-width:0}.tabsRow #sndBtn{flex-shrink:0}
+.btn,.tabs button,#list button{font:inherit;font-size:14px;color:var(--ink);background:rgba(239,232,216,.6);border:1px solid var(--ink-soft);padding:7px 16px;border-radius:2px;cursor:pointer;letter-spacing:.12em}
+.btn:hover,.tabs button:hover,#list button:hover{border-color:var(--ink)}
+.tabs button.on,.btn.pri{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+button:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--seal);outline-offset:2px}
+#list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+#list button{text-align:left;padding:12px 14px;letter-spacing:.06em;line-height:1.5}
+#list button b{display:block;font:400 22px "Ma Shan Zheng","STKaiti",serif;letter-spacing:.1em}
+#list button span{font-size:13px;color:var(--ink-soft)}
+#ctitle{width:100%;font:16px "Noto Serif SC",serif;color:var(--ink);background:rgba(246,241,229,.7);border:1px solid var(--ink-soft);padding:9px 12px;border-radius:2px;margin-bottom:10px}
+#cpanel{margin-top:14px;border-top:1px solid var(--ink-soft)}
+.csort{padding:10px 0;font-size:13px;color:var(--ink-soft)}
+.csort .btn{padding:4px 12px;font-size:13px}
+.citem{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid rgba(138,131,119,.35)}
+.cm{min-width:0}.cm b{font:400 20px "Ma Shan Zheng","STKaiti",serif;letter-spacing:.08em;margin-right:10px}
+.pv{font-size:13px}.cm small{display:block;color:var(--ink-soft);font-size:13px;margin-top:2px}
+.ca{display:flex;gap:6px;flex-shrink:0}.ca .btn{padding:4px 12px;font-size:13px}
+@media (max-width:600px){.citem{flex-direction:column;align-items:flex-start}}
+#ta{width:100%;min-height:130px;font:16px/1.8 "Noto Serif SC",serif;color:var(--ink);background:rgba(246,241,229,.7);border:1px solid var(--ink-soft);padding:12px;border-radius:2px;resize:vertical}
+.tw{overflow-x:auto;border-top:1px solid var(--ink-soft)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:560px}
+th,td{padding:9px 10px;text-align:right;border-bottom:1px solid rgba(138,131,119,.35);white-space:nowrap}
+th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
+th{cursor:pointer;font-weight:600;user-select:none}
+th.s{color:var(--gold)}
+.empty{color:var(--ink-soft);padding:20px 0;font-size:14px}
+#back{pointer-events:auto;align-self:center}
+#result .box{background:rgba(239,232,216,.9);border:1px solid var(--ink-soft);padding:30px clamp(20px,5vw,48px);max-width:560px;width:100%}
+#result h2{font-size:clamp(40px,8vw,64px);letter-spacing:.2em}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px 10px;margin:22px 0}
+.grid b{display:block;font:400 32px "Ma Shan Zheng","STKaiti",serif}
+.grid span{font-size:13px;color:var(--ink-soft)}
+.row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+#result .note{color:var(--seal);font-size:14px;min-height:20px;margin:0 0 14px}
+</style>
+</head>
+<body class="home">
+<div id="ui">
+  <header>
+    <div class="brand"><div class="seal">打</div><div><h1>打字练习</h1><p id="ttl"></p></div></div>
+    <div class="stats">
+      <div><b id="sCpm">0</b><span>字/分</span></div>
+      <div><b id="sAcc">100%</b><span>准确率</span></div>
+      <div><b id="sCombo">0</b><span>连击</span></div>
+      <button class="btn" id="back">返回首页</button>
+    </div>
+  </header>
+  <main><div id="title"></div><div id="line"></div><div id="hint"></div></main>
+  <footer style="padding:14px;justify-content:center;color:#8a8377;font-size:13px">按 Esc 可随时返回首页</footer>
+</div>
+<div id="home"><div class="wrap">
+  <div class="hero"><div class="seal">打</div><div><h1>打字练习</h1><p>沧海软件 · 拼音打字练习 · 看拼音打字，一字一墨</p></div></div>
+  <h3>选一篇来练</h3>
+  <div class="tabsRow"><div class="tabs" id="tabs"></div><button class="btn" id="sndBtn" title="音效开关">🔊</button></div>
+  <div id="list"></div>
+  <div id="custom" hidden>
+    <input id="ctitle" maxlength="30" placeholder="篇目名（留空则记为“自定义文本”）"><textarea id="ta" placeholder="粘贴任意简体中文文章或诗词，拼音会自动生成。想指定读音，就在字后加括号，如：行(xing)、长(zhang)，中文括号和英文括号都行；括号里可带声调，或在拼音后加数字表示声调，如 xing4、xing1、xing0（0 为轻声），也可一次标多个字，如：银行(yin hang)。"></textarea>
+    <p style="margin:10px 0 0"><button class="btn pri" id="goCustom">开始练习</button> <button class="btn" id="cHist"></button> <span id="cerr" style="color:var(--seal);font-size:13px"></span></p><div id="cpanel" hidden></div>
+  </div>
+  <h3>练习记录</h3>
+  <div id="histBox"></div>
+  <p style="margin:26px 0 0;font-size:13px;color:var(--ink-soft);line-height:1.8">诗文取自古典名篇（与开源项目 chinese-poetry 所收文本一致），拼音由开源库 pinyin-pro 生成。记录只保存在这台设备的浏览器里。方向键选择篇目，回车开始练习；输入框选中后可直接打字，方向键按到输入框边缘会回到选框，Esc 退出输入或收起选框。</p>
+</div></div>
+<div id="toast"></div>
+<div id="start" class="hide"><div id="result" style="width:100%;display:flex;justify-content:center"></div></div>
+<script src="../../shared/three_runtime.js"></script>
+<script>var THREE = window.CH_MODULES["three"];</script>
+<script src="pinyin-pro.js"></script>
+<script src="../../shared/achievements.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let W=innerWidth,H=innerHeight;
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(W,H);
+document.body.prepend(renderer.domElement);
+const scene=new THREE.Scene();
+const cam=new THREE.OrthographicCamera(0,W,H,0,-100,100);
+
+const bg=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.ShaderMaterial({
+uniforms:{uT:{value:0},uP:{value:0},uR:{value:new THREE.Vector2(W,H)}},
+vertexShader:'varying vec2 vUv;void main(){vUv=uv;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
+fragmentShader:`precision highp float;uniform float uT,uP;uniform vec2 uR;varying vec2 vUv;
+float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float n(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*n(p);p=p*2.03+7.1;a*=.5;}return v;}
+void main(){
+ vec2 uv=vUv;float asp=uR.x/uR.y;vec2 p=vec2(uv.x*asp,uv.y);
+ vec3 paper=vec3(.94,.91,.84);
+ paper-=(fbm(p*vec2(260.,36.))-.5)*.05;
+ paper-=(fbm(p*5.)-.5)*.07;
+ vec3 col=paper;
+ float d=length(p-vec2(.8*asp,.76));
+ col=mix(col,vec3(.72,.17,.12),smoothstep(.09,.083,d)*(.35+.4*uP));
+ for(int i=0;i<3;i++){
+  float fi=float(i);
+  float base=.50-fi*.15;float amp=.2-fi*.02;
+  float ridge=base+amp*(fbm(vec2(p.x*(1.3+fi*.8)+fi*9.,fi*3.7))-.35);
+  float m=smoothstep(ridge+.004,ridge-.004,uv.y);
+  float vis=.14+.86*smoothstep(fi*.27,fi*.27+.42,uP);
+  float tone=mix(.66,.2,fi/2.);
+  float wash=.6+.4*fbm(p*vec2(7.,14.)+fi*4.);
+  col=mix(col,vec3(tone,tone,tone*1.04),m*vis*wash);
+  float mist=fbm(vec2(p.x*2.+uT*.03+fi*5.,uv.y*6.))*smoothstep(ridge-.14,ridge,uv.y)*smoothstep(ridge+.14,ridge,uv.y);
+  col=mix(col,paper,mist*.7);
+ }
+ col*=1.-.28*pow(length(uv-.5)*1.15,2.);
+ gl_FragColor=vec4(col,1.);}`
+}));
+bg.position.z=-50;scene.add(bg);
+
+function resize(){W=innerWidth;H=innerHeight;renderer.setSize(W,H);
+ cam.right=W;cam.top=H;cam.updateProjectionMatrix();
+ bg.scale.set(W,H,1);bg.position.set(W/2,H/2,-50);bg.material.uniforms.uR.value.set(W,H);}
+addEventListener('resize',resize);resize();
+
+// 墨迹贴图
+const texs=[0,1,2,3].map(()=>{const c=document.createElement('canvas');c.width=c.height=128;const g=c.getContext('2d');
+ const base=g.createRadialGradient(64,64,4,64,64,52);base.addColorStop(0,'rgba(255,255,255,.9)');base.addColorStop(.7,'rgba(255,255,255,.35)');base.addColorStop(1,'rgba(255,255,255,0)');
+ g.fillStyle=base;g.fillRect(0,0,128,128);
+ for(let i=0;i<16;i++){const a=Math.random()*6.28,r=Math.random()*30,x=64+Math.cos(a)*r,y=64+Math.sin(a)*r,s=8+Math.random()*20;
+  const gr=g.createRadialGradient(x,y,0,x,y,s);gr.addColorStop(0,'rgba(255,255,255,.35)');gr.addColorStop(1,'rgba(255,255,255,0)');g.fillStyle=gr;g.fillRect(0,0,128,128);}
+ return new THREE.CanvasTexture(c);});
+const blots=[];
+function ink(x,y,size,life,color,op,vx=0,vy=0){
+ const m=new THREE.SpriteMaterial({map:texs[Math.random()*4|0],color,transparent:true,opacity:op,depthTest:false,rotation:Math.random()*6.28});
+ const s=new THREE.Sprite(m);s.position.set(x,H-y,1);s.scale.set(size*.4,size*.4,1);scene.add(s);
+ blots.push({s,m,size,life,op,b:performance.now(),vx,vy});}
+const INK=0x1d1b19,RED=0xa8261d;
+
+const D=[
+['唐诗','静夜思','李白','床前明月光，疑是地上霜。举头望明月，低头思故乡。'],
+['唐诗','春晓','孟浩然','春眠不觉晓，处处闻啼鸟。夜来风雨声，花落知多少。'],
+['唐诗','登鹳雀楼','王之涣','白日依山尽，黄河入海流。欲穷千里目，更上一层楼。'],
+['唐诗','江雪','柳宗元','千山鸟飞绝，万径人踪灭。孤舟蓑笠翁，独钓寒江雪。'],
+['唐诗','鹿柴','王维','空山不见人，但闻人语响。返景入深林，复照青苔上。'],
+['唐诗','相思','王维','红豆生南国，春来发几枝。愿君多采撷，此物最相思。'],
+['唐诗','悯农','李绅','锄禾日当午，汗滴禾下土。谁知盘中餐，粒粒皆辛苦。'],
+['唐诗','咏鹅','骆宾王','鹅鹅鹅，曲项向天歌。白毛浮绿水，红掌拨清波。'],
+['唐诗','赠汪伦','李白','李白乘舟将欲行，忽闻岸上踏歌声。桃花潭水深千尺，不及汪伦送我情。'],
+['唐诗','早发白帝城','李白','朝辞白帝彩云间，千里江陵一日还。两岸猿声啼不住，轻舟已过万重山。'],
+['唐诗','望庐山瀑布','李白','日照香炉生紫烟，遥看瀑布挂前川。飞流直下三千尺，疑是银河落九天。'],
+['唐诗','黄鹤楼送孟浩然之广陵','李白','故人西辞黄鹤楼，烟花三月下扬州。孤帆远影碧空尽，唯见长江天际流。'],
+['唐诗','绝句','杜甫','两个黄鹂鸣翠柳，一行白鹭上青天。窗含西岭千秋雪，门泊东吴万里船。'],
+['唐诗','春望','杜甫','国破山河在，城春草木深。感时花溅泪，恨别鸟惊心。烽火连三月，家书抵万金。白头搔更短，浑欲不胜簪。'],
+['唐诗','登高','杜甫','风急天高猿啸哀，渚清沙白鸟飞回。无边落木萧萧下，不尽长江滚滚来。万里悲秋常作客，百年多病独登台。艰难苦恨繁霜鬓，潦倒新停浊酒杯。'],
+['唐诗','枫桥夜泊','张继','月落乌啼霜满天，江枫渔火对愁眠。姑苏城外寒山寺，夜半钟声到客船。'],
+['唐诗','清明','杜牧','清明时节雨纷纷，路上行人欲断魂。借问酒家何处有，牧童遥指杏花村。'],
+['唐诗','山行','杜牧','远上寒山石径斜，白云生处有人家。停车坐爱枫林晚，霜叶红于二月花。'],
+['唐诗','游子吟','孟郊','慈母手中线，游子身上衣。临行密密缝，意恐迟迟归。谁言寸草心，报得三春晖。'],
+['宋词','题西林壁','苏轼','横看成岭侧成峰，远近高低各不同。不识庐山真面目，只缘身在此山中。'],
+['宋词','水调歌头','苏轼','明月几时有，把酒问青天。不知天上宫阙，今夕是何年。我欲乘风归去，又恐琼楼玉宇，高处不胜寒。起舞弄清影，何似在人间。转朱阁，低绮户，照无眠。不应有恨，何事长向别时圆。人有悲欢离合，月有阴晴圆缺，此事古难全。但愿人长久，千里共婵娟。'],
+['宋词','如梦令','李清照','昨夜雨疏风骤，浓睡不消残酒。试问卷帘人，却道海棠依旧。知否，知否，应是绿肥红瘦。'],
+['宋词','相见欢','李煜','无言独上西楼，月如钩。寂寞梧桐深院锁清秋。剪不断，理还乱，是离愁。别是一般滋味在心头。'],
+['宋词','满江红','岳飞','怒发冲冠，凭栏处、潇潇雨歇。抬望眼，仰天长啸，壮怀激烈。三十功名尘与土，八千里路云和月。莫等闲，白了少年头，空悲切。'],
+['宋词','游山西村','陆游','莫笑农家腊酒浑，丰年留客足鸡豚。山重水复疑无路，柳暗花明又一村。'],
+['宋词','示儿','陆游','死去元知万事空，但悲不见九州同。王师北定中原日，家祭无忘告乃翁。'],
+['宋词','春日','朱熹','胜日寻芳泗水滨，无边光景一时新。等闲识得东风面，万紫千红总是春。'],
+['国学','三字经','节选','人之初，性本善。性相近，习相远。苟不教，性乃迁。教之道，贵以专。昔孟母，择邻处。子不学，断机杼。窦燕山，有义方。教五子，名俱扬。'],
+['国学','千字文','节选','天地玄黄，宇宙洪荒。日月盈昃，辰宿列张。寒来暑往，秋收冬藏。闰余成岁，律吕调阳。云腾致雨，露结为霜。金生丽水，玉出昆冈。'],
+['国学','弟子规','总叙','弟子规，圣人训。首孝悌，次谨信。泛爱众，而亲仁。有余力，则学文。'],
+['国学','论语','节选','三人行，必有我师焉。择其善者而从之，其不善者而改之。温故而知新，可以为师矣。学而不思则罔，思而不学则殆。'],
+['国学','道德经','第一章','道可道，非常道。名可名，非常名。无名天地之始，有名万物之母。'],
+['国学','爱莲说','周敦颐','水陆草木之花，可爱者甚蕃。晋陶渊明独爱菊。自李唐来，世人甚爱牡丹。予独爱莲之出淤泥而不染，濯清涟而不妖，中通外直，不蔓不枝，香远益清，亭亭净植，可远观而不可亵玩焉。']
+].map(a=>({c:a[0],t:a[1],a:a[2],x:a[3]}));
+const CATS=['唐诗','宋词','国学','自定义'];
+const HK='inkTyping.history.v1';
+let mem=[];
+const load0=()=>{try{return JSON.parse(localStorage.getItem(HK)||'[]')}catch(e){return mem}};
+const save0=h=>{mem=h;try{localStorage.setItem(HK,JSON.stringify(h))}catch(e){}};
+let hist=load0(),cat='唐诗',sk='ts',sd=-1,clrArm=false;
+
+function runs(text){const it=[];
+ for(let i=0;i<text.length;i++){const c=text[i];
+  if(/[\u4e00-\u9fff]/.test(c)){it.push({z:c});continue;}
+  if(c==='('||c==='（'){const j=text.slice(i+1).search(/[)）]/);
+   if(j>=0){const raw=text.slice(i+1,i+1+j).replace(/[üÜǖǘǚǜ]/g,'v').normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+    if(/^[a-zA-Z0-9\s'’\-]+$/.test(raw)){const sy=raw.toLowerCase().split(/[\s'’\-]+/).map(p=>p.replace(/[0-9]/g,'')).filter(Boolean);let n=0;
+     while(n<it.length&&it[it.length-1-n].z)n++;
+     if(sy.length&&sy.length<=n){sy.forEach((p,k)=>it[it.length-sy.length+k].p=p);i+=j+1;continue;}}}}
+  it.push({z:null});}
+ const out=[];let cur=[];
+ [...it,{z:null}].forEach(x=>{if(x.z)cur.push(x);else if(cur.length){out.push(cur);cur=[];}});
+ return out;}
+function parse(text){const out=[];
+ runs(text).forEach(r=>{const s=r.map(x=>x.z).join('');
+  const py=pinyinPro.pinyin(s,{toneType:'none',type:'array',v:true}).map((x,k)=>r[k].p||String(x).replace(/ü/g,'v').toLowerCase().replace(/[^a-z]/g,''));
+  for(let i=0;i<s.length;i+=10){const z=[...s.slice(i,i+10)],p=py.slice(i,i+10);if(z.every((_,j)=>p[j]))out.push([z,p]);}});
+ return out;}
+const fmtT=ms=>{const s=ms/1000;return s<60?s.toFixed(1)+' 秒':Math.floor(s/60)+' 分 '+Math.round(s%60)+' 秒';};
+const fmtD=ts=>{const d=new Date(ts),p=n=>String(n).padStart(2,'0');return p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());};
+const count=x=>(x.match(/[\u4e00-\u9fff]/g)||[]).length;
+
+// ---------- 音效（水墨风，轻到不打扰） ----------
+let AC=null,noiseBuf=null,soundOn=true,lastMoveSfx=0;
+try{soundOn=localStorage.getItem('inkTyping.sound.v1')!=='0';}catch(e){}
+function ac(){
+  if(!AC){try{AC=new (window.AudioContext||window.webkitAudioContext)();}catch(e){return null;}
+    noiseBuf=AC.createBuffer(1,Math.floor(AC.sampleRate*0.3),AC.sampleRate);
+    const d=noiseBuf.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;}
+  if(AC.state==='suspended')AC.resume();
+  return AC;
+}
+function noiseHit(g,fc,q,dur){
+  const c=ac();if(!c||!soundOn)return;
+  const src=c.createBufferSource();src.buffer=noiseBuf;
+  const f=c.createBiquadFilter();f.type='bandpass';f.frequency.value=fc;f.Q.value=q;
+  const gn=c.createGain(),t=c.currentTime;
+  gn.gain.setValueAtTime(g,t);gn.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  src.connect(f);f.connect(gn);gn.connect(c.destination);src.start(t);src.stop(t+dur+0.02);
+}
+function tone(freq,g,dur,delay){
+  const c=ac();if(!c||!soundOn)return;
+  const t=c.currentTime+(delay||0);
+  const o=c.createOscillator();o.type='sine';o.frequency.value=freq;
+  const gn=c.createGain();
+  gn.gain.setValueAtTime(0.0001,t);gn.gain.exponentialRampToValueAtTime(g,t+0.015);gn.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(gn);gn.connect(c.destination);o.start(t);o.stop(t+dur+0.05);
+}
+function sfxTick(){noiseHit(0.045,3200,1.2,0.05);}
+function sfxMiss(){tone(140,0.055,0.14,0);}
+function sfxLine(){
+  const c=ac();if(!c||!soundOn)return;
+  const src=c.createBufferSource();src.buffer=noiseBuf;src.loop=true;
+  const f=c.createBiquadFilter();f.type='lowpass';f.frequency.value=900;
+  const gn=c.createGain(),t=c.currentTime;
+  gn.gain.setValueAtTime(0.0001,t);gn.gain.exponentialRampToValueAtTime(0.05,t+0.12);gn.gain.exponentialRampToValueAtTime(0.0001,t+0.3);
+  src.connect(f);f.connect(gn);gn.connect(c.destination);src.start(t);src.stop(t+0.32);
+}
+function sfxFinish(){[523.25,659.25,783.99].forEach((f,i)=>tone(f,0.06,0.5,i*0.13));}
+function sfxAch(){tone(659.25,0.045,0.4,0);tone(880,0.04,0.5,0.14);}
+function sfxMove(){const n=performance.now();if(n-lastMoveSfx<60)return;lastMoveSfx=n;noiseHit(0.015,4500,1,0.03);}
+function paintSnd(){$('sndBtn').textContent=soundOn?'🔊':'🔇';}
+$('sndBtn').onclick=()=>{soundOn=!soundOn;try{localStorage.setItem('inkTyping.sound.v1',soundOn?'1':'0');}catch(e){}paintSnd();if(soundOn)sfxTick();};
+paintSnd();
+
+// ---------- 成就（系统级：只上报；列表与入口在成就中心，这里只有解锁提示） ----------
+const ACH_DEFS=[
+ {id:'chars-100',name:'墨点初试',desc:'累计打对 100 字',icon:'🖌️',stat:'chars',target:100},
+ {id:'chars-500',name:'笔落生花',desc:'累计打对 500 字',icon:'🖌️',stat:'chars',target:500},
+ {id:'chars-1000',name:'千字小楷',desc:'累计打对 1000 字',icon:'🖌️',stat:'chars',target:1000},
+ {id:'chars-5000',name:'五千墨痕',desc:'累计打对 5000 字',icon:'🖌️',stat:'chars',target:5000},
+ {id:'chars-10000',name:'万字成卷',desc:'累计打对 10000 字',icon:'📜',stat:'chars',target:10000},
+ {id:'chars-50000',name:'墨海拾珠',desc:'累计打对 50000 字',icon:'📜',stat:'chars',target:50000},
+ {id:'chars-100000',name:'十万挥毫',desc:'累计打对 100000 字',icon:'📜',stat:'chars',target:100000},
+ {id:'chars-500000',name:'笔耕不辍',desc:'累计打对 500000 字',icon:'🏆',stat:'chars',target:500000},
+ {id:'chars-1000000',name:'百万墨客',desc:'累计打对 1000000 字',icon:'🏆',stat:'chars',target:1000000},
+ {id:'sess-1',name:'初试锋芒',desc:'完成第 1 局',icon:'🌸',stat:'sessions',target:1},
+ {id:'sess-10',name:'十战墨场',desc:'累计完成 10 局',icon:'🌸',stat:'sessions',target:10},
+ {id:'sess-50',name:'五十回锋',desc:'累计完成 50 局',icon:'🌸',stat:'sessions',target:50},
+ {id:'sess-100',name:'百练成钢',desc:'累计完成 100 局',icon:'🏆',stat:'sessions',target:100},
+ {id:'sess-500',name:'笔下千军',desc:'累计完成 500 局',icon:'🏆',stat:'sessions',target:500},
+ {id:'sess-1000',name:'千回百转',desc:'累计完成 1000 局',icon:'🏆',stat:'sessions',target:1000},
+ {id:'sess-2000',name:'万里长卷',desc:'累计完成 2000 局',icon:'🏆',stat:'sessions',target:2000},
+ {id:'perf-1',name:'一字不差',desc:'首次一局零失误',icon:'⭐',stat:'perfects',target:1},
+ {id:'perf-10',name:'十全十美',desc:'累计 10 局零失误',icon:'⭐',stat:'perfects',target:10},
+ {id:'perf-50',name:'落笔无悔',desc:'累计 50 局零失误',icon:'⭐',stat:'perfects',target:50},
+ {id:'perf-100',name:'百炼无瑕',desc:'累计 100 局零失误',icon:'🏆',stat:'perfects',target:100},
+ {id:'combo-20',name:'连珠二十',desc:'单局连击达到 20',icon:'🔥',stat:'bestCombo',target:20},
+ {id:'combo-50',name:'五十连珠',desc:'单局连击达到 50',icon:'🔥',stat:'bestCombo',target:50},
+ {id:'combo-100',name:'百连珠玑',desc:'单局连击达到 100',icon:'🔥',stat:'bestCombo',target:100},
+ {id:'combo-200',name:'二百连绵',desc:'单局连击达到 200',icon:'🔥',stat:'bestCombo',target:200},
+ {id:'speed-30',name:'行云三十',desc:'单局速度达到 30 字/分',icon:'⚡',stat:'bestSpeed',target:30},
+ {id:'speed-60',name:'流水六十',desc:'单局速度达到 60 字/分',icon:'⚡',stat:'bestSpeed',target:60},
+ {id:'speed-100',name:'笔走龙蛇',desc:'单局速度达到 100 字/分',icon:'⚡',stat:'bestSpeed',target:100},
+ {id:'speed-150',name:'疾风骤雨',desc:'单局速度达到 150 字/分',icon:'⚡',stat:'bestSpeed',target:150},
+ {id:'days-1',name:'一日之计',desc:'累计练习 1 天',icon:'📅',stat:'days',target:1},
+ {id:'days-7',name:'七日不辍',desc:'累计练习 7 天',icon:'📅',stat:'days',target:7},
+ {id:'days-30',name:'月满墨香',desc:'累计练习 30 天',icon:'📅',stat:'days',target:30},
+ {id:'days-100',name:'百日筑基',desc:'累计练习 100 天',icon:'📅',stat:'days',target:100},
+ {id:'days-365',name:'一年长青',desc:'累计练习 365 天',icon:'🏆',stat:'days',target:365},
+ {id:'days-1000',name:'千日如一',desc:'累计练习 1000 天',icon:'🏆',stat:'days',target:1000},
+ {id:'pieces-1',name:'初读名篇',desc:'打通过 1 篇',icon:'📖',stat:'pieces',target:1},
+ {id:'pieces-5',name:'五篇在手',desc:'打通过 5 篇不同篇目',icon:'📖',stat:'pieces',target:5},
+ {id:'pieces-10',name:'十篇通晓',desc:'打通过 10 篇不同篇目',icon:'📖',stat:'pieces',target:10},
+ {id:'pieces-20',name:'二十篇章',desc:'打通过 20 篇不同篇目',icon:'📖',stat:'pieces',target:20},
+ {id:'pieces-33',name:'遍览群书',desc:'打通过全部 33 篇',icon:'📖',stat:'pieces',target:33},
+ {id:'cmade-1',name:'自撰一则',desc:'创建第 1 篇自定义文本',icon:'✍️',stat:'customMade',target:1},
+ {id:'cmade-10',name:'十则成集',desc:'累计创建 10 篇自定义文本',icon:'✍️',stat:'customMade',target:10},
+ {id:'cruns-1',name:'自写自练',desc:'完成 1 局自定义练习',icon:'✍️',stat:'customRuns',target:1},
+ {id:'cruns-10',name:'熟读自文',desc:'累计完成 10 局自定义练习',icon:'✍️',stat:'customRuns',target:10},
+ {id:'cat-tang',name:'唐诗尽览',desc:'打通过全部唐诗',icon:'🌙'},
+ {id:'cat-song',name:'宋词尽览',desc:'打通过全部宋词',icon:'🌙'},
+ {id:'cat-guo',name:'国学尽览',desc:'打通过全部国学篇目',icon:'🌙'},
+ {id:'night-owl',name:'子夜练字',desc:'在 23:00–01:00 完成一局',icon:'🌙',hidden:true},
+ {id:'early-bird',name:'破晓临池',desc:'在 05:00–07:00 完成一局',icon:'🌅'},
+ {id:'long-piece',name:'长卷一气',desc:'一局打完 80 字以上的篇目',icon:'📜'}
+];
+function ach(fn){try{if(window.CHAch)fn(window.CHAch);}catch(e){}}
+let achBatch=[],achBatchTimer=null;
+function achToastFlush(){
+  achBatchTimer=null;
+  const defs=achBatch;achBatch=[];
+  if(!defs.length)return;
+  const t=document.createElement('div');t.className='achToast';
+  const ic=document.createElement('span');ic.className='achIcon';ic.textContent=defs[0].icon||'🏆';
+  const tx=document.createElement('span');tx.className='achTx';
+  const b=document.createElement('b');
+  b.textContent=defs.length===1?defs[0].name:defs.slice(0,3).map(d=>d.name).join('、')+(defs.length>3?'，等 '+defs.length+' 个成就':'');
+  const s=document.createElement('small');
+  s.textContent=defs.length===1?(defs[0].desc||''):'成就已记入成就中心';
+  tx.appendChild(b);tx.appendChild(s);t.appendChild(ic);t.appendChild(tx);
+  document.body.appendChild(t);
+  const r=t.getBoundingClientRect();
+  const halo=document.createElement('div');halo.className='achHalo';
+  halo.style.left=(r.left+r.width/2)+'px';halo.style.top=(r.top+r.height/2)+'px';
+  document.body.appendChild(halo);setTimeout(()=>halo.remove(),850);
+  selSplash(t);
+  setTimeout(()=>t.remove(),2700);
+  sfxAch();
+}
+ach(C=>C.onUnlock((appId,def)=>{
+  if(appId!=='moyun')return;
+  achBatch.push(def);
+  if(achBatchTimer)clearTimeout(achBatchTimer);
+  achBatchTimer=setTimeout(achToastFlush,600);
+}));
+ach(C=>C.register('moyun','打字练习',ACH_DEFS));
+
+// ---------- 首页 ----------
+function renderHome(){
+ $('tabs').innerHTML='';
+ CATS.forEach(c=>{const b=document.createElement('button');b.textContent=c;b.className=c===cat?'on':'';b.onclick=()=>{cat=c;selHide();renderHome();};$('tabs').appendChild(b);});
+ const L=$('list');L.innerHTML='';$('custom').hidden=cat!=='自定义';L.hidden=cat==='自定义';
+ D.filter(d=>d.c===cat).forEach(d=>{const b=document.createElement('button');b.innerHTML='<b>'+d.t+'</b><span>'+d.a+' · '+count(d.x)+' 字</span>';b.onclick=()=>startRun(d);L.appendChild(b);});
+ renderHist();
+}
+const COLS=[['ts','时间'],['t','篇目'],['keys','按键数'],['ms','用时'],['kps','键/秒'],['acc','准确率']];
+function renderHist(){
+ const B=$('histBox');
+ if(!hist.length){B.innerHTML='<div class="empty">还没有练习记录。练完一篇，成绩会留在这里。</div>';return;}
+ const rows=[...hist].sort((a,b)=>{const x=a[sk],y=b[sk];return (typeof x==='string'?x.localeCompare(y,'zh'):x-y)*sd;});
+ let h='<div class="tw"><table><thead><tr>'+COLS.map(c=>'<th data-k="'+c[0]+'" class="'+(c[0]===sk?'s':'')+'">'+c[1]+(c[0]===sk?(sd>0?' ▲':' ▼'):'')+'</th>').join('')+'</tr></thead><tbody>';
+ rows.forEach(r=>{h+='<tr><td>'+fmtD(r.ts)+'</td><td>'+r.t+'</td><td>'+r.keys+'</td><td>'+fmtT(r.ms)+'</td><td>'+r.kps.toFixed(2)+'</td><td>'+(r.acc*100).toFixed(1)+'%</td></tr>';});
+ h+='</tbody></table></div><p style="margin:12px 0 0"><button class="btn" id="clr">'+(clrArm?'再点一次确认清空':'清空历史')+'</button> <span style="font-size:13px;color:var(--ink-soft)">共 '+hist.length+' 条，点表头排序</span></p>';
+ B.innerHTML=h;
+ B.querySelectorAll('th').forEach(th=>th.onclick=()=>{const k=th.dataset.k;if(k===sk)sd=-sd;else{sk=k;sd=(k==='t')?1:-1;}renderHist();});
+ $('clr').onclick=()=>{if(!clrArm){clrArm=true;renderHist();setTimeout(()=>{clrArm=false;},3000);}else{hist=[];save0(hist);clrArm=false;renderHist();}};
+}
+function goHome(){selHide();resultOn=false;finishToken++;view='home';busy=true;document.body.className='home';$('start').classList.add('hide');target=.55;renderHome();$('home').scrollTop=0;}
+const CK='inkTyping.custom.v1';let cmem=[];
+const cLoad=()=>{try{return JSON.parse(localStorage.getItem(CK)||'[]')}catch(e){return cmem}};
+const cSave=h=>{cmem=h;try{localStorage.setItem(CK,JSON.stringify(h))}catch(e){}};
+let customs=cLoad(),cSort='used',cOpen=false;
+function startCustom(t,x){
+ x=(x||'').trim();
+ if(count(x)<4){$('cerr').textContent='请至少输入 4 个汉字。';return;}
+ $('cerr').textContent='';t=(t||'').trim()||'自定义文本';
+ startRun({c:'自定义',t,a:'',x});
+ if(view==='play'){const now=Date.now(),f=customs.find(c=>c.t===t&&c.x===x);
+  if(f)f.used=now;else{customs.push({id:now+'-'+Math.random().toString(36).slice(2,6),t,x,created:now,used:now});ach(C=>C.stat('moyun','customMade',1));}
+  cSave(customs);renderCustoms();}
+}
+function renderCustoms(){
+ $('cHist').textContent='历史自定义（'+customs.length+'）'+(cOpen?' ▲':' ▼');
+ const P=$('cpanel');P.hidden=!cOpen;if(!cOpen)return;
+ if(!customs.length){P.innerHTML='<div class="empty">还没有自定义记录。开始练习一次，文本就会留在这里。</div>';return;}
+ const rows=[...customs].sort((a,b)=>b[cSort]-a[cSort]);
+ P.innerHTML=`<div class='csort'>排序：<button class='btn${cSort==='used'?' pri':''}' data-s='used'>使用时间</button> <button class='btn${cSort==='created'?' pri':''}' data-s='created'>创建时间</button></div>`+rows.map(c=>`<div class='citem' data-id='${c.id}'><div class='cm'><b></b><span class='pv'></span><small>创建 ${fmtD(c.created)} · 最近使用 ${fmtD(c.used)}</small></div><div class='ca'><button class='btn' data-a='go'>开始</button><button class='btn' data-a='ld'>载入</button><button class='btn' data-a='del'>删除</button></div></div>`).join('');
+ P.querySelectorAll('.citem').forEach((el,i)=>{const c=rows[i];el.querySelector('b').textContent=c.t;el.querySelector('.pv').textContent=c.x.replace(/\s+/g,' ').slice(0,40)+(c.x.length>40?'…':'');});
+ P.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{cSort=b.dataset.s;renderCustoms();});
+ P.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>{
+  const c=customs.find(z=>z.id===b.closest('.citem').dataset.id);if(!c)return;
+  if(b.dataset.a==='go')startCustom(c.t,c.x);
+  else if(b.dataset.a==='ld'){$('ctitle').value=c.t==='自定义文本'?'':c.t;$('ta').value=c.x;cOpen=false;renderCustoms();$('ta').focus();}
+  else{customs=customs.filter(z=>z.id!==c.id);cSave(customs);renderCustoms();}});
+}
+$('goCustom').onclick=()=>startCustom($('ctitle').value,$('ta').value);
+$('cHist').onclick=()=>{cOpen=!cOpen;renderCustoms();};
+renderCustoms();
+$('back').onclick=goHome;
+
+// ---------- 游戏 ----------
+let view='home',cur=null,lines=[],li=0,ci=0,ki=0,started=false,t0=0,done=0,total=0,hit=0,miss=0,combo=0,maxCombo=0,chars=[],pys=[],els=[],prog=0,target=.55,busy=true,resultOn=false,finishToken=0;
+function startRun(d){
+ selHide();resultOn=false;finishToken++;
+ if(!window.pinyinPro){$('cerr').textContent='拼音库未能加载，请检查网络后刷新。';return;}
+ lines=parse(d.x);if(!lines.length)return;
+ cur=d;li=0;started=false;done=0;hit=miss=combo=maxCombo=0;total=lines.reduce((n,l)=>n+l[0].length,0);
+ view='play';document.body.className='';target=0;
+ $('ttl').textContent=d.t+(d.a?' · '+d.a:'');$('title').textContent=d.t+(d.a?' · '+d.a:'');
+ stats();loadLine();
+}
+function loadLine(){
+ [chars,pys]=lines[li];ci=0;ki=0;els=[];
+ const L=$('line');L.innerHTML='';
+ chars.forEach((c,i)=>{const d=document.createElement('div');d.className='ch'+(i?'':' cur');
+  d.innerHTML='<div class="py"><i></i>'+pys[i]+'</div><div class="zi">'+c+'</div>';L.appendChild(d);els.push(d);});
+ L.style.opacity=1;busy=false;$('hint').textContent='第 '+(li+1)+' / '+lines.length+' 句';
+}
+function renderPy(i){els[i].querySelector('.py').innerHTML='<i>'+pys[i].slice(0,ki)+'</i>'+pys[i].slice(ki);}
+function center(el){const r=el.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2];}
+function stats(){const el=(performance.now()-t0)/60000;
+ $('sCpm').textContent=started&&el>.05?Math.round(done/el):0;
+ $('sAcc').textContent=(hit+miss?Math.round(hit/(hit+miss)*100):100)+'%';
+ $('sCombo').textContent=combo;}
+function finish(){
+ busy=true;const ms=performance.now()-t0,keys=hit+miss,kps=keys/(ms/1000),acc=hit/keys;
+ const prev=hist.filter(r=>r.t===cur.t&&r.a===cur.a);
+ const best=prev.length&&kps>Math.max(...prev.map(r=>r.kps));
+ hist.push({ts:Date.now(),t:cur.t,a:cur.a,keys,ms,kps,acc,chars:total});save0(hist);
+ ach(C=>{
+  C.stat('moyun','sessions',1);
+  if(miss===0)C.stat('moyun','perfects',1);
+  C.maxStat('moyun','bestCombo',maxCombo);
+  const sp=ms>0?Math.round(total/(ms/60000)):0;
+  if(isFinite(sp)&&sp>0)C.maxStat('moyun','bestSpeed',sp);
+  C.markDay('moyun');
+  if(cur.c==='自定义')C.stat('moyun','customRuns',1);
+  const seen={};hist.forEach(r=>seen[r.t+'|'+r.a]=1);
+  C.maxStat('moyun','pieces',Object.keys(seen).length);
+  const cats={'唐诗':'cat-tang','宋词':'cat-song','国学':'cat-guo'};
+  Object.keys(cats).forEach(cn=>{if(D.filter(d=>d.c===cn).every(d=>seen[d.t+'|'+d.a]))C.unlock('moyun',cats[cn]);});
+  if(total>=80)C.unlock('moyun','long-piece');
+  const h=new Date().getHours();
+  if(h>=23||h<1)C.unlock('moyun','night-owl');
+  else if(h>=5&&h<7)C.unlock('moyun','early-bird');
+ });
+ const R=$('result');
+ R.innerHTML='<div class="box" style="text-align:center"><h2 style="font:400 56px \'Ma Shan Zheng\',\'STKaiti\',serif;margin:0">练完啦</h2><p style="color:var(--ink-soft);margin:6px 0 0">'+cur.t+(cur.a?' · '+cur.a:'')+'</p><div class="grid">'
+ +'<div><b>'+keys+'</b><span>按键数</span></div><div><b>'+fmtT(ms)+'</b><span>用时</span></div><div><b>'+kps.toFixed(2)+'</b><span>键/秒</span></div>'
+ +'<div><b>'+(acc*100).toFixed(1)+'%</b><span>准确率</span></div><div><b>'+Math.round(total/(ms/60000))+'</b><span>字/分</span></div><div><b>'+total+'</b><span>字数</span></div></div>'
+ +'<p class="note">'+(best?'本篇最快速度，已记入练习记录。':'已记入练习记录。')+'</p><div class="row"><button class="btn pri" id="again">再练一遍</button><button class="btn" id="toHome">回到首页</button></div></div>';
+ $('again').onclick=()=>{$('start').classList.add('hide');if(cur.c==='自定义')startCustom(cur.t,cur.x);else startRun(cur);};
+ $('toHome').onclick=goHome;
+ const tk=++finishToken;
+ setTimeout(()=>{
+  if(tk!==finishToken||view!=='play')return;
+  $('start').classList.remove('hide');resultOn=true;sfxFinish();
+  const a=$('again');if(a){selShow(a);selSplash(a);}
+ },900);
+}
+addEventListener('keydown',e=>{
+ if(view!=='play')return;
+ if(e.key==='Escape'){goHome();return;}
+ if(e.ctrlKey||e.metaKey||e.altKey||!/^[a-zA-Z]$/.test(e.key)||busy)return;
+ if(!started){started=true;t0=performance.now();}
+ const k=e.key.toLowerCase(),need=pys[ci][ki],el=els[ci];
+ if(k===need){
+  ki++;hit++;combo++;if(combo>maxCombo)maxCombo=combo;sfxTick();renderPy(ci);
+  const py=el.querySelector('.py').getBoundingClientRect();
+  ink(py.left+py.width/2+(Math.random()-.5)*30,py.top+10,26+Math.random()*20,500,INK,.3,0,.5);
+  if(ki===pys[ci].length){
+   done++;ach(C=>C.stat('moyun','chars',1));const [x,y]=center(el.querySelector('.zi'));
+   ink(x,y,150+Math.random()*40,1600,INK,.38);
+   for(let i=0;i<7;i++){const a=Math.random()*6.28,v=1+Math.random()*2.2;ink(x,y,14+Math.random()*26,1200,INK,.4,Math.cos(a)*v,-Math.sin(a)*v);}
+   el.classList.remove('cur');el.classList.add('done');ci++;ki=0;
+   target=Math.min(1,done/total);
+   if(ci<chars.length)els[ci].classList.add('cur');
+   else{li++;if(li>=lines.length){busy=true;stats();setTimeout(finish,400);return;}
+    sfxLine();loadLine();}
+  }
+ }else{
+  miss++;combo=0;sfxMiss();el.classList.remove('shake');void el.offsetWidth;el.classList.add('shake');
+  const [x,y]=center(el.querySelector('.zi'));ink(x,y+10,60,700,RED,.45);
+ }
+ stats();
+});
+// ---------- 键盘选框（首页） ----------
+// 方向键移动墨水选框：第一次按方向键时选框出现，落在当前页第一个；
+// 行尾按右/行首按左/末行按下/首行按上，翻到下一页/上一页（分类即页），
+// 翻页落在新页的入边：往右翻落同行首个、往左翻落同行末个（行数不够贴
+// 末行），往下翻落首行同列、往上翻落末行同列；
+// 自定义页特殊：翻页进来先选中输入框（标题、内容）；输入框被选中时即聚
+// 焦、可直接打字（输入法从第一个字就正常）；在输入框里方向键按到边界（行
+// 首/行尾/首行/末行）时退回选框状态，再按继续导航；Esc 退出输入回到选框、
+// 再按收起选框；输入法组字时所有键都交给输入法。
+// 移动时溅起墨点，与打字时的墨迹同源。
+let selEl=null;
+const selBox=document.createElement('div');selBox.id='selBox';document.body.appendChild(selBox);
+function selItems(){
+  if(cat==='自定义'){
+    const items=[$('ctitle'),$('ta'),$('goCustom'),$('cHist')];
+    if(!$('cpanel').hidden)document.querySelectorAll('#cpanel .csort button, #cpanel .citem [data-a]').forEach(b=>items.push(b));
+    return items.filter(el=>el&&el.offsetParent!==null);
+  }
+  return [...document.querySelectorAll('#list button')];
+}
+function selRows(items){
+  const rs=items.map(el=>({el,r:el.getBoundingClientRect()}));
+  rs.sort((a,b)=>a.r.top-b.r.top||a.r.left-b.r.left);
+  const rows=[];let cur=[],top=null;
+  for(const it of rs){
+    if(top===null||Math.abs(it.r.top-top)>8){if(cur.length)rows.push(cur);cur=[];top=it.r.top;}
+    cur.push(it.el);
+  }
+  if(cur.length)rows.push(cur);
+  return rows;
+}
+function selPos(rows){
+  if(!selEl)return null;
+  for(let r=0;r<rows.length;r++){const c=rows[r].indexOf(selEl);if(c>=0)return{r,c};}
+  return null;
+}
+function selShow(el,instant){
+  selEl=el;
+  const r=el.getBoundingClientRect(),pad=6;
+  if(instant)selBox.style.transition='none';
+  selBox.style.display='block';
+  selBox.style.left=(r.left-pad)+'px';selBox.style.top=(r.top-pad)+'px';
+  selBox.style.width=(r.width+pad*2)+'px';selBox.style.height=(r.height+pad*2)+'px';
+  if(instant){void selBox.offsetWidth;selBox.style.transition='';}
+  else{selBox.classList.remove('pulse');void selBox.offsetWidth;selBox.classList.add('pulse');}
+}
+function selHide(){selEl=null;selBox.style.display='none';}
+function selPark(){selBox.style.display='none';}
+function selEdit(el){
+  selEl=el;selPark();el.focus();
+  const len=el.value.length;el.setSelectionRange(len,len);
+}
+let composing=false;
+document.addEventListener('compositionstart',e=>{if(e.target.id==='ctitle'||e.target.id==='ta')composing=true;});
+document.addEventListener('compositionend',e=>{if(e.target.id==='ctitle'||e.target.id==='ta')composing=false;});
+function atBoundary(el,key){
+  if(key!=='ArrowLeft'&&key!=='ArrowRight'&&key!=='ArrowUp'&&key!=='ArrowDown')return false;
+  const s=el.selectionStart,ed=el.selectionEnd;
+  if(s===null||s!==ed)return false;
+  const v=el.value;
+  if(key==='ArrowLeft')return s===0;
+  if(key==='ArrowRight')return s===v.length;
+  if(el.tagName==='INPUT')return true;
+  if(key==='ArrowUp')return v.lastIndexOf('\n',s-1)===-1;
+  return v.indexOf('\n',s)===-1;
+}
+function selSplash(el){
+  const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2;
+  for(let i=0;i<3;i++){
+    const d=document.createElement('i');d.className='inkdot';
+    const s=14+Math.random()*18;
+    d.style.left=(cx+(Math.random()-.5)*r.width*.6)+'px';
+    d.style.top=(cy+(Math.random()-.5)*r.height*.6)+'px';
+    d.style.width=s+'px';d.style.height=s+'px';
+    document.body.appendChild(d);setTimeout(()=>d.remove(),600);
+  }
+}
+function selLand(el){
+  el.scrollIntoView({block:'nearest'});
+  if(el.tagName==='INPUT'||el.tagName==='TEXTAREA')selEdit(el);
+  else{
+    const ae=document.activeElement;
+    if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'))ae.blur();
+    selShow(el);
+  }
+  sfxMove();selSplash(el);
+}
+function selMove(dr,dc){
+  const items=selItems();
+  if(!items.length){selHide();return;}
+  const rows=selRows(items);
+  const pos=selPos(rows);
+  if(!pos){selLand(rows[0][0]);return;}
+  const{r,c}=pos;
+  let nr=r,nc=c,page=0;
+  if(dc>0){if(c<rows[r].length-1)nc=c+1;else page=1;}
+  else if(dc<0){if(c>0)nc=c-1;else page=-1;}
+  else if(dr>0){if(r<rows.length-1){nr=r+1;nc=Math.min(c,rows[nr].length-1);}else page=1;}
+  else if(dr<0){if(r>0){nr=r-1;nc=Math.min(c,rows[nr].length-1);}else page=-1;}
+  if(page){
+    const ni=CATS.indexOf(cat)+page;
+    if(ni<0||ni>=CATS.length)return;
+    cat=CATS[ni];renderHome();$('home').scrollTop=0;
+    const items2=selItems();
+    if(!items2.length){selHide();return;}
+    const rows2=selRows(items2);
+    let el;
+    if(CATS[ni]==='自定义')el=$('ctitle')||rows2[0][0];
+    else if(dc>0){const nr2=Math.min(r,rows2.length-1);el=rows2[nr2][0];}
+    else if(dc<0){const nr2=Math.min(r,rows2.length-1);el=rows2[nr2][rows2[nr2].length-1];}
+    else if(dr>0)el=rows2[0][Math.min(c,rows2[0].length-1)];
+    else el=rows2[rows2.length-1][Math.min(c,rows2[rows2.length-1].length-1)];
+    selLand(el);return;
+  }
+  selLand(rows[nr][nc]);
+}
+function selConfirm(){
+  if(!selEl)return;
+  const el=selEl;
+  if(el.tagName==='INPUT'||el.tagName==='TEXTAREA'){selEdit(el);return;}
+  const rows0=selRows(selItems()),pos0=selPos(rows0);
+  el.click();
+  if(view==='play')return;
+  const ae=document.activeElement;
+  if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA')&&ae!==el){selHide();return;}
+  const items=selItems();
+  if(!items.length){selHide();return;}
+  if(document.contains(el)&&items.includes(el)){selLand(el);return;}
+  const rows=selRows(items);
+  const r=pos0?Math.min(pos0.r,rows.length-1):0;
+  const c=pos0?Math.min(pos0.c,rows[r].length-1):0;
+  selLand(rows[r][c]);
+}
+addEventListener('keydown',e=>{
+  if(view!=='home')return;
+  const ae=document.activeElement;
+  const inField=ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA');
+  if(inField){
+    if(composing)return;
+    if(e.key==='Escape'){ae.blur();selShow(ae);e.preventDefault();return;}
+    if(atBoundary(ae,e.key)){e.preventDefault();ae.blur();selShow(ae);}
+    return;
+  }
+  if(e.key==='Escape'){selHide();return;}
+  const m={ArrowLeft:[0,-1],ArrowRight:[0,1],ArrowUp:[-1,0],ArrowDown:[1,0]}[e.key];
+  if(m){e.preventDefault();selMove(m[0],m[1]);}
+  else if(e.key==='Enter'&&selEl){e.preventDefault();selConfirm();}
+  else if(selEl&&(selEl.tagName==='INPUT'||selEl.tagName==='TEXTAREA')){
+    if(e.key==='Backspace'||(e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey)){e.preventDefault();selEdit(selEl);}
+  }
+});
+// ---------- 结算屏键盘操作 ----------
+// 结算屏出现时选框已落在“再练一遍”上；方向键在两个按钮间移动（上下与
+// 左右都可），回车激活，Esc 回首页。结算屏显示时打字处理不吃游戏按键。
+addEventListener('keydown',e=>{
+  if(!resultOn)return;
+  const items=[$('again'),$('toHome')].filter(Boolean);
+  if(!items.length)return;
+  if(e.key==='Escape'){goHome();e.preventDefault();return;}
+  const m={ArrowLeft:-1,ArrowRight:1,ArrowUp:-1,ArrowDown:1}[e.key];
+  if(m!==undefined){
+    e.preventDefault();
+    let i=items.indexOf(selEl);if(i<0)i=0;
+    i=Math.max(0,Math.min(items.length-1,i+m));
+    selShow(items[i]);selSplash(items[i]);sfxMove();
+    return;
+  }
+  if(e.key==='Enter'&&selEl&&items.includes(selEl)){e.preventDefault();selEl.click();}
+});
+$('home').addEventListener('scroll',()=>{if(selEl&&selBox.style.display==='block')selShow(selEl,true);},{passive:true});
+addEventListener('resize',()=>{if(selEl&&view==='home'&&selBox.style.display==='block')selShow(selEl,true);});
+document.addEventListener('focusout',e=>{
+  const t=e.target;
+  if((t.id==='ctitle'||t.id==='ta')&&selEl===t&&selBox.style.display!=='block')selHide();
+});
+
+const clock=new THREE.Clock();
+function tick(){
+ requestAnimationFrame(tick);
+ const now=performance.now();bg.material.uniforms.uT.value=clock.getElapsedTime();
+ prog+=(target-prog)*.02;bg.material.uniforms.uP.value=prog;
+ for(let i=blots.length-1;i>=0;i--){const b=blots[i],t=(now-b.b)/b.life;
+  if(t>=1){scene.remove(b.s);b.m.dispose();blots.splice(i,1);continue;}
+  const e=1-Math.pow(1-t,3),sz=b.size*(.4+.6*e);b.s.scale.set(sz,sz,1);
+  b.m.opacity=b.op*Math.pow(1-t,1.6);b.s.position.x+=b.vx*(1-t);b.s.position.y+=b.vy*(1-t);}
+ renderer.render(scene,cam);
+}
+setInterval(()=>{if(view==='play'&&started)stats();},700);
+renderHome();tick();
+</script>
+</body>
+</html>

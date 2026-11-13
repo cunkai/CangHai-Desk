@@ -1,0 +1,281 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- WiFi 投屏（调试）：取局域网 IP / 保持 WiFi 高性能锁 -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- 悬浮 Dock 点「启动台」时把桌面任务前置：比 am start 稳，不会把桌面变成自由窗口 -->
+    <uses-permission android:name="android.permission.REORDER_TASKS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Moonlight 串流主机：:engine 进程 mediaProjection/dataSync 前台类型 + 音频内录 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- DexHome 应用网格需要看到所有带 LAUNCHER 入口的包（Android 11+ 包可见性） -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <!-- 手机应用列表里的「卸载」走系统确认框（ACTION_DELETE）需要这个权限 -->
+    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <!-- 壁纸读取：三星 WallpaperManager 路径强校验 READ_EXTERNAL_STORAGE（运行时弹窗拿不到，
+         由 DexHome 用 Shizuku shell 身份 pm grant 静默自授权，故必须在所有 API 级别声明） -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <!-- 创建桌面快捷方式：normal 级、声明即授予，但部分国产 ROM 仍会拦。
+         属于「可选」能力——不给也能正常用，只是加不了桌面入口，
+         所以点了创建才提示授权，不阻塞其它功能。 -->
+    <uses-permission
+        android:name="com.android.launcher.permission.INSTALL_SHORTCUT"
+        tools:ignore="ProtectedPermissions" />
+    <!-- 部分 ROM（小米/OPPO/vivo）的桌面实现走这个私有权限 -->
+    <uses-permission
+        android:name="com.android.launcher.permission.READ_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- 声明按 Launcher intent 过滤的可见性（标准机制，配合上面的全量权限） -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:largeHeap="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.ShizukuDeX">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation|uiMode|fontScale|locale"
+            android:windowSoftInputMode="adjustNothing">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- 沧海软件包与 HTML 关联：仅支持 .沧海软件 / .canghai / .html，严禁关联 .apk -->
+            <!-- 1. HTML 文件关联 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="text/html" />
+                <data android:mimeType="application/xhtml+xml" />
+                <data android:pathSuffix=".html" />
+                <data android:pathSuffix=".htm" />
+                <data android:pathSuffix=".HTML" />
+                <data android:pathSuffix=".HTM" />
+                <data android:pathPattern=".*\\.html" />
+                <data android:pathPattern=".*\\.htm" />
+                <data android:pathPattern=".*\\.HTML" />
+                <data android:pathPattern=".*\\.HTM" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:pathSuffix=".html" />
+                <data android:pathSuffix=".htm" />
+                <data android:pathSuffix=".HTML" />
+                <data android:pathSuffix=".HTM" />
+                <data android:pathPattern=".*\\.html" />
+                <data android:pathPattern=".*\\.htm" />
+                <data android:pathPattern=".*\\.HTML" />
+                <data android:pathPattern=".*\\.HTM" />
+            </intent-filter>
+            <!-- 2. 沧海软件包关联：带常见二进制/压缩 MIME 类型 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="application/x-canghai" />
+                <data android:pathSuffix=".canghai" />
+                <data android:pathSuffix=".CANGHAI" />
+                <data android:pathSuffix=".沧海软件" />
+                <data android:pathSuffix=".%E6%B2%A7%E6%B5%B7%E8%BD%AF%E4%BB%B6" />
+                <data android:pathSuffix=".%e6%b2%a7%e6%b5%b7%e8%bd%af%e4%bb%b6" />
+                <data android:pathPattern=".*\\.canghai" />
+                <data android:pathPattern=".*\\.CANGHAI" />
+                <data android:pathPattern=".*\\..*\\.canghai" />
+                <data android:pathPattern=".*\\..*\\..*\\.canghai" />
+                <data android:pathPattern=".*\\.沧海软件" />
+                <data android:pathPattern=".*\\..*\\.沧海软件" />
+                <data android:pathPattern=".*\\..*\\..*\\.沧海软件" />
+                <data android:pathPattern=".*\\.%E6%B2%A7%E6%B5%B7%E8%BD%AF%E4%BB%B6" />
+                <data android:pathPattern=".*\\.%e6%b2%a7%e6%b5%b7%e8%bd%af%e4%bb%b6" />
+            </intent-filter>
+            <!-- 3. 不带 mimeType 的文件管理器直接传 Uri -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:pathSuffix=".canghai" />
+                <data android:pathSuffix=".CANGHAI" />
+                <data android:pathSuffix=".沧海软件" />
+                <data android:pathSuffix=".%E6%B2%A7%E6%B5%B7%E8%BD%AF%E4%BB%B6" />
+                <data android:pathSuffix=".%e6%b2%a7%e6%b5%b7%e8%bd%af%e4%bb%b6" />
+                <data android:pathPattern=".*\\.canghai" />
+                <data android:pathPattern=".*\\.CANGHAI" />
+                <data android:pathPattern=".*\\..*\\.canghai" />
+                <data android:pathPattern=".*\\..*\\..*\\.canghai" />
+                <data android:pathPattern=".*\\.沧海软件" />
+                <data android:pathPattern=".*\\..*\\.沧海软件" />
+                <data android:pathPattern=".*\\..*\\..*\\.沧海软件" />
+                <data android:pathPattern=".*\\.%E6%B2%A7%E6%B5%B7%E8%BD%AF%E4%BB%B6" />
+                <data android:pathPattern=".*\\.%e6%b2%a7%e6%b5%b7%e8%bd%af%e4%bb%b6" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".DexHomeActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation|uiMode|fontScale|locale" />
+
+        <!-- 虚拟屏专用桌面组件：与 DexHomeActivity 分开，避免 singleTask 实例被搬屏
+             （Sunshine 虚拟屏的 desktopComponent 指向此组件） -->
+        <activity
+            android:name=".CastHomeActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.aosen.casthome.virtual"
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="adjustNothing"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation|uiMode|fontScale|locale" />
+
+        <!-- 沧海 HTML 应用的独立窗口宿主：一个应用 = 一个 freeform Task，
+             这样它和系统应用处在同一套窗口层级（谁点谁在前），不再被压在 Task 下面。
+             必须出现在最近任务里：以前 excludeFromRecents=true，按 Home 就再也找不到
+             这个窗口，WebView 还在后台放声音、也没法划掉关闭。 -->
+        <activity
+            android:name=".HtmlAppActivity"
+            android:exported="true"
+            android:launchMode="standard"
+            android:documentLaunchMode="always"
+            android:resizeableActivity="true"
+            android:taskAffinity=""
+            android:label="@string/app_name"
+            android:windowSoftInputMode="stateUnspecified|adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation|uiMode|fontScale|locale" />
+
+        <!-- 输入探针：串流屏上的原生 Activity，显示系统真正投递进来的 MotionEvent / KeyEvent -->
+        <activity
+            android:name=".InputProbeActivity"
+            android:exported="true"
+            android:launchMode="standard"
+            android:documentLaunchMode="always"
+            android:resizeableActivity="true"
+            android:taskAffinity=""
+            android:label="沧海输入探针"
+            android:windowSoftInputMode="adjustNothing"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|density|keyboard|keyboardHidden|navigation|uiMode|fontScale|locale" />
+
+        <!-- Moonlight 串流主机（Sunshine 引擎宿主进程，加载 native .so） -->
+        <service
+            android:name="com.alkaidlab.sunshine.service.SunshineEngineService"
+            android:process=":engine"
+            android:foregroundServiceType="dataSync|mediaProjection"
+            android:exported="false" />
+
+        <!-- Moonlight 串流编排服务（建虚拟屏/启动沧海桌面/通知）；dataSync 为主，
+             mediaProjection 保留给可选的音频内录/主屏串流 -->
+        <service
+            android:name=".AosenMoonlightService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync|mediaProjection" />
+
+        <!-- Samsung DeX 不得因桌面应用打开而搬移/重启串流宿主 -->
+        <meta-data android:name="com.samsung.android.multidisplay.primarydisplay" android:value="default" />
+        <meta-data android:name="com.samsung.android.multidisplay.keep_process_alive" android:value="true" />
+
+        <service
+            android:name=".AutoWakeService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse" />
+
+        <!-- 划掉任务卡时可靠清理虚拟屏/外设绑定（onDestroy 不保证执行） -->
+        <service
+            android:name=".DeXKeepAliveService"
+            android:exported="false"
+            android:stopWithTask="false" />
+
+        <!-- root 常驻进程回送 Binder 句柄的中转服务：只收句柄、立即自停，不开放任何命令。
+             exported 是必须的，调用方是 root UID 而非应用自身 UID。 -->
+        <!-- 放在独立进程：主进程 surfaceCreated 可能正在等句柄并占住主线程，
+             这里必须能在另一个空闲主线程上立刻收到 startService 回调，
+             再经 ContentResolver.call 转发到主进程的 Binder 线程。 -->
+        <service
+            android:name=".RootBridgeLinkService"
+            android:exported="true"
+            android:process=":bridge"
+            android:stopWithTask="true" />
+
+        <!-- Binder 线程通道：root 常驻进程用 ContentResolver.call 即时回送句柄，
+             不受主线程排队影响。只收句柄，不提供任何数据操作。 -->
+        <provider
+            android:name=".RootBridgeProvider"
+            android:authorities="${applicationId}.aosenbridge"
+            android:exported="true"
+            android:multiprocess="false" />
+
+        <!-- 纯可选增强：TYPE_ACCESSIBILITY_OVERLAY(z=31) 置顶指针与手柄导航。
+             应用不检测、不引导、不自动开启；只有用户自己在系统设置里启用时才生效。
+             外屏键鼠与点击完全由 Root / Shizuku 通道驱动，不依赖本服务。 -->
+        <service
+            android:name="com.alkaidlab.sunshine.controller.ControllerNavigationService"
+            android:exported="true"
+            android:label="沧海指针置顶服务"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+
+        <provider
+            android:name="rikka.shizuku.ShizukuProvider"
+            android:authorities="${applicationId}.shizuku"
+            android:multiprocess="false"
+            android:enabled="true"
+            android:exported="true"
+            android:permission="android.permission.INTERACT_ACROSS_USERS_FULL" />
+
+    </application>
+
+</manifest>

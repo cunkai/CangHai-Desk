@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 三星 One UI 核心设计色彩系统 -->
+    <color name="oneui_bg_dark">#121316</color>
+    <!-- 手机首页渐变底色：启动瞬间 / 挖孔两侧都用它，不再露出近黑的一条 -->
+    <color name="phone_bg_dark">#0D2F4D</color>
+    <color name="oneui_surface_card">#1C1E22</color>
+    <color name="oneui_surface_card_light">#26282E</color>
+    <color name="oneui_surface_header">#202227</color>
+    
+    <!-- One UI 品牌色 -->
+    <color name="oneui_blue">#0072DE</color>
+    <color name="oneui_blue_light">#2F80ED</color>
+    <color name="oneui_blue_pressed">#005BB3</color>
+    <color name="oneui_red">#EB5757</color>
+    <color name="oneui_red_hover">#FF6B6B</color>
+
+    <!-- 文本颜色 -->
+    <color name="oneui_text_primary">#F4F5F7</color>
+    <color name="oneui_text_secondary">#9CA3AF</color>
+    <color name="oneui_text_muted">#6B7280</color>
+
+    <!-- 边框与透明度 -->
+    <color name="oneui_stroke">#1FFFFFFF</color>
+    <color name="oneui_glass_fill">#24FFFFFF</color>
+    <color name="oneui_glass_card">#201C1E22</color>
+</resources>

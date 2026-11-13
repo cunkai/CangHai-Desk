@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.aosen.shizukudex.EmptyPointerFrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/dexContainer"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@android:color/transparent">
+
+    <!-- 【Layer 0】底座桌面空间组：壁纸、底座 Web 容器、网格静态图标、桌面小组件 -->
+    <FrameLayout
+        android:id="@+id/flDesktopStage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- 【Layer 1】Android 原生应用层插槽 (非 Root 模式下旁路透传) -->
+    <FrameLayout
+        android:id="@+id/flNativeStage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="5dp" />
+
+    <!-- 【Layer 2.1】Web App 独立多窗口栈 (处于 Dock 栏之下) -->
+    <FrameLayout
+        android:id="@+id/flWebAppStage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="10dp" />
+
+    <!-- 【Layer 2.2】Dock 栏与状态托盘层 (常驻悬浮，永远在应用之上) -->
+    <FrameLayout
+        android:id="@+id/flDockStage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="20dp" />
+
+    <!-- 【Layer 2.3】应用台 / 启动台抽屉层 (全局搜索、应用抽屉，呼出时覆盖在最顶层) -->
+    <FrameLayout
+        android:id="@+id/flLauncherStage"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="30dp"
+        android:visibility="gone" />
+
+    <!-- 宫格模式桌面标题浮层 -->
+    <FrameLayout
+        android:id="@+id/flGridLabelsContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="50dp"
+        android:visibility="gone" />
+
+    <!-- 桌面加载等待层 (官方 DeX 初始化 2-3 秒期间展示，优雅淡出) -->
+    <LinearLayout
+        android:id="@+id/layoutLoadingOverlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:paddingStart="32dp"
+        android:paddingEnd="32dp"
+        android:paddingTop="24dp"
+        android:paddingBottom="24dp"
+        android:background="@drawable/bg_desktop_loading_card"
+        android:elevation="100dp"
+        android:visibility="gone">
+
+        <ProgressBar
+            android:id="@+id/pbLoading"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:indeterminate="true"
+            android:indeterminateTint="#3182CE" />
+
+        <TextView
+            android:id="@+id/tvLoadingText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:text="@string/desktop_loading"
+            android:textColor="#F1F5F9"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- 【Layer 3】专属顶层光标浮层 (不受桌面 SurfaceView 重建或 removeAllViews 影响) -->
+    <FrameLayout
+        android:id="@+id/flCursorLayer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:elevation="999dp" />
+
+    <!-- 左上角鼠标屏幕指示徽章 (当光标漫游到手机或其他屏幕时显示) -->
+    <LinearLayout
+        android:id="@+id/layoutScreenIndicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|start"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="20dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="12dp"
+        android:paddingEnd="14dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:background="@drawable/bg_desktop_loading_card"
+        android:elevation="998dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvScreenIndicator"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="📍 鼠标在手机主屏"
+            android:textColor="#38BDF8"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+</com.aosen.shizukudex.EmptyPointerFrameLayout>

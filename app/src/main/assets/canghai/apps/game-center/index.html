@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>游戏中心</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{min-height:100%}
+  body{
+    font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:linear-gradient(180deg,#0a1a2a 0%,#060e18 100%);
+    color:#dbe7f0;padding:20px 16px 40px;
+  }
+  .wrap{max-width:720px;margin:0 auto}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .brand{display:flex;align-items:center;gap:10px;font-size:22px;font-weight:700;color:#ecd28f;letter-spacing:2px}
+  .brand svg{flex:none}
+  .summary{font-size:13px;color:#8fa9bd}
+  .summary b{color:#ecd28f;font-weight:600}
+  #refreshBtn{
+    margin-left:auto;background:#0d1f30;color:#c9a85c;border:1px solid #24405a;
+    border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;
+  }
+  #refreshBtn:active{background:#12324a}
+  .sub{font-size:12px;color:#5f7a90;margin-bottom:18px}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-bottom:20px}
+  .card{
+    background:#0d1f30;border:1px solid #24405a;border-radius:14px;
+    padding:16px;cursor:pointer;text-align:left;width:100%;color:inherit;font:inherit;
+  }
+  .card:active{background:#12324a}
+  .card-name{font-size:17px;font-weight:700;color:#f0e6c8;display:flex;align-items:center;gap:8px}
+  .today-chip{font-size:11px;font-weight:400;color:#0a1a2a;background:linear-gradient(90deg,#c9a85c,#ecd28f);border-radius:9px;padding:2px 8px;white-space:nowrap}
+  .streak{display:flex;align-items:baseline;gap:6px;margin:10px 0 2px}
+  .streak .fire{font-size:22px}
+  .streak .num{font-size:30px;font-weight:700;color:#ecd28f;line-height:1}
+  .streak .lbl{font-size:13px;color:#8fa9bd}
+  .meta{font-size:12px;color:#7d96ab;line-height:1.7}
+  .meta b{color:#c9a85c;font-weight:600}
+  .bar{height:6px;background:#12283d;border-radius:3px;overflow:hidden;margin:10px 0 4px}
+  .bar i{display:block;height:100%;background:linear-gradient(90deg,#c9a85c,#ecd28f);border-radius:3px}
+  .ach-line{font-size:12px;color:#8fa9bd}
+  .ach-line b{color:#c9a85c;font-weight:600}
+  .play{margin-top:10px;font-size:13px;color:#c9a85c;letter-spacing:1px}
+  h2.sec{font-size:15px;color:#ecd28f;letter-spacing:2px;margin:4px 0 12px}
+  section{
+    background:#0d1f30;border:1px solid #24405a;border-radius:14px;
+    padding:16px;margin-bottom:16px;
+  }
+  .app-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .app-name{font-size:17px;font-weight:700;color:#f0e6c8}
+  .app-count{font-size:13px;color:#c9a85c;margin-left:auto;white-space:nowrap}
+  section .bar{margin:10px 0 4px}
+  .row{
+    display:flex;align-items:center;gap:12px;
+    padding:11px 2px;border-top:1px solid #16304a;
+  }
+  .row:first-of-type{border-top:none}
+  .icon{
+    flex:none;width:40px;height:40px;border-radius:10px;
+    display:flex;align-items:center;justify-content:center;font-size:22px;
+    background:#12283d;border:1px solid #24405a;
+  }
+  .row.locked .icon{opacity:.45;filter:grayscale(1)}
+  .info{flex:1;min-width:0}
+  .name{font-size:15px;color:#e8eef4}
+  .row.locked .name{color:#93a9bc}
+  .desc{font-size:12px;color:#7d96ab;margin-top:2px;line-height:1.5}
+  .side{flex:none;text-align:right;min-width:86px}
+  .date{font-size:12px;color:#ecd28f;white-space:nowrap}
+  .unlocked-tag{font-size:11px;color:#c9a85c;letter-spacing:1px}
+  .locked-tag{font-size:12px;color:#5f7a90;white-space:nowrap}
+  .mini{width:86px}
+  .mini .bar{margin:6px 0 3px}
+  .mini .nums{font-size:11px;color:#8fa9bd;text-align:right}
+  .empty{
+    text-align:center;padding:64px 16px;color:#8fa9bd;
+    background:#0d1f30;border:1px solid #24405a;border-radius:14px;
+  }
+  .empty .moon{margin-bottom:14px}
+  .empty .t1{font-size:17px;color:#e8eef4;margin-bottom:6px}
+  .empty .t2{font-size:13px;line-height:1.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="gld" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ecd28f"/><stop offset="1" stop-color="#c9a85c"/></linearGradient></defs><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="url(#gld)"/></svg>
+      游戏中心
+    </div>
+    <div class="summary" id="summary"></div>
+    <button id="refreshBtn" type="button">↻ 刷新</button>
+  </header>
+  <p class="sub">每款游戏连着玩了几天、解锁了哪些成就，都记在这里，成绩一直在，不会过期。</p>
+  <main id="main"></main>
+</div>
+<script src="../../shared/achievements.js"></script>
+<script>
+(function(){
+  'use strict';
+  var main=document.getElementById('main');
+  var summary=document.getElementById('summary');
+  function esc(s){
+    return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
+    });
+  }
+  function pad(n){return String(n).padStart(2,'0');}
+  function keyOf(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+  function fmtDate(t){
+    var d=new Date(t);
+    if(isNaN(d.getTime()))return '';
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
+  /* 连续天数：从今天往回数；今天还没玩就从昨天开始数，断一天即止。 */
+  function streakOf(days){
+    var set={};
+    (days||[]).forEach(function(d){set[d]=1;});
+    var d=new Date();
+    if(!set[keyOf(d)])d.setDate(d.getDate()-1);
+    var n=0;
+    while(set[keyOf(d)]){n++;d.setDate(d.getDate()-1);}
+    return n;
+  }
+  function lastPlayed(days){
+    if(!days||!days.length)return '';
+    var best=days[0];
+    days.forEach(function(d){if(d>best)best=d;});
+    return best;
+  }
+  function render(){
+    var all={};
+    try{ if(window.CHAch) all=CHAch.getAll()||{}; }catch(e){ all={}; }
+    var ids=Object.keys(all).filter(function(id){
+      var a=all[id];
+      return a&&((Array.isArray(a.days)&&a.days.length>0)||(Array.isArray(a.defs)&&a.defs.length>0));
+    });
+    /* 最近玩过的排前面。 */
+    ids.sort(function(a,b){
+      var la=lastPlayed(all[a].days),lb=lastPlayed(all[b].days);
+      if(la!==lb)return lb<la?-1:1;
+      return String(all[a].name||a).localeCompare(String(all[b].name||b),'zh');
+    });
+    if(!ids.length){
+      summary.textContent='';
+      main.innerHTML=
+        '<div class="empty">'+
+          '<svg class="moon" width="44" height="44" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="#c9a85c"/></svg>'+
+          '<div class="t1">还没有游戏记录</div>'+
+          '<div class="t2">去玩一把吧，连胜天数和成就都会记在这里。</div>'+
+        '</div>';
+      return;
+    }
+    var totalDefs=0,totalGot=0,bestStreak=0;
+    ids.forEach(function(id){
+      var a=all[id];
+      var st=streakOf(a.days);
+      if(st>bestStreak)bestStreak=st;
+      (a.defs||[]).forEach(function(def){
+        totalDefs++;
+        if(a.unlocked&&a.unlocked[def.id])totalGot++;
+      });
+    });
+    summary.innerHTML='共 <b>'+ids.length+'</b> 款游戏 · 最长连玩 <b>'+bestStreak+'</b> 天 · 成就 <b>'+totalGot+'</b> / '+totalDefs;
+    var today=keyOf(new Date());
+    var cards=ids.map(function(id){
+      var a=all[id];
+      var st=streakOf(a.days);
+      var total=(a.days||[]).length;
+      var last=lastPlayed(a.days);
+      var got=0;
+      (a.defs||[]).forEach(function(def){ if(a.unlocked&&a.unlocked[def.id])got++; });
+      var pct=a.defs&&a.defs.length?Math.round(got/a.defs.length*100):0;
+      var playedToday=(a.days||[]).indexOf(today)>=0;
+      return '<button type="button" class="card" data-app="'+esc(id)+'">'+
+        '<div class="card-name">'+esc(a.name||id)+(playedToday?'<span class="today-chip">今天已玩</span>':'')+'</div>'+
+        '<div class="streak"><span class="fire">🔥</span><span class="num">'+st+'</span><span class="lbl">天连续在玩</span></div>'+
+        '<div class="meta">累计玩了 <b>'+total+'</b> 天'+(last?' · 上次 '+esc(last):'')+'</div>'+
+        (a.defs&&a.defs.length?'<div class="bar"><i style="width:'+pct+'%"></i></div><div class="ach-line">成就 <b>'+got+'</b> / '+a.defs.length+'</div>':'<div class="ach-line">暂无成就</div>')+
+        '<div class="play">开始玩 →</div>'+
+      '</button>';
+    }).join('');
+    var sections=ids.filter(function(id){
+      return Array.isArray(all[id].defs)&&all[id].defs.length>0;
+    }).map(function(id){
+      var a=all[id];
+      var got=0;
+      a.defs.forEach(function(def){ if(a.unlocked&&a.unlocked[def.id])got++; });
+      var pct=a.defs.length?Math.round(got/a.defs.length*100):0;
+      var rows=a.defs.map(function(def){
+        var un=a.unlocked&&a.unlocked[def.id];
+        var hidden=!un&&def.hidden;
+        var icon=hidden?'？':(def.icon||'✦');
+        var name=hidden?'？？？':def.name;
+        var desc=hidden?'？？？':(def.desc||'');
+        var side='';
+        if(un){
+          side='<div class="unlocked-tag">已解锁</div><div class="date">'+esc(fmtDate(un.t))+'</div>';
+        }else if(!hidden&&def.stat!=null&&def.target!=null){
+          var cur=Math.max(0,a.stats?(a.stats[def.stat]||0):0);
+          var w=Math.min(100,Math.round(cur/def.target*100));
+          side='<div class="mini"><div class="bar"><i style="width:'+w+'%"></i></div>'+
+            '<div class="nums">'+esc(cur)+' / '+esc(def.target)+'</div></div>';
+        }else{
+          side='<div class="locked-tag">未解锁</div>';
+        }
+        return '<div class="row'+(un?'':' locked')+'">'+
+          '<div class="icon">'+esc(icon)+'</div>'+
+          '<div class="info"><div class="name">'+esc(name)+'</div>'+
+          (desc?'<div class="desc">'+esc(desc)+'</div>':'')+'</div>'+
+          '<div class="side">'+side+'</div></div>';
+      }).join('');
+      return '<section>'+
+        '<div class="app-head"><div class="app-name">'+esc(a.name||id)+'</div>'+
+        '<div class="app-count">已解锁 '+got+' / '+a.defs.length+'</div></div>'+
+        '<div class="bar"><i style="width:'+pct+'%"></i></div>'+rows+
+      '</section>';
+    }).join('');
+    main.innerHTML='<div class="cards">'+cards+'</div>'+
+      (sections?'<h2 class="sec">成 就</h2>'+sections:'');
+    Array.prototype.forEach.call(main.querySelectorAll('.card'),function(card){
+      card.addEventListener('click',function(){
+        try{
+          if(window.parent&&window.parent!==window){
+            window.parent.postMessage({canghai:'openApp',appId:card.getAttribute('data-app')},'*');
+          }
+        }catch(e){}
+      });
+    });
+  }
+  document.getElementById('refreshBtn').addEventListener('click',render);
+  document.addEventListener('visibilitychange',function(){
+    if(document.visibilityState==='visible')render();
+  });
+  render();
+})();
+</script>
+</body>
+</html>

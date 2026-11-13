@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 胶囊开关选中段（One UI 蓝） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/oneui_blue" />
+    <corners android:radius="17dp" />
+</shape>

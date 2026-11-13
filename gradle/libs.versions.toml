@@ -1,0 +1,28 @@
+[versions]
+kotlin = "2.0.21"
+coroutines = "1.7.3"
+gson = "2.10.1"
+agp = "8.6.0"
+appcompat = "1.7.0"
+shizuku = "13.1.5"
+refineRuntime = "4.4.0"
+refineBuild = "4.1.0"
+hiddenapibypass = "4.3"
+annotation = "1.6.0"
+
+[libraries]
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
+refine-runtime = { group = "dev.rikka.tools.refine", name = "runtime", version.ref = "refineRuntime" }
+refine-annotation = { group = "dev.rikka.tools.refine", name = "annotation", version.ref = "refineBuild" }
+refine-annotation-processor = { group = "dev.rikka.tools.refine", name = "annotation-processor", version.ref = "refineBuild" }
+hiddenapibypass = { group = "org.lsposed.hiddenapibypass", name = "hiddenapibypass", version.ref = "hiddenapibypass" }
+kotlinx-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+androidx-annotation = { group = "androidx.annotation", name = "annotation", version.ref = "annotation" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+refine = { id = "dev.rikka.tools.refine", version.ref = "refineBuild" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

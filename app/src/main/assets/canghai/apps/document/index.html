@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>文档 · 沧海软件</title>
+<!--
+  沧海系统内置应用「文档」（Word 类）
+  预览：mammoth 1.13.0（lib/mammoth.browser.min.js，npm 离线包）
+  导出：docx 9.15.3（lib/docx.iife.js，npm 离线包，全局 docx）
+  不走 CDN，全部本地。
+  诚实说明：
+  · 只认 .docx；老的二进制 .doc 打不开（Mammoth 不支持），界面上明确提示。
+  · .docx → HTML → .docx 是有损往返：导出只保文字、段落、标题层级、
+    粗体/斜体与简单列表；图片、表格、页眉页脚、脚注、复杂样式会丢失或简化。
+-->
+<style>
+  /* ============ 观海：深海蓝底 + 白字 + 浅金点缀 ============ */
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    background:#0a1628; color:rgba(255,255,255,.94);
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+    overflow:hidden;
+  }
+  button{ font:inherit; }
+  :focus-visible{ outline:2px solid rgba(201,168,106,.8); outline-offset:2px; }
+
+  .app{ display:flex; flex-direction:column; height:100vh; height:100dvh; }
+
+  /* ---------- 顶栏 ---------- */
+  .topbar{
+    flex:0 0 auto; display:flex; align-items:center; gap:10px; height:52px; padding:0 16px;
+    background:linear-gradient(180deg, rgba(6,12,24,.95), rgba(6,12,24,.85));
+    border-bottom:1px solid rgba(255,255,255,.08); z-index:5;
+  }
+  .brand{ display:flex; align-items:center; gap:8px; flex:0 0 auto; }
+  .brand-name{ font-size:17px; font-weight:600; letter-spacing:2px; }
+  .file-name{
+    flex:1; text-align:center; font-size:13px; color:rgba(255,255,255,.78);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0;
+  }
+  .btn-top{
+    flex:0 0 auto; background:transparent; color:rgba(255,255,255,.94);
+    border:1px solid rgba(255,255,255,.22); padding:7px 14px; border-radius:999px;
+    font-size:13px; letter-spacing:1px; cursor:pointer; transition:background .2s;
+  }
+  .btn-top:hover{ background:rgba(255,255,255,.1); }
+  .btn-top.gold{ color:#ecd28f; border-color:rgba(201,168,106,.6); }
+  .btn-top.gold:hover{ background:rgba(201,168,106,.15); }
+  .btn-top:disabled{ opacity:.35; cursor:default; }
+  .btn-top:disabled:hover{ background:transparent; }
+
+  /* ---------- 编辑小工具条 ---------- */
+  .fmtbar{
+    flex:0 0 auto; display:none; align-items:center; gap:8px; padding:6px 16px;
+    background:rgba(255,255,255,.04); border-bottom:1px solid rgba(255,255,255,.06);
+    font-size:13px; color:rgba(255,255,255,.78);
+  }
+  .fmtbar.on{ display:flex; }
+  .fmtbar .hint{ margin-right:4px; }
+  .fmt-btn{
+    background:transparent; color:rgba(255,255,255,.94); border:1px solid rgba(255,255,255,.22);
+    min-width:30px; height:28px; padding:0 8px; border-radius:6px; cursor:pointer; font-size:13px;
+  }
+  .fmt-btn:hover{ background:rgba(255,255,255,.1); }
+  .fmt-btn b{ font-weight:700; }
+  .fmt-btn i{ font-style:italic; }
+  .fmtbar .spacer{ flex:1; }
+  .fmtbar .lossy{ color:#d8b96a; font-size:13px; }
+
+  /* ---------- 舞台 ---------- */
+  .stage{ position:relative; flex:1; min-height:0; overflow:hidden; }
+
+  /* 空状态 */
+  .empty{
+    position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; padding:24px; text-align:center; overflow:auto;
+  }
+  .empty .doc-mark{
+    width:76px; height:92px; border:2px solid #c9a85c; border-radius:8px; position:relative;
+    background:rgba(201,168,106,.06);
+  }
+  .empty .doc-mark::before{
+    content:""; position:absolute; top:-2px; right:-2px; width:22px; height:22px;
+    background:#0a1628; border-left:2px solid #c9a85c; border-bottom:2px solid #c9a85c;
+    border-bottom-left-radius:8px;
+  }
+  .empty .doc-mark::after{
+    content:"W"; position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    color:#ecd28f; font-size:34px; font-weight:700; font-family:Georgia,serif;
+  }
+  .empty h1{ font-size:20px; font-weight:600; letter-spacing:3px; }
+  .empty p{ font-size:14px; color:rgba(255,255,255,.78); line-height:1.8; max-width:520px; }
+  .empty p .gold{ color:#ecd28f; }
+  .btn-open{
+    background:linear-gradient(180deg,#e3c98a,#c9a85c); color:#12233a; border:none;
+    padding:11px 28px; border-radius:999px; font-size:15px; font-weight:600; letter-spacing:2px; cursor:pointer;
+  }
+  .btn-open:hover{ filter:brightness(1.08); }
+  .notes{ font-size:12.5px; color:rgba(255,255,255,.6); line-height:1.9; max-width:560px; }
+  .notes b{ color:#d8b96a; font-weight:600; }
+  .drop-hint{ font-size:12.5px; color:rgba(255,255,255,.6); }
+
+  /* 拖放遮罩 */
+  .drop-veil{
+    position:absolute; inset:0; z-index:20; display:none; align-items:center; justify-content:center;
+    background:rgba(10,22,40,.82); border:2px dashed #c9a85c; border-radius:12px; margin:12px;
+    font-size:18px; letter-spacing:3px; color:#ecd28f; pointer-events:none;
+  }
+  .drop-veil.on{ display:flex; }
+
+  /* 纸面 */
+  .paper-wrap{
+    position:absolute; inset:0; overflow:auto; padding:28px 16px 40px; display:none;
+    background:
+      radial-gradient(1200px 500px at 50% -10%, rgba(38,84,138,.35), transparent 70%),
+      #0a1628;
+  }
+  .paper-wrap.on{ display:block; }
+  .paper{
+    max-width:760px; margin:0 auto; background:#fff; color:#1c2733;
+    border-radius:4px; box-shadow:0 12px 40px rgba(0,0,0,.55);
+    padding:56px 64px 64px; min-height:calc(100% - 8px);
+  }
+  .paper .doc{
+    outline:none; font-size:var(--doc-size,17px); line-height:var(--doc-leading,1.8);
+    word-break:break-word;
+  }
+  .paper .doc:empty::before{ content:"（文档为空）"; color:#9aa7b4; }
+  .paper .doc p{ margin:0 0 .9em; }
+  .paper .doc h1{ font-size:1.6em; margin:.4em 0 .7em; line-height:1.4; }
+  .paper .doc h2{ font-size:1.35em; margin:.5em 0 .6em; line-height:1.4; }
+  .paper .doc h3{ font-size:1.15em; margin:.5em 0 .5em; line-height:1.4; }
+  .paper .doc ul, .paper .doc ol{ margin:0 0 .9em; padding-left:1.6em; }
+  .paper .doc li{ margin-bottom:.35em; }
+  .paper .doc table{ border-collapse:collapse; margin:0 0 .9em; max-width:100%; }
+  .paper .doc td, .paper .doc th{ border:1px solid #c3ccd4; padding:6px 10px; font-size:.92em; }
+  .paper .doc img{ max-width:100%; height:auto; }
+  .paper .doc blockquote{ border-left:3px solid #c9a85c; margin:0 0 .9em; padding-left:1em; color:#4a5a68; }
+
+  /* ---------- 状态栏 ---------- */
+  .statusbar{
+    flex:0 0 auto; display:flex; align-items:center; gap:16px; height:30px; padding:0 16px;
+    background:rgba(6,12,24,.9); border-top:1px solid rgba(255,255,255,.08);
+    font-size:13px; color:rgba(255,255,255,.6); z-index:5;
+  }
+  .statusbar .st{ color:rgba(255,255,255,.78); }
+  .statusbar .dirty{ color:#ecd28f; }
+  .statusbar .spacer{ flex:1; }
+
+  /* ---------- 设置面板 ---------- */
+  .settings{
+    position:absolute; top:60px; right:12px; z-index:30; width:280px;
+    background:#101f36; border:1px solid rgba(201,168,106,.45); border-radius:12px;
+    box-shadow:0 16px 40px rgba(0,0,0,.6); padding:16px; display:none;
+  }
+  .settings.on{ display:block; }
+  .settings h2{ font-size:14px; letter-spacing:2px; margin-bottom:12px; color:#ecd28f; font-weight:600; }
+  .settings label{ display:flex; align-items:center; justify-content:space-between; gap:10px; font-size:13px; color:rgba(255,255,255,.94); margin-bottom:12px; }
+  .settings select{
+    background:#0a1628; color:rgba(255,255,255,.94); border:1px solid rgba(255,255,255,.25);
+    border-radius:6px; padding:5px 8px; font:inherit; font-size:13px;
+  }
+  .settings .check{ justify-content:flex-start; gap:8px; cursor:pointer; }
+  .settings .check input{ accent-color:#c9a85c; width:15px; height:15px; }
+  .settings .note{ font-size:13px; color:rgba(255,255,255,.6); line-height:1.7; border-top:1px solid rgba(255,255,255,.08); padding-top:10px; }
+  .settings .close-row{ text-align:right; margin-top:12px; }
+  .settings .close-row button{
+    background:transparent; color:#ecd28f; border:1px solid rgba(201,168,106,.6);
+    border-radius:999px; padding:6px 16px; font-size:13px; cursor:pointer;
+  }
+
+  /* ---------- 提示 ---------- */
+  .toast{
+    position:absolute; left:50%; bottom:48px; transform:translateX(-50%) translateY(20px);
+    background:#101f36; color:rgba(255,255,255,.94); border:1px solid rgba(201,168,106,.55);
+    border-radius:10px; padding:11px 18px; font-size:13.5px; line-height:1.6; max-width:min(560px, 88vw);
+    box-shadow:0 12px 32px rgba(0,0,0,.55); opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; z-index:40;
+  }
+  .toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
+  .toast.err{ border-color:rgba(224,122,95,.7); }
+
+  input[type=file]{ display:none; }
+
+  @media (max-width:640px){
+    .paper{ padding:36px 22px 44px; }
+    .topbar{ padding:0 10px; gap:6px; }
+    .btn-top{ padding:7px 10px; }
+    .brand-name{ display:none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><span class="brand-name">文档</span></div>
+    <div class="file-name" id="fileName">未打开文档</div>
+    <button class="btn-top" id="btnOpen" type="button">打开</button>
+    <button class="btn-top gold" id="btnSave" type="button" disabled>保存 · 下载</button>
+    <button class="btn-top" id="btnSettings" type="button">设置</button>
+  </header>
+
+  <div class="fmtbar" id="fmtBar">
+    <span class="hint">点文字直接修改：</span>
+    <button class="fmt-btn" id="btnBold" type="button" title="加粗（Ctrl+B）"><b>B</b></button>
+    <button class="fmt-btn" id="btnItalic" type="button" title="斜体（Ctrl+I）"><i>I</i></button>
+    <span class="spacer"></span>
+    <span class="lossy">存回 .docx 只保文字与基本段落，复杂格式会走样</span>
+  </div>
+
+  <main class="stage" id="stage">
+    <div class="empty" id="empty">
+      <div class="doc-mark"></div>
+      <h1>文档</h1>
+      <p>打开 <span class="gold">.docx</span> 文档查看，点文字直接修改，改完保存下载。</p>
+      <button class="btn-open" id="btnOpenBig" type="button">打开文档</button>
+      <div class="drop-hint">也可以把文件拖到这里，或按 Ctrl+V 粘贴</div>
+      <div class="notes">
+        <b>注意：</b>.doc（旧版 Word 二进制格式）打不开——请先用 Word / WPS 另存为 .docx 再打开。<br>
+        <b>存回有损：</b>文档是先转成网页再转回 .docx，图片、表格、页眉页脚、脚注与复杂样式会丢失或简化，只保文字、段落、标题与粗体 / 斜体。
+      </div>
+    </div>
+
+    <div class="paper-wrap" id="paperWrap">
+      <div class="paper"><div class="doc" id="doc" contenteditable="true" spellcheck="false"></div></div>
+    </div>
+
+    <div class="drop-veil" id="dropVeil">松手打开文档</div>
+
+    <div class="settings" id="settingsPanel">
+      <h2>设置</h2>
+      <label>阅读字号
+        <select id="setFontSize">
+          <option value="15">小 · 15</option>
+          <option value="17" selected>中 · 17</option>
+          <option value="19">大 · 19</option>
+        </select>
+      </label>
+      <label>行距
+        <select id="setLeading">
+          <option value="1.6">紧 · 1.6</option>
+          <option value="1.8" selected>中 · 1.8</option>
+          <option value="2.0">松 · 2.0</option>
+        </select>
+      </label>
+      <label class="check"><input type="checkbox" id="setKeepStyle" checked> 导出时保留标题与粗体 / 斜体</label>
+      <div class="note">导出是重新生成 .docx：只保文字、段落、标题层级、粗体 / 斜体与简单列表；图片、表格、页眉页脚、脚注等复杂格式会丢失或简化，这是往返转换本身的损耗，不是 bug。</div>
+      <div class="close-row"><button id="btnSettingsClose" type="button">完成</button></div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </main>
+
+  <footer class="statusbar">
+    <span class="st" id="statusText">就绪</span>
+    <span class="spacer"></span>
+    <span id="wordCount"></span>
+    <span id="formatNote">仅支持 .docx，.doc 不支持</span>
+  </footer>
+</div>
+
+<input type="file" id="fileInput" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+
+<script src="./lib/mammoth.browser.min.js"></script>
+<script src="./lib/docx.iife.js"></script>
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var fileInput = $("fileInput"), docEl = $("doc"), paperWrap = $("paperWrap"),
+      emptyEl = $("empty"), fileNameEl = $("fileName"), statusEl = $("statusText"),
+      countEl = $("wordCount"), toastEl = $("toast"), fmtBar = $("fmtBar"),
+      settingsPanel = $("settingsPanel"), stage = $("stage"), dropVeil = $("dropVeil");
+
+  var currentName = "", dirty = false, opened = false, toastTimer = null;
+
+  /* ---------- 提示 ---------- */
+  function toast(msg, isErr, ms){
+    toastEl.textContent = msg;
+    toastEl.classList.toggle("err", !!isErr);
+    toastEl.classList.add("on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove("on"); }, ms || 4200);
+  }
+
+  /* ---------- 设置（localStorage 尽力存，存不上也不报错） ---------- */
+  var settings = { size:"17", leading:"1.8", keepStyle:true };
+  try{
+    var saved = JSON.parse(localStorage.getItem("canghai-document-settings") || "null");
+    if(saved) settings = Object.assign(settings, saved);
+  }catch(e){}
+  function applySettings(){
+    docEl.style.setProperty("--doc-size", settings.size + "px");
+    docEl.style.setProperty("--doc-leading", settings.leading);
+    $("setFontSize").value = settings.size;
+    $("setLeading").value = settings.leading;
+    $("setKeepStyle").checked = !!settings.keepStyle;
+    try{ localStorage.setItem("canghai-document-settings", JSON.stringify(settings)); }catch(e){}
+  }
+  $("setFontSize").addEventListener("change", function(){ settings.size = this.value; applySettings(); });
+  $("setLeading").addEventListener("change", function(){ settings.leading = this.value; applySettings(); });
+  $("setKeepStyle").addEventListener("change", function(){ settings.keepStyle = this.checked; applySettings(); });
+  applySettings();
+
+  $("btnSettings").addEventListener("click", function(){ settingsPanel.classList.toggle("on"); });
+  $("btnSettingsClose").addEventListener("click", function(){ settingsPanel.classList.remove("on"); });
+  document.addEventListener("click", function(e){
+    if(settingsPanel.classList.contains("on") && !settingsPanel.contains(e.target) && e.target.id !== "btnSettings"){
+      settingsPanel.classList.remove("on");
+    }
+  });
+
+  /* ---------- 状态 ---------- */
+  function setStatus(text, isDirty){
+    statusEl.textContent = text;
+    statusEl.classList.toggle("dirty", !!isDirty);
+  }
+  function updateCount(){
+    var n = docEl.textContent.replace(/\s/g, "").length;
+    countEl.textContent = opened ? ("共 " + n + " 字") : "";
+  }
+  function markDirty(){
+    if(!opened) return;
+    dirty = true;
+    setStatus("已修改，未保存", true);
+  }
+  docEl.addEventListener("input", function(){ markDirty(); updateCount(); });
+
+  /* ---------- 打开 ---------- */
+  function isDocx(file){ return /\.docx$/i.test(file.name || ""); }
+  function isDoc(file){ return /\.doc$/i.test(file.name || ""); }
+
+  function openFile(file){
+    if(!file) return;
+    if(isDoc(file)){
+      toast("打不开 .doc：这是旧版 Word 二进制格式，本应用只支持 .docx。请先用 Word / WPS 把它另存为 .docx 再打开。", true, 6000);
+      setStatus(".doc 不支持：请另存为 .docx", false);
+      return;
+    }
+    if(!isDocx(file)){
+      toast("只能打开 .docx 文档。", true);
+      return;
+    }
+    if(opened && dirty && !confirm("当前文档已修改还没保存，确定要打开新文档吗？")) return;
+    setStatus("正在打开 " + file.name + " …");
+    file.arrayBuffer().then(function(buf){
+      return mammoth.convertToHtml({ arrayBuffer: buf });
+    }).then(function(result){
+      currentName = file.name;
+      opened = true; dirty = false;
+      docEl.innerHTML = result.value || "";
+      emptyEl.style.display = "none";
+      paperWrap.classList.add("on");
+      fmtBar.classList.add("on");
+      $("btnSave").disabled = false;
+      fileNameEl.textContent = currentName;
+      updateCount();
+      var warns = (result.messages || []).filter(function(m){ return m.type === "warning"; }).length;
+      setStatus(warns ? ("已打开（转换提示 " + warns + " 条，部分格式已简化）") : "已打开，可直接点文字修改");
+      if(warns) toast("打开成功，但转换时有 " + warns + " 条提示：部分格式已被简化。");
+    }).catch(function(err){
+      console.error(err);
+      toast("打开失败：这个 .docx 可能已损坏或格式不受支持。", true, 6000);
+      setStatus("打开失败", false);
+    });
+  }
+
+  /* 桌面文件关联：桌面把 File/Blob 递给这个方法 */
+  window.CanghaiDocument = { openFile: openFile };
+
+  function pickFile(){ fileInput.value = ""; fileInput.click(); }
+  $("btnOpen").addEventListener("click", pickFile);
+  $("btnOpenBig").addEventListener("click", pickFile);
+  fileInput.addEventListener("change", function(){
+    if(fileInput.files && fileInput.files[0]) openFile(fileInput.files[0]);
+  });
+
+  /* 拖放 */
+  var dragDepth = 0;
+  stage.addEventListener("dragenter", function(e){ e.preventDefault(); dragDepth++; dropVeil.classList.add("on"); });
+  stage.addEventListener("dragover", function(e){ e.preventDefault(); });
+  stage.addEventListener("dragleave", function(){ dragDepth = Math.max(0, dragDepth - 1); if(!dragDepth) dropVeil.classList.remove("on"); });
+  stage.addEventListener("drop", function(e){
+    e.preventDefault(); dragDepth = 0; dropVeil.classList.remove("on");
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f) openFile(f);
+  });
+
+  /* Ctrl+V 粘贴 */
+  document.addEventListener("paste", function(e){
+    var files = e.clipboardData && e.clipboardData.files;
+    if(files && files.length){ e.preventDefault(); openFile(files[0]); }
+  });
+
+  /* ---------- 简单编辑：加粗 / 斜体 ---------- */
+  function fmt(cmd){
+    docEl.focus();
+    document.execCommand(cmd, false, null);
+    markDirty(); updateCount();
+  }
+  $("btnBold").addEventListener("click", function(){ fmt("bold"); });
+  $("btnItalic").addEventListener("click", function(){ fmt("italic"); });
+
+  /* ---------- 导出 .docx（有损重建，如实说明） ---------- */
+  function inlineRuns(node, base){
+    /* 把一个块里的行内节点展成 TextRun 参数：粗体/斜体按祖先标签与样式判断 */
+    var runs = [];
+    function walk(n, bold, ital){
+      if(n.nodeType === 3){
+        var t = n.textContent;
+        if(t) runs.push({ text: t, bold: bold, italics: ital });
+        return;
+      }
+      if(n.nodeType !== 1) return;
+      var tag = n.tagName.toLowerCase();
+      var b = bold || tag === "b" || tag === "strong";
+      var i = ital || tag === "i" || tag === "em";
+      if(!b){ var w = (n.style && n.style.fontWeight) || ""; if(w === "bold" || parseInt(w, 10) >= 600) b = true; }
+      if(!i && n.style && n.style.fontStyle === "italic") i = true;
+      if(tag === "br"){ runs.push({ text: "\n", bold: b, italics: i }); return; }
+      if(tag === "img"){ return; } /* 图片导出时丢掉，下方计数提示 */
+      var kids = n.childNodes;
+      for(var k = 0; k < kids.length; k++) walk(kids[k], b, i);
+    }
+    walk(node, !!(base && base.bold), !!(base && base.ital));
+    /* 合并相邻同样式 run，避免碎片 */
+    var merged = [];
+    runs.forEach(function(r){
+      var last = merged[merged.length - 1];
+      if(last && last.bold === r.bold && last.italics === r.italics){ last.text += r.text; }
+      else merged.push({ text: r.text, bold: r.bold, italics: r.italics });
+    });
+    return merged;
+  }
+
+  function blockToParagraphs(el, opts){
+    var out = [];
+    function paraFrom(node, extra){
+      var runs = inlineRuns(node, null).filter(function(r){ return r.text !== ""; });
+      if(!runs.length) return null;
+      var keep = settings.keepStyle;
+      var children = runs.map(function(r){
+        return new docx.TextRun({ text: r.text, bold: keep ? !!r.bold : false, italics: keep ? !!r.italics : false });
+      });
+      return new docx.Paragraph(Object.assign({ children: children }, extra || {}));
+    }
+    function walkBlock(node){
+      if(node.nodeType !== 1) return;
+      var tag = node.tagName.toLowerCase();
+      if(tag === "h1" || tag === "h2" || tag === "h3"){
+        var hl = tag === "h1" ? docx.HeadingLevel.HEADING_1 : tag === "h2" ? docx.HeadingLevel.HEADING_2 : docx.HeadingLevel.HEADING_3;
+        var p = settings.keepStyle ? paraFrom(node, { heading: hl }) : paraFrom(node, {});
+        if(p) out.push(p);
+        return;
+      }
+      if(tag === "ul" || tag === "ol"){
+        var items = node.querySelectorAll(":scope > li");
+        items.forEach(function(li){
+          var pp = paraFrom(li, { bullet: tag === "ul" ? { level: 0 } : undefined, numbering: tag === "ol" ? { reference: "default-numbering", level: 0 } : undefined });
+          if(pp) out.push(pp);
+        });
+        return;
+      }
+      if(tag === "table"){
+        node.querySelectorAll("tr").forEach(function(tr){
+          var cells = [];
+          tr.querySelectorAll("th, td").forEach(function(c){ cells.push(c.textContent.trim()); });
+          if(cells.length) out.push(new docx.Paragraph({ children: [new docx.TextRun({ text: cells.join("　") })] }));
+        });
+        opts.tables++;
+        return;
+      }
+      if(tag === "p" || tag === "div" || tag === "blockquote" || tag === "li"){
+        var pp = paraFrom(node, {});
+        if(pp) out.push(pp);
+        return;
+      }
+      /* 其他块：按子块递归 */
+      var kids = node.childNodes;
+      for(var i = 0; i < kids.length; i++){
+        if(kids[i].nodeType === 1) walkBlock(kids[i]);
+        else if(kids[i].nodeType === 3 && kids[i].textContent.trim()){
+          out.push(new docx.Paragraph({ children: [new docx.TextRun({ text: kids[i].textContent })] }));
+        }
+      }
+    }
+    walkBlock(el);
+    return out;
+  }
+
+  function saveDocx(){
+    if(!opened) return;
+    setStatus("正在生成 .docx …");
+    try{
+      var opts = { tables: 0 };
+      var images = docEl.querySelectorAll("img").length;
+      var children = [];
+      var nodes = docEl.childNodes;
+      for(var i = 0; i < nodes.length; i++){
+        var n = nodes[i];
+        if(n.nodeType === 3){
+          if(n.textContent.trim()) children.push(new docx.Paragraph({ children: [new docx.TextRun({ text: n.textContent })] }));
+        }else if(n.nodeType === 1){
+          children = children.concat(blockToParagraphs(n, opts));
+        }
+      }
+      if(!children.length) children.push(new docx.Paragraph({ children: [new docx.TextRun({ text: "" })] }));
+      var doc = new docx.Document({
+        numbering: { config: [{ reference: "default-numbering", levels: [{ level: 0, format: docx.LevelFormat.DECIMAL, text: "%1.", alignment: docx.AlignmentType.LEFT }] }] },
+        sections: [{ children: children }]
+      });
+      var base = currentName.replace(/\.docx$/i, "");
+      var outName = base + "（已编辑）.docx";
+      docx.Packer.toBlob(doc).then(function(blob){
+        /* 桌面下载通道（安卓层接 saveDownload；独立打开时是空操作，浏览器下载兜底） */
+        try{
+          var reader = new FileReader();
+          reader.onload = function(){
+            try{ window.parent.postMessage({ canghai: "download", filename: outName, dataUrl: reader.result }, "*"); }catch(e){}
+          };
+          reader.readAsDataURL(blob);
+        }catch(e){}
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement("a");
+        a.href = url; a.download = outName;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+        dirty = false;
+        setStatus("已保存下载：" + outName);
+        var lost = [];
+        if(images) lost.push(images + " 张图片未导出");
+        if(opts.tables) lost.push(opts.tables + " 张表格已简化为文字行");
+        toast(lost.length ? ("已下载 " + outName + "。注意：" + lost.join("，") + "；复杂格式已丢失。") : ("已下载 " + outName + "。"), false, 6000);
+      }).catch(function(err){
+        console.error(err);
+        toast("保存失败：生成 .docx 时出错。", true);
+        setStatus("保存失败", false);
+      });
+    }catch(err){
+      console.error(err);
+      toast("保存失败：生成 .docx 时出错。", true);
+      setStatus("保存失败", false);
+    }
+  }
+  $("btnSave").addEventListener("click", saveDocx);
+})();
+</script>
+</body>
+</html>

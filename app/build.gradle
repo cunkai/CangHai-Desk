@@ -1,0 +1,78 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'dev.rikka.tools.refine'
+}
+
+android {
+    namespace 'com.aosen.shizukudex'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "com.cunkai.canghai"
+        minSdk 26
+        targetSdk 34
+        versionCode 190
+        versionName "1.0.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            signingConfig signingConfigs.debug
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    packagingOptions {
+        // Shizuku UserService 以 shell 身份从磁盘路径 dlopen .so，必须解压出 APK
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
+    buildFeatures {
+        aidl true
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    // kotlin-stdlib 1.8+ 已合并 jdk7/jdk8 内容，强制对齐旧传递依赖，避免 Duplicate class
+    constraints {
+        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22") {
+            because("kotlin-stdlib 1.8.22 已包含 jdk7 内容")
+        }
+        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22") {
+            because("kotlin-stdlib 1.8.22 已包含 jdk8 内容")
+        }
+    }
+
+    implementation project(':hidden-api-stub')
+    compileOnly project(':hidden-api-stub')
+
+    implementation libs.androidx.appcompat
+
+    // Moonlight 串流引擎（Sunshine for Android 移植）
+    implementation libs.kotlinx.coroutines
+    implementation libs.gson
+
+    implementation libs.shizuku.api
+    implementation libs.shizuku.provider
+    implementation libs.refine.runtime
+    implementation libs.hiddenapibypass
+
+    // Liquid Glass 毛玻璃：任务栏/开始菜单/弹层底衬（Android 12+ 走 RenderEffect 硬件加速）
+    implementation 'com.github.Dimezis:BlurView:version-2.0.6'
+}

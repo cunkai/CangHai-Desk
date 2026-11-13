@@ -1,0 +1,77 @@
+# Built application files
+*.apk
+*.aab
+*.ap_
+*.dex
+# 但 root_bridge.dex 是随包下发的运行时资产（RootInputDaemon 编译产物），必须进库
+!app/src/main/assets/root_bridge.dex
+
+# Files for the ART/Dalvik VM
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+release/
+build/
+app/build/
+hidden-api-stub/build/
+
+# Gradle & Kotlin files
+.gradle/
+.kotlin/
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Android Studio / IntelliJ
+*.iml
+.idea/
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Keystore files
+*.jks
+*.keystore
+
+# 私钥 / 密钥对（签名用，绝不进版本库）
+*.pem
+cakey.pem
+
+# ============================================================
+# 调试/排查时的临时产物（不进版本库）
+# ============================================================
+# 通用临时目录与文件
+.tmp/
+*.tmp
+*.tmp.*
+*.log
+*.orig
+*.bak
+
+# 探查脚本的编译产物（源码 tools/*.java 保留，产物不进库）
+tools/bridge_classes/
+tools/probe/
+tools/probe2/
+tools/*.class
+tools/*.dex
+
+# 真机截图 / 调试截图（只挡排查用的快照，不碰 res / assets 里的正式资源）
+tools/*.png
+/scr0.png
+/screen_after_install.png
+/*_after_*.png
+/cap_*.png
+/shot_*.png
+
+# uiautomator dump / 日志抓取
+ui_dump.xml
+pair_log.txt
+
+# Agent / 内部工作区
+.workbuddy/
+generated-images/
+scratch/

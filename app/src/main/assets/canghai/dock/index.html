@@ -1,0 +1,1612 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>沧海 · Dock</title>
+<link rel="stylesheet" href="../shared/dock.css">
+<script src="../shared/appcolor.js"></script>
+<script src="../shared/apps.js"></script>
+<script src="../apps/apps-manifest.js"></script>
+<script src="../shared/legacy.js"></script>
+<script src="../shared/i18n.js"></script>
+<!-- GSAP 3.15.0：core + Draggable + InertiaPlugin，供以后应用内需要滑动的地方用；
+     窗口拖动不接 Draggable、不接惯性 -->
+<script src="../shared/gsap.min.js"></script>
+<script src="../shared/Draggable.min.js"></script>
+<script src="../shared/InertiaPlugin.min.js"></script>
+<script src="../shared/uiscale.js"></script>
+<script>
+try{ if(window.gsap && window.Draggable && window.InertiaPlugin) gsap.registerPlugin(Draggable, InertiaPlugin); }catch(e){}
+window.__chGsapReady = !!(window.gsap && window.gsap.to);
+</script>
+<style>
+  /* 悬浮层：窗口本身透明，固定高度，只有 Dock 那一条是实体。
+     Dock 永远牢牢吸附在屏幕底部，杜绝 100ms 乱跳 */
+  :root{ --surge:cubic-bezier(.22,.9,.28,1); --rs:1; --tx:rgba(255,255,255,.94); --tx2:rgba(255,255,255,.78); --tx3:rgba(255,255,255,.52); --gold:#c9a85c; --gold-lt:#ecd28f; --accent:#c9a85c; }
+  html,body{height:100%;margin:0;padding:0;background:transparent;overflow:hidden;
+    font-family:-apple-system,"HarmonyOS Sans SC","Noto Sans CJK SC","PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-user-select:none;user-select:none;cursor:default}
+  body{display:flex;flex-direction:column;justify-content:flex-end}
+  /* ================= 悬浮层 5 层严格架构 ================= */
+  /* 第 5 层：应用台（最高层，全屏毛玻璃，呼出时全屏拦截触摸） */
+  #lpLayer{position:fixed;top:0;right:0;bottom:0;left:0;z-index:5000 !important;
+    display:flex;flex-direction:column;align-items:center;
+    padding:calc(44px * var(--rs)) calc(24px * var(--rs)) calc(96px * var(--rs)) calc(24px * var(--rs));box-sizing:border-box;
+    background:rgba(8,16,28,.88);
+    backdrop-filter:blur(40px) saturate(1.4);
+    -webkit-backdrop-filter:blur(40px) saturate(1.4);
+    opacity:0;pointer-events:none;transform:scale(1.03);
+    transition:opacity .22s var(--surge), transform .22s var(--surge)}
+  #lpLayer.open{opacity:1;pointer-events:auto;transform:scale(1)}
+
+  /* 第 4 层：Dock 栏（常驻底部/侧边导航） */
+  #dockWrap{position:fixed;bottom:0;left:0;right:0;z-index:4000 !important;display:flex;justify-content:center;
+    padding-bottom:calc(12px * var(--rs));transform:none;pointer-events:none}
+  #dockWrap > #dock{pointer-events:auto;transition:transform .2s var(--surge)}
+
+  /* 第 3 层：沧海系统菜单栏（与桌面页 #menubar 同源，独立浮层，窗口盖不住） */
+  #menubarWrap{position:fixed;top:var(--safe-top,0px);left:0;right:0;height:calc(38px * var(--rs));z-index:3000 !important;pointer-events:none;transition:opacity .22s var(--surge)}
+  #lpLayer.open ~ #menubarWrap{opacity:0}
+  #lpLayer.open ~ #menubarWrap #menubar{pointer-events:none}
+  #menubarWrap > #menubar{pointer-events:auto;height:calc(38px * var(--rs));display:flex;align-items:center;justify-content:space-between;
+    padding:0 calc(14px * var(--rs) + var(--safe-right,0px)) 0 calc(14px * var(--rs) + var(--safe-left,0px));
+    background:rgba(6,18,32,.85);backdrop-filter:blur(20px) saturate(1.4);
+    -webkit-backdrop-filter:blur(20px) saturate(1.4);border-bottom:1px solid rgba(255,255,255,.08);color:var(--tx)}
+  #menubar .brand{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:700;cursor:pointer;padding:2px 7px;border-radius:8px;white-space:nowrap}
+  #menubar .brand:hover{background:rgba(255,255,255,.14)}
+  #menubar .brandName{font-size:calc(13.5px * var(--rs));letter-spacing:.05em}
+  #menubar .spacer{flex:1}
+  #menubar .status{display:flex;align-items:center;gap:calc(11px * var(--rs));white-space:nowrap;font-size:12px}
+  #menubar .status svg{display:block}
+  .mbBtn{background:transparent;border:none;color:inherit;font:inherit;cursor:pointer;padding:4px 6px;border-radius:6px;
+    display:flex;align-items:center;justify-content:center;line-height:1}
+  .mbBtn:hover{background:rgba(255,255,255,.14)}
+  #avatarBtn{width:calc(24px * var(--rs));height:calc(24px * var(--rs));border-radius:50%;
+    background:linear-gradient(135deg,#a8894a,#c9a85c);color:#fff;font-size:12px;font-weight:800;padding:0;box-shadow:0 1px 5px rgba(0,0,0,.35)}
+  #clockBox{text-align:right;line-height:1.15;font-variant-numeric:tabular-nums;cursor:pointer;padding:2px 4px;border-radius:6px;font-size:13px;font-weight:600}
+  #clockBox:hover{background:rgba(255,255,255,.12)}
+  #clockBox small{display:block;font-size:calc(11px * var(--rs));opacity:.78;font-weight:400}
+  @media (max-width:640px){
+    #menubar .hideS{display:none}
+    #menubar{padding:0 8px}
+    #menubar .status{gap:5px}
+    .mbBtn{padding:3px 4px}
+    #clockBox small{display:none}
+    #clockBox{font-size:12.5px}
+  }
+
+  /* 弹出面板：控制中心 / 日历 */
+  .pop{position:fixed;top:calc(44px * var(--rs));right:calc(12px * var(--rs));z-index:9500 !important;
+    width:calc(308px * var(--rs));max-width:92vw;border-radius:calc(18px * var(--rs));color:#f2f3fa;
+    background:rgba(4,20,36,.94);backdrop-filter:blur(28px) saturate(1.5);-webkit-backdrop-filter:blur(28px) saturate(1.5);
+    border:1px solid rgba(255,255,255,.16);box-shadow:0 18px 46px rgba(0,0,0,.55);padding:calc(16px * var(--rs));display:none;pointer-events:auto}
+  .pop.open{display:block;animation:mbPopIn .24s var(--surge)}
+  @keyframes mbPopIn{from{opacity:0;transform:translateY(-8px) scale(.98)}}
+  .pop h3{margin:0 0 10px;font-size:calc(14px * var(--rs))}
+  .ccRow{display:flex;align-items:center;gap:calc(10px * var(--rs));padding:calc(9px * var(--rs)) 0;
+    border-bottom:1px solid rgba(255,255,255,.08);font-size:calc(13.5px * var(--rs))}
+  .ccRow:last-of-type{border-bottom:none}
+  .ccRow .lb{flex:none;width:calc(104px * var(--rs));white-space:nowrap}
+  .ccRow input[type=range]{flex:1;min-width:0;accent-color:var(--accent);cursor:pointer}
+  .ccRow .val{flex:none;width:calc(36px * var(--rs));text-align:right;font-variant-numeric:tabular-nums;opacity:.8;font-size:calc(12.5px * var(--rs))}
+  .ccRow .switch{width:38px;height:21px;border-radius:99px;border:none;background:rgba(255,255,255,.22);
+    cursor:pointer;position:relative;transition:background .2s;padding:0}
+  .ccRow .switch::after{content:"";position:absolute;top:2px;left:2px;width:17px;height:17px;border-radius:50%;
+    background:#fff;transition:transform .2s}
+  .ccRow .switch.on{background:var(--accent)}
+  .ccRow .switch.on::after{transform:translateX(17px)}
+  #ccLock{width:100%;margin-top:calc(12px * var(--rs));padding:calc(10px * var(--rs));border:none;border-radius:11px;
+    background:rgba(255,255,255,.1);color:#fff;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
+  #ccLock:hover{background:rgba(255,255,255,.18)}
+  #calPop{width:300px}
+  #calPop table{width:100%;border-collapse:collapse;font-size:12.5px;text-align:center}
+  #calPop h4{margin:0 0 8px;font-size:13px;font-weight:700;opacity:.9}
+  #calPop h4 span{font-size:11px;opacity:.66;font-weight:400}
+  #calPop th{opacity:.66;font-weight:600;font-size:11.5px;padding:4px 0}
+  #calPop td{padding:5px 0;border-radius:7px}
+  #calPop td.dim{opacity:.3}
+  #calPop td.today{background:var(--accent);font-weight:800}
+  #calPop .calFoot{margin-top:10px;font-size:12.5px;opacity:.75;text-align:center}
+
+  /* 聚焦搜索 */
+  #spotMask{position:fixed;inset:0;z-index:9400 !important;background:rgba(4,5,12,.42);
+    backdrop-filter:blur(3px);display:none;pointer-events:auto}
+  #spotMask.open{display:block}
+  #spotBox{width:calc(560px * var(--rs));width:min(calc(560px * var(--rs)),92vw);margin:11vh auto 0;border-radius:17px;
+    overflow:hidden;color:#f2f3fa;background:rgba(4,20,36,.95);backdrop-filter:blur(28px) saturate(1.5);
+    border:1px solid rgba(255,255,255,.18);box-shadow:0 18px 46px rgba(0,0,0,.55)}
+  #spotInput{width:100%;box-sizing:border-box;padding:calc(15px * var(--rs)) calc(18px * var(--rs));font:inherit;
+    font-size:calc(16.5px * var(--rs));background:transparent;border:none;outline:none;color:#fff;
+    border-bottom:1px solid rgba(255,255,255,.12)}
+  #spotInput::placeholder{color:var(--tx3)}
+  #spotList{max-height:330px;overflow-y:auto;padding:6px}
+  .spotItem{display:flex;align-items:center;gap:calc(11px * var(--rs));padding:calc(9px * var(--rs)) calc(11px * var(--rs));
+    border-radius:11px;cursor:pointer}
+  .spotItem.active{background:rgba(255,255,255,.15)}
+  .spotItem .sic{width:calc(32px * var(--rs));height:calc(32px * var(--rs));border-radius:9px;flex:none;display:flex;
+    align-items:center;justify-content:center;font-size:16px;overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+  .spotItem .sic svg{width:19px;height:19px}
+  .spotItem b{font-size:14px;display:block}
+  .spotItem span{font-size:11.5px;opacity:.66}
+  .spotEmpty{padding:20px;text-align:center;opacity:.55;font-size:13px}
+  .spotHint{padding:8px 16px 12px;font-size:11.5px;opacity:.66;border-top:1px solid rgba(255,255,255,.08)}
+
+  /* 关于 */
+  #aboutModal{position:fixed;inset:0;z-index:9600 !important;display:none;align-items:center;justify-content:center;
+    background:rgba(3,8,16,.55);backdrop-filter:blur(6px);pointer-events:auto}
+  #aboutModal.open{display:flex}
+  #aboutCard{width:calc(340px * var(--rs));width:min(calc(340px * var(--rs)),90vw);border-radius:20px;padding:24px;
+    color:var(--tx);background:rgba(6,18,32,.96);border:1px solid rgba(255,255,255,.14);
+    box-shadow:0 20px 48px rgba(0,0,0,.55);font-size:13px}
+  #aboutCard .abHead{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  #aboutCard .abHead h2{margin:0;font-size:19px;font-weight:700;letter-spacing:.02em}
+  #aboutCard .abVer{opacity:.78;font-size:12.5px;margin-bottom:14px}
+  #aboutCard .abRow{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+  #aboutCard .abRow:last-of-type{border-bottom:none}
+  #aboutCard .abRow b{font-weight:500;opacity:.66;font-size:12.5px;flex:none}
+  #aboutCard .abRow span{font-size:13.5px;text-align:right}
+  #aboutCard .abOk{width:100%;margin-top:18px;padding:11px;border:none;border-radius:12px;background:var(--accent);
+    color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+  #aboutCard .abOk:hover{background:#b18e46}
+
+  /* 锁屏 */
+  #lockScreen{position:fixed;inset:0;z-index:9700 !important;display:none;flex-direction:column;align-items:center;
+    justify-content:center;gap:8px;background:linear-gradient(180deg,#010814 0%,#04182e 38%,#072a4a 72%,#0a3a5c 100%);
+    color:#fff;text-align:center;pointer-events:auto}
+  #lockScreen.show{display:flex}
+  #lockScreen.unlocking{display:flex;opacity:0;transition:opacity .42s var(--surge);pointer-events:none}
+  #lockAvatar{width:calc(94px * var(--rs));height:calc(94px * var(--rs));border-radius:50%;
+    background:linear-gradient(135deg,#a8894a,#c9a85c 75%);display:flex;align-items:center;justify-content:center;
+    font-size:calc(38px * var(--rs));font-weight:800;cursor:pointer;
+    box-shadow:0 14px 38px rgba(0,0,0,.45),inset 0 2px 0 rgba(255,255,255,.5);margin-bottom:8px}
+  #lockScreen .lkName{font-size:calc(17px * var(--rs));font-weight:700}
+  #lockTime{font-size:calc(62px * var(--rs));font-weight:200;letter-spacing:2px;line-height:1.05;
+    font-variant-numeric:tabular-nums;margin-top:14px}
+  #lockDate{font-size:calc(14.5px * var(--rs));opacity:.85}
+  #lockScreen .lkHint{margin-top:calc(20px * var(--rs));font-size:calc(12.5px * var(--rs));opacity:.65}
+
+  /* 亮度遮罩 / 轻提示 */
+  #brightDiv{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:9300 !important}
+  #chToast{position:fixed;left:50%;bottom:calc(120px * var(--rs));transform:translateX(-50%) translateY(8px);
+    z-index:9800 !important;padding:9px 16px;border-radius:999px;background:rgba(10,22,36,.92);
+    border:1px solid rgba(255,255,255,.18);color:#fff;font-size:13px;opacity:0;
+    transition:opacity .2s,transform .2s;pointer-events:none}
+  #chToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  /* 第 2 层：弹窗与系统通知（小组件右键弹窗、菜单、通知 Toast） */
+  #popupLayer{position:fixed;inset:0;z-index:6000 !important;pointer-events:none}
+  #dockMenu{z-index:6500 !important;pointer-events:auto}
+
+  /* 第 1 层：HTML 应用打开层（浮于安卓应用之上的前台浮动窗口） */
+  #fgWinLayer{position:fixed;inset:0;z-index:1000 !important;pointer-events:none}
+  .fgWin{position:absolute;pointer-events:auto;border-radius:14px;overflow:hidden;
+    background:#0c1524;color:#f1f5f9;box-shadow:0 3px 5px -1px rgba(0,0,0,.20),0 6px 10px 0 rgba(0,0,0,.14),0 1px 18px 0 rgba(0,0,0,.12),0 0 0 1px rgba(255,255,255,.16);
+    display:flex;flex-direction:column;transition:opacity .18s var(--surge), transform .18s var(--surge)}
+  .fgWin.demoted{opacity:0;pointer-events:none;transform:scale(.97)}
+  .fgWin .winbar{height:36px;background:linear-gradient(180deg,#152238,#0e1828);
+    display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid rgba(255,255,255,.08);cursor:grab;touch-action:none}
+  .fgWin.dragging .winbar{cursor:grabbing}
+  .fgWin .traffic{display:flex;gap:7px}
+  .fgWin .tl{width:12px;height:12px;border-radius:50%;cursor:pointer}
+  .fgWin .tl.r{background:#ff5f57} .fgWin .tl.y{background:#febc2e} .fgWin .tl.g{background:#28c840}
+  .fgWin .winTitle{font-size:13px;font-weight:600;opacity:.94}
+  .fgWin .winbody{flex:1;position:relative;background:#0c1524}
+  .fgWin .winbody iframe{width:100%;height:100%;border:none;display:block}
+  .fgWin .winResize{position:absolute;right:0;bottom:0;width:18px;height:18px;cursor:nwse-resize;touch-action:none}
+  /* macOS 风格顶部居中搜索框：默认不自动激活，防止软键盘弹出挡住全部屏幕；用户点击才输入 */
+  .lpSearchWrap{flex:none;width:calc(290px * var(--rs));height:calc(38px * var(--rs));border-radius:99px;
+    background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);
+    box-shadow:0 4px 18px rgba(0,0,0,.25),inset 0 1px 0 rgba(255,255,255,.2);
+    display:flex;align-items:center;padding:0 calc(14px * var(--rs));gap:calc(9px * var(--rs));margin-bottom:calc(24px * var(--rs));
+    transition:all .22s var(--surge)}
+  .lpSearchWrap:focus-within,.lpSearchWrap:hover{width:calc(360px * var(--rs));background:rgba(255,255,255,.22);
+    border-color:rgba(236,210,143,.65);box-shadow:0 8px 24px rgba(0,0,0,.35),0 0 0 2px rgba(201,168,92,.3)}
+  .lpSearchIco{width:calc(16px * var(--rs));height:calc(16px * var(--rs));stroke:rgba(255,255,255,.75);flex:none}
+  #lpSearch{flex:1;min-width:0;background:transparent;border:none;outline:none;
+    color:#fff;font-size:calc(14px * var(--rs));font-weight:500;font-family:inherit}
+  #lpSearch::placeholder{color:rgba(255,255,255,.6)}
+  #lpSearchClear{width:calc(18px * var(--rs));height:calc(18px * var(--rs));border-radius:50%;border:none;background:rgba(255,255,255,.2);
+    color:#fff;font-size:calc(11px * var(--rs));cursor:pointer;display:none;align-items:center;justify-content:center;
+    flex:none;padding:0;line-height:1}
+  #lpSearchClear:hover{background:rgba(255,255,255,.35)}
+  /* 应用滚动区与网格 */
+  .lpScrollArea{flex:1;width:100%;max-width:calc(1160px * var(--rs));overflow-y:auto;overflow-x:hidden;
+    padding:calc(4px * var(--rs)) calc(16px * var(--rs)) calc(20px * var(--rs)) calc(16px * var(--rs));box-sizing:border-box;display:flex;flex-direction:column;align-items:center}
+  .lpGrid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(calc(104px * var(--rs)),calc(118px * var(--rs))));gap:calc(28px * var(--rs)) calc(20px * var(--rs));
+    justify-content:center;width:100%}
+  .lpItem2{display:flex;flex-direction:column;align-items:center;gap:calc(8px * var(--rs));cursor:pointer;outline:none;
+    transition:transform .16s var(--surge)}
+  .lpItem2 .dockIcon{width:calc(72px * var(--rs));height:calc(72px * var(--rs));border-radius:calc(18px * var(--rs));
+    box-shadow:0 8px 22px rgba(0,0,0,.36),inset 0 1px 0 rgba(255,255,255,.3);
+    transition:transform .18s var(--surge),box-shadow .18s}
+  .lpItem2:hover .dockIcon,
+  .lpItem2.gamepad-focused .dockIcon,
+  .lpItem2:focus .dockIcon{transform:scale(1.1) translateY(-4px);
+    box-shadow:0 0 0 3px #ecd28f,0 16px 32px rgba(0,0,0,.48),0 0 18px rgba(201,168,92,.55);filter:brightness(1.22)}
+  .lpItem2:active .dockIcon{transform:scale(.95)}
+  .lpItem2 .lpName{color:#f1f5f9;font-size:calc(12.5px * var(--rs));font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.5);
+    text-align:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 4px}
+  .lpEmpty{color:rgba(255,255,255,.55);font-size:calc(14.5px * var(--rs));padding:calc(60px * var(--rs)) 0;text-align:center}
+  /* 没有特权时，应用台底部留一句话：安卓应用干脆不列，别给点了没反应的图标 */
+  .lpPrivHint{display:none;width:100%;margin-top:calc(18px * var(--rs));padding:calc(10px * var(--rs)) calc(14px * var(--rs));
+    border-radius:calc(11px * var(--rs));border:1px solid rgba(255,190,90,.35);background:rgba(255,170,60,.10);
+    color:rgba(255,214,150,.92);font-size:calc(12.5px * var(--rs));text-align:center;letter-spacing:.02em}
+  .lpPrivHint.show{display:block}
+  /* 悬浮层：图标 hover 杜绝跳高与放大，杜绝抖动与裁切 */
+  .dockItem:hover .dockIcon{filter:brightness(1.15) contrast(1.05);box-shadow:0 4px 14px rgba(201,168,92,.45),inset 0 1px 0 rgba(255,255,255,.6)}
+  .dockItem:active .dockIcon{transform:scale(.96)}
+  .dockIcon{background-repeat:no-repeat;background-position:center}
+  .dockIcon img{width:100%;height:100%;object-fit:contain;border-radius:inherit;pointer-events:none}
+  .dockIcon .chInit{font-size:22px;font-weight:800;color:#fff;line-height:1;text-shadow:0 1px 2px rgba(0,0,0,.28)}
+  .dockItem.empty{opacity:.55}
+
+  /* 右键菜单 */
+  .chMenu{font-family:inherit;-webkit-user-select:none;user-select:none;pointer-events:auto}
+  .chMenuItem{padding:8px 14px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:500;transition:background .15s}
+  .chMenuItem:hover{background:rgba(201,168,92,.25)}
+  .chMenuItem.danger{color:#ff6b6b}
+  .chMenuItem.danger:hover{background:rgba(255,80,80,.25)}
+  .chMenuSep{height:1px;background:rgba(255,255,255,.14);margin:4px 2px}
+  /* Root 虚拟屏专用：Dock 窗口常态只有底部一条，视口高度很小。
+     条带态只保留 Dock 栏，其余全屏层暂时隐藏；窗口被拉回全屏时媒体查询自动失效，
+     启动台 / 顶栏 / 前台 HTML 窗口全部原样恢复。非 Root 不带 strip=1，完全不受影响。 */
+  @media (max-height:400px){
+    html.ch-strip #menubarWrap,
+    html.ch-strip #lpLayer,
+    html.ch-strip #fgWinLayer,
+    html.ch-strip #popupLayer{display:none!important}
+  }
+</style>
+<script>
+  /* 仅 Root 虚拟屏分支加载 ?strip=1 时生效；用视口高度区分「条带 / 全屏模态」，无需 Java 来回推状态。 */
+  window.__chStripMode = /[?&]strip=1(?:&|$)/.test(location.search);
+  if(window.__chStripMode) document.documentElement.classList.add('ch-strip');
+</script>
+</head>
+<body>
+<!-- 第 5 层：应用台（最高层） -->
+<div id="lpLayer" aria-label="启动台">
+  <div class="lpSearchWrap" id="lpSearchWrap">
+    <svg class="lpSearchIco" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"></circle>
+      <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+    </svg>
+    <input id="lpSearch" type="text" placeholder="搜索应用..." autocomplete="off" spellcheck="false" />
+    <button id="lpSearchClear" type="button" aria-label="清空">✕</button>
+  </div>
+  <div class="lpScrollArea">
+    <div class="lpGrid2" id="lpGrid2"></div>
+    <div class="lpPrivHint" id="lpPrivHint">没有特权无法启动安卓应用</div>
+  </div>
+</div>
+
+<!-- 第 4 层：Dock 栏 -->
+<div id="dockWrap" class="pos-bottom"><nav id="dock" aria-label="Dock 栏"></nav></div>
+
+<!-- 第 3 层：沧海系统标题栏 -->
+<!-- 第 3 层：沧海系统菜单栏（从桌面页 #menubar 拆来，浮在窗口之上不会被遮挡） -->
+<div id="menubarWrap">
+  <header id="menubar">
+    <div class="brand" id="aboutBtn" role="button" tabindex="0" aria-label="关于沧海系统" title="关于沧海系统">
+      <span class="brandName">沧海系统</span>
+    </div>
+    <span class="spacer"></span>
+    <div class="status">
+      <button class="mbBtn" id="spotBtn" type="button" title="聚焦搜索" aria-label="聚焦搜索"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></button>
+      <button class="mbBtn" id="ccBtn" type="button" title="控制中心" aria-label="控制中心"><svg width="17" height="15" viewBox="0 0 24 20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M3 5h18M3 15h18"/><circle cx="9" cy="5" r="2.6" fill="currentColor" stroke="none"/><circle cx="15" cy="15" r="2.6" fill="currentColor" stroke="none"/></svg></button>
+      <div id="topNetBox" class="mbBtn hideS" title="网络状态">
+        <svg id="topNetIco" width="17" height="12" viewBox="0 0 16 12" fill="#fff" aria-hidden="true">
+          <path d="M8 10.6a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4zM8 6.4c1.7 0 3.3.7 4.5 1.9l-1.6 1.6A4.2 4.2 0 0 0 8 9.1c-1.1 0-2.1.4-2.9 1.2L3.5 8.3A6.3 6.3 0 0 1 8 6.4zM8 2c2.8 0 5.4 1.1 7.4 3L13.8 6.6A8.6 8.6 0 0 0 8 4.7c-2.1 0-4.2.8-5.8 2.3L.6 5A11.3 11.3 0 0 1 8 2z" transform="translate(0,-2.4)"/>
+        </svg>
+      </div>
+      <div id="topBatBox" class="mbBtn hideS" title="系统电池电量" style="font-size:12px;gap:4px;">
+        <svg width="22" height="11" viewBox="0 0 25 12" aria-hidden="true">
+          <rect x=".5" y=".5" width="20" height="11" rx="3.5" fill="none" stroke="rgba(255,255,255,.5)"/>
+          <rect id="topBatLevel" x="2" y="2" width="14" height="8" rx="2" fill="#fff"/>
+          <path d="M23 4v4a2.2 2.2 0 0 0 0-4z" fill="rgba(255,255,255,.5)"/>
+        </svg>
+        <span id="topBatVal" style="font-size:11px;font-weight:600;opacity:.9;">--%</span>
+        <span id="topBatBolt" style="display:none;font-size:11px;color:#ecd28f;">⚡</span>
+      </div>
+      <div id="clockBox" title="点开看日历"><span id="clockTime">--:--</span><small id="clockDate">—</small></div>
+      <button class="mbBtn" id="avatarBtn" type="button" title="锁定屏幕" aria-label="锁定屏幕">沧</button>
+    </div>
+  </header>
+</div>
+
+<!-- 第 2 层：弹窗与系统通知 -->
+<div id="popupLayer">
+  <div id="dockMenu" class="chMenu" style="display:none;position:fixed;background:rgba(18,28,42,.94);border:1px solid rgba(255,255,255,.16);border-radius:12px;padding:6px;box-shadow:0 12px 36px rgba(0,0,0,.6);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);min-width:145px;font-size:13px;color:#fff;pointer-events:auto"></div>
+
+  <!-- 控制中心 -->
+  <div id="ccPanel" class="pop" aria-label="控制中心">
+    <h3>控制中心</h3>
+    <div class="ccRow"><span class="lb">亮度</span><input type="range" id="ccBright" min="25" max="100" value="100" aria-label="亮度"><span class="val" id="ccBrightVal">100%</span></div>
+    <div class="ccRow"><span class="lb">音量</span><input type="range" id="ccVol" min="0" max="100" value="80" aria-label="音量"><span class="val" id="ccVolVal">80%</span></div>
+    <div class="ccRow"><span class="lb">勿扰模式</span><span style="flex:1"></span><button class="switch" id="ccDnd" type="button" aria-label="勿扰模式开关"></button></div>
+    <div class="ccRow"><span class="lb">深色外观</span><span style="flex:1"></span><button class="switch on" id="ccDark" type="button" aria-label="深色外观开关"></button></div>
+    <div class="ccRow"><span class="lb">Dock 自动隐藏</span><span style="flex:1"></span><button class="switch" id="ccHide" type="button" aria-label="Dock 自动隐藏开关"></button></div>
+    <button id="ccLock" type="button">锁定屏幕</button>
+  </div>
+
+  <!-- 日历小面板 -->
+  <div id="calPop" class="pop" aria-label="日历">
+    <div id="calPopBody"></div>
+    <div class="calFoot" id="calPopFoot"></div>
+  </div>
+
+  <!-- 聚焦搜索 -->
+  <div id="spotMask">
+    <div id="spotBox">
+      <input id="spotInput" type="text" placeholder="搜索应用…" autocomplete="off" aria-label="搜索应用" />
+      <div id="spotList"></div>
+      <div class="spotHint">↑ ↓ 选择 · Enter 打开 · Esc 关闭</div>
+    </div>
+  </div>
+
+  <!-- 关于沧海系统 -->
+  <div id="aboutModal">
+    <div id="aboutCard">
+      <div class="abHead"><h2>沧海系统</h2></div>
+      <div class="abVer" id="abVer">—</div>
+      <div id="abRows"></div>
+      <button class="abOk" id="abOk" type="button">知道了</button>
+    </div>
+  </div>
+
+  <!-- 锁屏 -->
+  <div id="lockScreen" aria-label="锁屏">
+    <div id="lockAvatar" title="点击进入桌面">沧</div>
+    <div class="lkName">沧海用户</div>
+    <div id="lockTime">--:--</div>
+    <div id="lockDate">—</div>
+    <div class="lkHint">点击头像进入桌面</div>
+  </div>
+
+  <div id="brightDiv"></div>
+  <div id="chToast"></div>
+</div>
+<!-- 第 1 层：前台 HTML 应用打开层（浮于安卓应用之上） -->
+<div id="fgWinLayer"></div>
+<script>
+(function(){
+  window.chApplyDockOffsets = function(x, y) {
+    var wrap = document.getElementById('dockWrap');
+    if (!wrap) return;
+    /* 用 translate 属性：dockWrap 的 transform 归隐藏动画（.3s 过渡），写 transform
+       会吃掉隐藏、连点追过渡就抖；translate 与之叠加，即时跟随。 */
+    var ox = x || 0, oy = y || 0;
+    wrap.style.translate = (ox === 0 && oy === 0) ? '' : ox + 'px ' + oy + 'px';
+  };
+  try {
+    if (window.CanghaiDock && typeof CanghaiDock.getDockOffsets === 'function') {
+      var offs = JSON.parse(CanghaiDock.getDockOffsets() || '{"x":0,"y":0}');
+      window.chApplyDockOffsets(offs.x, offs.y);
+    }
+  } catch(e) {}
+
+  'use strict';
+  var dockEl = document.getElementById('dock');
+  var lpLayer = document.getElementById('lpLayer');
+  var lpGrid2 = document.getElementById('lpGrid2');
+  var lpSearch = document.getElementById('lpSearch');
+  var lpSearchClear = document.getElementById('lpSearchClear');
+  var dockMenu = document.getElementById('dockMenu');
+
+  var state = { builtin: [], html: [], native: [], dockPins: [], recentApps: [], displayId: 0,
+    hidden: false, autoHide: false, expanded: false, forceHidden: false, runState: {} };
+
+  function bridge(fn){
+    var args = Array.prototype.slice.call(arguments,1);
+    try{
+      if(window.CanghaiDock && typeof CanghaiDock[fn]==='function') return CanghaiDock[fn].apply(CanghaiDock,args);
+    }catch(e){}
+    return null;
+  }
+  function parse(s,d){ try{ return JSON.parse(s)||d; }catch(e){ return d; } }
+  function esc(s){
+    return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function closeDockMenu(){
+    if(dockMenu && dockMenu.style.display !== 'none'){
+      dockMenu.style.display = 'none';
+      bridge('setDockMenuOpen', false);
+      pushHitRect();
+    }
+  }
+  window.addEventListener('click', closeDockMenu);
+  window.addEventListener('contextmenu', function(e){
+    if(!e.target.closest('#dockWrap')) closeDockMenu();
+  });
+
+  function showDockMenu(x, y, items){
+    if(!dockMenu || !items || !items.length) return;
+    bridge('setDockMenuOpen', true);
+    var html = '';
+    items.forEach(function(it, idx){
+      if(it.separator){
+        html += '<div class="chMenuSep"></div>';
+      } else {
+        html += '<div class="chMenuItem'+(it.danger?' danger':'')+'" data-idx="'+idx+'">'+esc(it.label)+'</div>';
+      }
+    });
+    dockMenu.innerHTML = html;
+    dockMenu.style.display = 'block';
+    dockMenu.style.visibility = 'hidden';
+    var mw = dockMenu.offsetWidth || 150;
+    var mh = dockMenu.offsetHeight || 100;
+    var left = Math.max(10, Math.min(window.innerWidth - mw - 10, x - mw / 2));
+    var top = Math.max(10, y - mh - 12);
+    dockMenu.style.left = left + 'px';
+    dockMenu.style.top = top + 'px';
+    dockMenu.style.visibility = 'visible';
+    // 菜单往上弹，远超「底部 110dp」，必须立刻把它的矩形报给 Java，否则点不动
+    pushHitRect();
+
+    dockMenu.querySelectorAll('.chMenuItem').forEach(function(el){
+      el.addEventListener('click', function(ev){
+        ev.stopPropagation();
+        closeDockMenu();
+        var i = parseInt(el.getAttribute('data-idx'), 10);
+        if(items[i] && items[i].action) items[i].action();
+      });
+    });
+  }
+
+  /* 图标内部：真图标优先，没有就「名字哈希渐变 + 首字」，和桌面页同一套算法 */
+  function iconInner(app){
+    var icon = app.icon || '';
+    if(CHColor && CHColor.isImageIcon(icon)) return icon;
+    if(window.CHApps && !icon) return CHApps.letterIcon(app.name);
+    return esc((CHColor? CHColor.initial(app.name): String(app.name||'').charAt(0)));
+  }
+  function iconBg(app){
+    if(app.grad) return app.grad;
+    if(CHColor) return CHColor.gradFor(app.name||app.id);
+    return 'linear-gradient(160deg,#6fd3ff,#2f7fe0)';
+  }
+
+  function itemHTML(app, kind, area){
+    var st = state.runState[app.id] || '';
+    return '<div class="dockItem'+(st==='running'?' running':'')+(st==='minned'?' minned':'')+(area==='recent'?' recent':'')
+      + '" data-kind="'+kind+'" data-id="'+esc(app.id)+'" data-area="'+(area||'pin')+'"'
+      + (app.comp? ' data-comp="'+esc(app.comp)+'"' : '')
+      + ' role="button" tabindex="0" aria-label="'+esc(app.name)+'">'
+      +   '<div class="dockIcon" style="background:'+iconBg(app)+'">'+iconInner(app)+'</div>'
+      +   '<i class="runDot"></i>'
+      +   '<span class="dockTip">'+esc(app.name)+'</span>'
+      + '</div>';
+  }
+
+  /* 运行倒影：开着 = 宽宽一汪浅白倒影，最小化 = 小圆点，关掉 = 熄灭。 */
+  function applyRunState(){
+    var map = state.runState || {};
+    dockEl.querySelectorAll('.dockItem[data-id]').forEach(function(el){
+      var st = map[el.getAttribute('data-id')] || '';
+      el.classList.toggle('running', st === 'running');
+      el.classList.toggle('minned', st === 'minned');
+    });
+  }
+
+  function applyHidden(){
+    document.body.classList.toggle('dock-hidden', !!state.hidden);
+  }
+
+  /* 原生层推来的统一状态：设置、显隐、运行态都在这里落地。 */
+  window.__dockApplyState = function(st){
+    if(!st) return;
+    state.hidden = !!st.hidden;
+    state.autoHide = !!st.autoHide;
+    state.expanded = !!st.expanded;
+    state.forceHidden = !!st.forceHidden;
+    var run = st.runState || {};
+    state.runState = run;
+    if(st.dockPins && Array.isArray(st.dockPins)) state.dockPins = st.dockPins;
+    if(st.recentApps && Array.isArray(st.recentApps)) state.recentApps = st.recentApps;
+    applyHidden();
+    render();
+  };
+  /* 兼容只推运行态的调用 */
+  window.__dockRunState = function(st){
+    state.runState = st || {};
+    applyRunState();
+  };
+
+  /* 沉稳固定：绝不整体缩放 Dock，保持图标清晰锐利 */
+  function autoScaleDock(){
+    if(!dockEl) return;
+    dockEl.style.transform = 'none';
+    dockEl.style.width = 'auto';
+    reportDockBounds();
+  }
+
+  function render(){
+    var html = '';
+    // 启动台
+    html += '<div class="dockItem" data-kind="launchpad" role="button" tabindex="0" aria-label="启动台">'
+          +   '<div class="dockIcon" style="background:linear-gradient(160deg,#4b6b86,#22384c)">'
+          +     (window.CHApps? CHApps.ICONS.launchpad : '') + '</div>'
+          +   '<i class="runDot"></i><span class="dockTip">启动台</span>'
+          + '</div>';
+    html += '<span class="dockSep"></span>';
+
+    var allMap = {};
+    (state.builtin||[]).forEach(function(a){ allMap[a.id] = a; });
+    (state.html||[]).forEach(function(a){ allMap[a.id] = a; });
+    (state.native||[]).forEach(function(a){ allMap[a.id] = a; });
+
+    // 1. 常驻固定区（dockPins）
+    var pins = state.dockPins;
+    if(!pins || !pins.length){
+      pins = (state.builtin||[]).map(function(a){ return a.id; })
+        .concat((state.html||[]).slice(0, 4).map(function(a){ return a.id; }));
+    }
+    var renderedPins = [];
+    pins.forEach(function(pid){
+      var app = allMap[pid];
+      if(app){
+        var kind = app.kind || (app.comp ? 'native' : 'html');
+        html += itemHTML(app, kind==='system'?'system':kind, 'pin');
+        renderedPins.push(pid);
+      }
+    });
+
+    // 2. 最近使用区（不在常驻区的最近打开应用，至多 2 个） + 正在运行/最小化但未固定的应用
+    var recentIds = [];
+    (state.recentApps || []).forEach(function(rid){
+      if(renderedPins.indexOf(rid) < 0 && recentIds.indexOf(rid) < 0 && allMap[rid]){
+        recentIds.push(rid);
+      }
+    });
+    if(recentIds.length > 2) recentIds = recentIds.slice(0, 2);
+
+    Object.keys(state.runState || {}).forEach(function(rid){
+      if(renderedPins.indexOf(rid) < 0 && recentIds.indexOf(rid) < 0 && allMap[rid]){
+        recentIds.push(rid);
+      }
+    });
+
+    if(recentIds.length > 0){
+      html += '<span class="dockSep"></span>';
+      recentIds.forEach(function(rid){
+        var app = allMap[rid];
+        if(app){
+          var kind = app.kind || (app.comp ? 'native' : 'html');
+          html += itemHTML(app, kind==='system'?'system':kind, 'recent');
+        }
+      });
+    }
+
+    dockEl.innerHTML = html;
+    applyRunState();
+    autoScaleDock();
+    requestAnimationFrame(reportDockBounds);
+  }
+
+  /* 告诉 Java「这一块归 Dock 页」：Dock 栏 + 正在弹出的右键菜单。
+   * 直显模式下 Java 靠这个矩形决定把鼠标事件派给 Dock 还是桌面。以前 Java 只会
+   * 猜「底部 110dp」，而 Dock 的右键菜单是往上弹的，菜单顶部跑到 110dp 之外，
+   * 于是点菜单没反应 —— 关掉菜单那一下又会掉到桌面层去。 */
+  function pushHitRect(){
+    try{
+      var dpr = window.devicePixelRatio || 1;
+      var vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+      var l = 1e9, t = 1e9, r = -1e9, b = -1e9;
+      function add(el){
+        if(!el) return;
+        var rc = el.getBoundingClientRect();
+        if(!rc || rc.width <= 0 || rc.height <= 0) return;
+        l = Math.min(l, rc.left); t = Math.min(t, rc.top);
+        r = Math.max(r, rc.right); b = Math.max(b, rc.bottom);
+      }
+      if(lpLayer && lpLayer.classList.contains('open')){
+        l = 0; t = 0; r = vw; b = vh;
+      } else {
+        add(dockEl);
+        if(dockMenu && dockMenu.style.display !== 'none') add(dockMenu);
+      }
+      if(r <= l || b <= t) return;
+      bridge('setDockHitRect',
+        Math.round(l * dpr), Math.round(t * dpr),
+        Math.round(r * dpr), Math.round(b * dpr));
+    }catch(e){}
+  }
+  window.__dockPushHitRect = pushHitRect;
+
+  function reportDockBounds(){
+    try{
+      if(!dockEl) return;
+      var r = dockEl.getBoundingClientRect();
+      var vw = window.innerWidth || document.documentElement.clientWidth || 1;
+      var vh = window.innerHeight || document.documentElement.clientHeight || 1;
+      if(r && r.width > 0 && r.height > 0){
+        var lf = Math.max(0, r.left / vw);
+        var tf = Math.max(0, r.top / vh);
+        var rf = Math.min(1, r.right / vw);
+        var bf = Math.min(1, r.bottom / vh);
+        bridge('setDockBoundsFraction', lf, tf, rf, bf);
+        var dpr = window.devicePixelRatio || 1;
+        bridge('setDockBounds', Math.round(r.left * dpr), Math.round(r.top * dpr), Math.round(r.right * dpr), Math.round(r.bottom * dpr));
+      }
+      pushHitRect();
+    }catch(e){}
+  }
+  window.addEventListener('resize', autoScaleDock);
+  window.addEventListener('load', function(){ setTimeout(reportDockBounds, 60); setTimeout(function(){ reportDockBounds(); reportTouchables(); }, 250); });
+  if(window.ResizeObserver && dockEl){
+    try { new ResizeObserver(reportDockBounds).observe(dockEl); } catch(e){}
+  }
+  dockEl.addEventListener('pointerenter', reportDockBounds);
+
+  function applyState(st){
+    if(!st) return;
+    if(st.language && window.CHI18n) CHI18n.setLang(st.language);
+    /* 内置清单优先：canghai/apps/ 的 18 个应用由 apps-manifest.js 注册进 CHApps.BUILTIN；
+       桥里再报一遍时去重，清单优先（与桌面 chBoot 同一条规则）。
+       只靠桥的话，桥不报这 18 个，启动台就永远看不到它们。 */
+    var _bmap = {}, _blist = [];
+    (window.CHApps ? CHApps.BUILTIN : []).forEach(function(a){
+      if(a && a.id && !_bmap[a.id]){ _bmap[a.id] = 1; _blist.push({id:a.id,name:a.name,kind:'system',grad:a.grad,icon:a.icon}); }
+    });
+    (st.builtin||[]).forEach(function(a){
+      if(a && a.id && !_bmap[a.id]){ _bmap[a.id] = 1; _blist.push({id:a.id,name:a.name,kind:'system',grad:a.grad,icon:a.icon}); }
+    });
+    state.builtin = _blist;
+    state.html = (st.htmlApps||[]).filter(function(a){ return a && !_bmap[a.id]; }).map(function(a){
+      return {id:a.id,name:a.name,kind:'html',icon:a.icon||'',grad:null};
+    });
+    /* 特权（Root 或 Shizuku，任一）：没有就一个安卓应用都不列。
+       应用台下方会留一句话说明原因，而不是给一堆点了没反应的图标。 */
+    state.privilege = (st.privilege === undefined) ? true : !!st.privilege;
+    state.native = state.privilege ? (st.apps||[]).map(function(a){
+      return {id:a.id,name:a.name,kind:'native',comp:a.comp,icon:a.icon||'',grad:null};
+    }) : [];
+    if(st.dockPins && Array.isArray(st.dockPins)) state.dockPins = st.dockPins;
+    if(st.recentApps && Array.isArray(st.recentApps)) state.recentApps = st.recentApps;
+    if(typeof st.autoHide === 'boolean') state.autoHide = st.autoHide;
+    if(typeof st.dockAutoHide === 'boolean') state.autoHide = st.dockAutoHide;
+    state.displayId = st.displayId || 0;
+    render();
+    if(lpLayer.classList.contains('open')) renderLp(lpSearch.value.trim());
+  }
+
+  function pinApp(id){
+    var pins = (state.dockPins && state.dockPins.length ? state.dockPins : (state.builtin||[]).map(function(a){ return a.id; })).slice();
+    if(pins.indexOf(id) < 0) pins.push(id);
+    state.dockPins = pins;
+    bridge('setDockPins', JSON.stringify(pins));
+    render();
+  }
+  function unpinApp(id){
+    var pins = (state.dockPins && state.dockPins.length ? state.dockPins : (state.builtin||[]).map(function(a){ return a.id; })).slice();
+    pins = pins.filter(function(x){ return x !== id; });
+    state.dockPins = pins;
+    bridge('setDockPins', JSON.stringify(pins));
+    render();
+  }
+
+  /* 一次物理点击 WebView 会先后派发 pointerup 和合成 click，两个回调都触发就是
+   * 「点一下翻两下」。原来用 300ms 时间窗去重，但后端把 setDockLaunchpad 与
+   * __lpSetOpen 都 post 到主线程、evaluateJavascript 又异步，快速点击时 click
+   * 常常晚于 pointerup 300ms 以上，去重失效，第二次把刚打开的应用台关掉 ——
+   * 这正是「闪一下」且跟点击间隔有关的原因。改成按手势标记：一次 pointerdown
+   * 到下一次 pointerdown 之间只认一次，与耗时无关。 */
+  var dockGestureHandled = false;
+  var lpOpen = false;
+  function triggerDockItem(it){
+    if(!it) return;
+    closeDockMenu();
+    var kind = it.getAttribute('data-kind');
+    if(kind === 'launchpad'){
+      /* 前端自己维护权威状态，不去读 DOM class（后端异步回调会改写它，
+         读 DOM 取反在竞态下会把「开」算成「关」）。 */
+      var want = !lpOpen;
+      lpOpen = want;
+      bridge('setDockLaunchpad', want);
+      return;
+    }
+    if(kind === 'native'){ bridge('launch', it.getAttribute('data-comp')); return; }
+    bridge('openApp', it.getAttribute('data-id'));
+  }
+
+  var downX = 0, downY = 0, downTime = 0, downTarget = null;
+  dockEl.addEventListener('pointerdown', function(e){
+    if(e.button !== undefined && e.button !== 0) return;
+    var it = e.target.closest('.dockItem');
+    if(!it) return;
+    dockGestureHandled = false;
+    downTarget = it;
+    downX = e.clientX;
+    downY = e.clientY;
+    downTime = Date.now();
+  });
+
+  dockEl.addEventListener('pointerup', function(e){
+    if((e.button !== undefined && e.button !== 0) || !downTarget) return;
+    var it = e.target.closest('.dockItem');
+    if(it && it === downTarget){
+      var dist = Math.hypot(e.clientX - downX, e.clientY - downY);
+      var dur = Date.now() - downTime;
+      if(dist < 16 && dur < 800){
+        dockGestureHandled = true;
+        triggerDockItem(it);
+        downTarget = null;
+        e.preventDefault();
+        return;
+      }
+    }
+    downTarget = null;
+  });
+
+  dockEl.addEventListener('click', function(e){
+    /* 阻止这次合成 click 冒泡到 window 的「点击外部关闭应用台」：应用台一开
+       lpLayer 就全屏盖住 Dock，同一次手势的 click 很容易被当成点空白关掉。 */
+    e.stopPropagation();
+    if(dockGestureHandled){ dockGestureHandled = false; return; }
+    var it = e.target.closest('.dockItem');
+    if(!it) return;
+    triggerDockItem(it);
+  });
+
+  var focusedIndex = -1;
+  var lpFocusedIndex = -1;
+
+  function getLpGridColumns(){
+    var items = lpGrid2.querySelectorAll('.lpItem2');
+    if(!items || items.length <= 1) return 1;
+    var firstTop = items[0].offsetTop;
+    for(var i = 1; i < items.length; i++){
+      if(items[i].offsetTop > firstTop) return i;
+    }
+    return items.length;
+  }
+
+  window.dockGamepadNav = function(dir){
+    if(lpLayer && lpLayer.classList.contains('open')){
+      var lpItems = lpGrid2.querySelectorAll('.lpItem2');
+      if(!lpItems || lpItems.length === 0) return;
+      var cols = Math.max(1, getLpGridColumns());
+      if(lpFocusedIndex < 0 || lpFocusedIndex >= lpItems.length){
+        lpFocusedIndex = 0;
+      } else {
+        if(dir === 'right'){
+          lpFocusedIndex = (lpFocusedIndex + 1) % lpItems.length;
+        } else if(dir === 'left'){
+          lpFocusedIndex = (lpFocusedIndex - 1 + lpItems.length) % lpItems.length;
+        } else if(dir === 'down'){
+          if(lpFocusedIndex + cols < lpItems.length){
+            lpFocusedIndex += cols;
+          } else {
+            lpFocusedIndex = lpFocusedIndex % cols;
+          }
+        } else if(dir === 'up'){
+          if(lpFocusedIndex - cols >= 0){
+            lpFocusedIndex -= cols;
+          } else {
+            var next = lpFocusedIndex;
+            while(next + cols < lpItems.length) next += cols;
+            lpFocusedIndex = next;
+          }
+        }
+      }
+      lpItems.forEach(function(el, i){ el.classList.toggle('gamepad-focused', i === lpFocusedIndex); });
+      if(lpItems[lpFocusedIndex]){
+        lpItems[lpFocusedIndex].focus();
+        try{ lpItems[lpFocusedIndex].scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }catch(e){}
+      }
+      return;
+    }
+
+    var items = dockEl.querySelectorAll('.dockItem');
+    if(!items || items.length === 0) return;
+    if(dir === 'right' || dir === 'down'){
+      focusedIndex = (focusedIndex + 1) % items.length;
+    } else if(dir === 'left' || dir === 'up'){
+      focusedIndex = (focusedIndex - 1 + items.length) % items.length;
+    }
+    items.forEach(function(el, i){ el.classList.toggle('gamepad-focused', i === focusedIndex); });
+    if(items[focusedIndex]){
+      items[focusedIndex].focus();
+    }
+  };
+
+  window.dockGamepadSelect = function(){
+    if(lpLayer && lpLayer.classList.contains('open')){
+      var lpItems = lpGrid2.querySelectorAll('.lpItem2');
+      if(lpFocusedIndex >= 0 && lpFocusedIndex < lpItems.length){
+        var it = lpItems[lpFocusedIndex];
+        var kind = it.getAttribute('data-kind');
+        if(kind === 'native'){
+          bridge('launch', it.getAttribute('data-comp'));
+        } else {
+          bridge('openApp', it.getAttribute('data-id'));
+        }
+        bridge('setDockLaunchpad', false);
+      }
+      return;
+    }
+    var items = dockEl.querySelectorAll('.dockItem');
+    if(focusedIndex >= 0 && focusedIndex < items.length){
+      triggerDockItem(items[focusedIndex]);
+    }
+  };
+
+  window.dockGamepadBack = function(){
+    if(lpLayer && lpLayer.classList.contains('open')){
+      bridge('setDockLaunchpad', false);
+      return true;
+    }
+    return false;
+  };
+
+  dockEl.addEventListener('contextmenu', function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    var it = e.target.closest('.dockItem');
+    if(!it) return;
+    var kind = it.getAttribute('data-kind');
+    var id = it.getAttribute('data-id');
+    var comp = it.getAttribute('data-comp');
+    var area = it.getAttribute('data-area') || 'pin';
+    var isRunning = it.classList.contains('running') || it.classList.contains('minned');
+
+    var _t = function(k, d){ return window.CHI18n ? CHI18n.t(k, d) : d; };
+
+    if(kind === 'launchpad'){
+      showDockMenu(e.clientX, e.clientY, [
+        { label: _t('launchpad', '启动台'), action: function(){ bridge('openLaunchpad'); } }
+      ]);
+      return;
+    }
+
+    var menuItems = [];
+    menuItems.push({
+      label: _t('open', '打开'),
+      action: function(){
+        if(kind === 'native') bridge('launch', comp);
+        else bridge('openApp', id);
+      }
+    });
+
+    if(area === 'pin'){
+      menuItems.push({
+        label: _t('remove_from_dock', '从 Dock 栏移除'),
+        action: function(){ unpinApp(id); }
+      });
+    } else {
+      menuItems.push({
+        label: _t('pin_to_dock', '固定到 Dock 栏'),
+        action: function(){ pinApp(id); }
+      });
+    }
+
+    if(isRunning){
+      menuItems.push({ separator: true });
+      menuItems.push({
+        label: _t('quit', '退出'),
+        danger: true,
+        action: function(){ bridge('closeAppById', id, comp || ''); }
+      });
+    }
+
+    showDockMenu(e.clientX, e.clientY, menuItems);
+  });
+
+  /* 应用台里图标的右键菜单。以前整个页面只有 Dock 栏挂了 contextmenu，
+   * 应用台图标（.lpItem2）没有任何处理，所以右键完全没反应。 */
+  lpLayer.addEventListener('contextmenu', function(e){
+    var it = e.target.closest('.lpItem2');
+    if(!it) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var kind = it.getAttribute('data-kind');
+    var id = it.getAttribute('data-id');
+    var comp = it.getAttribute('data-comp');
+    var _t = function(k, d){ return window.CHI18n ? CHI18n.t(k, d) : d; };
+    var pins = (state.dockPins && state.dockPins.length
+      ? state.dockPins : (state.builtin || []).map(function(a){ return a.id; }));
+    var pinned = pins.indexOf(id) >= 0;
+    var menuItems = [];
+    menuItems.push({
+      label: _t('open', '打开'),
+      action: function(){
+        if(kind === 'native') bridge('launch', comp);
+        else bridge('openApp', id);
+        bridge('setDockLaunchpad', false);
+      }
+    });
+    menuItems.push({
+      label: pinned ? _t('remove_from_dock', '从 Dock 栏移除') : _t('pin_to_dock', '固定到 Dock 栏'),
+      action: function(){
+        if(pinned) unpinApp(id); else pinApp(id);
+      }
+    });
+    showDockMenu(e.clientX, e.clientY, menuItems);
+  });
+
+  dockEl.addEventListener('keydown', function(e){
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); e.target.click(); }
+  });
+
+  document.body.addEventListener('pointerdown', function(){
+    if(state.hidden) bridge('setDockHover', true);
+  });
+
+  window.__dockRefresh = function(){ applyState(parse(bridge('getState'),{})); };
+  window.__dockApplyPins = function(pins){
+    try {
+      var arr = (typeof pins === 'string') ? parse(pins, []) : pins;
+      if (Array.isArray(arr)) {
+        state.dockPins = arr;
+        render();
+      }
+    } catch(e){}
+  };
+
+  function allLpApps(){
+    var map = {}, list = [];
+    (state.builtin||[]).forEach(function(a){
+      if(!map[a.id]){ map[a.id] = 1; list.push({id:a.id, name:a.name, kind:'system', grad:a.grad, icon:a.icon}); }
+    });
+    (state.html||[]).forEach(function(a){
+      if(!map[a.id]){ map[a.id] = 1; list.push({id:a.id, name:a.name, kind:'html', grad:a.grad, icon:a.icon}); }
+    });
+    (state.native||[]).forEach(function(a){
+      if(!map[a.id]){ map[a.id] = 1; list.push({id:a.id, name:a.name, kind:'native', comp:a.comp, grad:null, icon:a.icon}); }
+    });
+    return list;
+  }
+
+  function renderLp(query){
+    var q = (query || '').toLowerCase();
+    var apps = allLpApps();
+    var hint = document.getElementById('lpPrivHint');
+    if(hint) hint.classList.toggle('show', !state.privilege);
+    if(q){
+      apps = apps.filter(function(a){
+        return (a.name && a.name.toLowerCase().indexOf(q) >= 0)
+          || (a.id && a.id.toLowerCase().indexOf(q) >= 0)
+          || (a.comp && a.comp.toLowerCase().indexOf(q) >= 0);
+      });
+    }
+    if(!apps.length){
+      lpGrid2.innerHTML = '<div class="lpEmpty" style="grid-column:1/-1">' + (q ? '未找到匹配的应用' : '这里还没有应用') + '</div>';
+      return;
+    }
+    var html = '';
+    apps.forEach(function(app){
+      var kind = app.kind || (app.comp ? 'native' : 'html');
+      html += '<div class="lpItem2" data-kind="'+kind+'" data-id="'+esc(app.id)+'"'
+        + (app.comp ? ' data-comp="'+esc(app.comp)+'"' : '')
+        + ' role="button" tabindex="0" aria-label="'+esc(app.name)+'">'
+        +   '<div class="dockIcon" style="background:'+iconBg(app)+'">'+iconInner(app)+'</div>'
+        +   '<div class="lpName">'+esc(app.name)+'</div>'
+        + '</div>';
+    });
+    lpGrid2.innerHTML = html;
+  }
+
+  lpSearch.addEventListener('input', function(){
+    var val = lpSearch.value.trim();
+    lpSearchClear.style.display = val ? 'flex' : 'none';
+    renderLp(val);
+  });
+  lpSearchClear.addEventListener('click', function(e){
+    e.stopPropagation();
+    lpSearch.value = '';
+    lpSearchClear.style.display = 'none';
+    renderLp('');
+    lpSearch.focus();
+  });
+
+  
+  /* ================= 悬浮层 5 层与假前后台调度 ================= */
+  var fgWinLayer = document.getElementById('fgWinLayer');
+  var fgTopZ = 100;
+  var fgWins = {};
+
+  function reportTouchables(){
+    if(!window.CanghaiDock || typeof CanghaiDock.reportTouchableRegions !== 'function') return;
+    /* Root 条带态：一旦有启动台 / 前台 HTML 窗口 / 菜单，就要求 Java 把窗口临时拉回全屏，
+       否则这些层会被条带裁掉。非 Root 维持原来只按启动台判断 ALL 的行为。 */
+    var chFgLayer = document.getElementById('fgWinLayer');
+    var chMenuEl = document.getElementById('dockMenu');
+    var chHasFg = window.__chStripMode && chFgLayer
+      && chFgLayer.querySelector('.fgWin:not(.demoted):not(.minimized)');
+    var chHasMenu = window.__chStripMode && chMenuEl && chMenuEl.style.display !== 'none';
+    if((lpLayer && lpLayer.classList.contains('open')) || chHasFg || chHasMenu
+       || (window.__chMbPanelOpen && window.__chMbPanelOpen())){
+      CanghaiDock.reportTouchableRegions('ALL');
+      return;
+    }
+    var rects = [];
+    var d = window.devicePixelRatio || 1;
+
+    // 1. Dock 矩形 (Layer 4)
+    if(dockEl && dockEl.offsetWidth > 0 && dockEl.offsetHeight > 0){
+      var dr = dockEl.getBoundingClientRect();
+      rects.push({ l: Math.round(dr.left * d), t: Math.round(dr.top * d), r: Math.round(dr.right * d), b: Math.round(dr.bottom * d) });
+    }
+
+    // 2. 标题栏矩形 (Layer 3)
+    var mb = document.getElementById('menubar');
+    if(mb && mb.offsetWidth > 0){
+      var mbr = mb.getBoundingClientRect();
+      rects.push({ l: Math.round(mbr.left * d), t: Math.round(mbr.top * d), r: Math.round(mbr.right * d), b: Math.round(mbr.bottom * d) });
+    }
+
+    // 3. 菜单/弹窗 (Layer 2)
+    if(dockMenu && dockMenu.style.display !== 'none'){
+      var mr = dockMenu.getBoundingClientRect();
+      rects.push({ l: Math.round(mr.left * d), t: Math.round(mr.top * d), r: Math.round(mr.right * d), b: Math.round(mr.bottom * d) });
+    }
+
+    // 4. 前台 HTML 窗口 (Layer 1)
+    if(fgWinLayer){
+      var wins = fgWinLayer.querySelectorAll('.fgWin:not(.demoted):not(.minimized)');
+      wins.forEach(function(w){
+        var wr = w.getBoundingClientRect();
+        rects.push({ l: Math.round(wr.left * d), t: Math.round(wr.top * d), r: Math.round(wr.right * d), b: Math.round(wr.bottom * d) });
+      });
+    }
+
+    CanghaiDock.reportTouchableRegions(JSON.stringify(rects));
+  }
+
+  
+  // ================= 顶栏：活动窗口名 + 电量/网络/时钟 + 菜单面板 =================
+  window.updateTopActiveWin = function(name) {
+    var el = document.getElementById('topActiveWin');
+    if (el) el.textContent = (name && name !== '') ? name : '桌面';
+  };
+
+  var mbNetBox = document.getElementById('topNetBox');
+  var mbNetIco = document.getElementById('topNetIco');
+  var mbBatBox = document.getElementById('topBatBox');
+  var mbBatVal = document.getElementById('topBatVal');
+  var mbBatLevel = document.getElementById('topBatLevel');
+  var mbBatBolt = document.getElementById('topBatBolt');
+  var mbCcPanel = document.getElementById('ccPanel');
+  var mbCalPop = document.getElementById('calPop');
+  var mbSpotMask = document.getElementById('spotMask');
+  var mbLock = document.getElementById('lockScreen');
+  var mbAbout = document.getElementById('aboutModal');
+  var mbBright = document.getElementById('brightDiv');
+  var mbToastEl = document.getElementById('chToast');
+
+  var MB_NET_SVGS = {
+    wifi: '<path d="M8 10.6a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4zM8 6.4c1.7 0 3.3.7 4.5 1.9l-1.6 1.6A4.2 4.2 0 0 0 8 9.1c-1.1 0-2.1.4-2.9 1.2L3.5 8.3A6.3 6.3 0 0 1 8 6.4zM8 2c2.8 0 5.4 1.1 7.4 3L13.8 6.6A8.6 8.6 0 0 0 8 4.7c-2.1 0-4.2.8-5.8 2.3L.6 5A11.3 11.3 0 0 1 8 2z" transform="translate(0,-2.4)"/>',
+    ethernet: '<path d="M3 1h10a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v2h2v2H2v-2h2v-2H3a2 2 0 0 1-2-2V3a2 2 0 0 1 2-2zm1 3v2h2V4H4zm4 0v2h2V4H8z" fill="currentColor"/>',
+    cellular: '<path d="M1 10h2v2H1zm4-3h2v5H5zm4-3h2v8H9zm4-3h2v11h-2z" fill="currentColor"/>',
+    none: '<g><path d="M8 10.6a1.7 1.7 0 1 1 0 3.4 1.7 1.7 0 0 1 0-3.4zM8 6.4c1.7 0 3.3.7 4.5 1.9l-1.6 1.6A4.2 4.2 0 0 0 8 9.1c-1.1 0-2.1.4-2.9 1.2L3.5 8.3A6.3 6.3 0 0 1 8 6.4zM8 2c2.8 0 5.4 1.1 7.4 3L13.8 6.6A8.6 8.6 0 0 0 8 4.7c-2.1 0-4.2.8-5.8 2.3L.6 5A11.3 11.3 0 0 1 8 2z" opacity="0.3" transform="translate(0,-2.4)"/><line x1="2" y1="1" x2="14" y2="11" stroke="#ff6b81" stroke-width="2.2" stroke-linecap="round"/></g>'
+  };
+  var MB_NET_TITLES = { wifi: '无线网络 WiFi 已连接', ethernet: '有线以太网已连接', cellular: '蜂窝移动网络已连接', none: '网络已断开' };
+
+  function mbToast(text) {
+    if (!mbToastEl || !text) return;
+    mbToastEl.textContent = text;
+    mbToastEl.classList.add('show');
+    clearTimeout(mbToast.el ? mbToast.el : null);
+    mbToast.el = setTimeout(function () { mbToastEl.classList.remove('show'); }, 1800);
+  }
+
+  function mbApplySystem(raw) {
+    try {
+      var info = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (!info) return;
+      var bat = info.battery;
+      if (bat && typeof bat.level === 'number') {
+        var lvl = Math.max(0, Math.min(100, bat.level));
+        if (mbBatVal) mbBatVal.textContent = lvl + '%';
+        if (mbBatLevel) {
+          mbBatLevel.setAttribute('width', Math.max(1, Math.round(14 * (lvl / 100))));
+          mbBatLevel.setAttribute('fill', lvl < 20 ? '#ff6b81' : (bat.charging ? '#ecd28f' : '#ffffff'));
+        }
+        if (mbBatBolt) mbBatBolt.style.display = bat.charging ? 'inline' : 'none';
+        if (mbBatBox) mbBatBox.title = '系统电池电量：' + lvl + '%' + (bat.charging ? '（充电中）' : '');
+      }
+      var netType = info.net || 'none';
+      if (mbNetIco && MB_NET_SVGS[netType]) mbNetIco.innerHTML = MB_NET_SVGS[netType];
+      if (mbNetBox) mbNetBox.title = MB_NET_TITLES[netType] || '网络状态';
+    } catch (e) {}
+  }
+
+  function mbPollSystem() {
+    try {
+      var raw = bridge('getSystemInfoJson');
+      if (raw) mbApplySystem(raw);
+    } catch (e) {}
+  }
+  mbPollSystem();
+  setInterval(mbPollSystem, 12000);
+
+  function mbPad(n) { return String(n).padStart(2, '0'); }
+  function mbTickClock() {
+    var now = new Date();
+    var hm = mbPad(now.getHours()) + ':' + mbPad(now.getMinutes());
+    var ct = document.getElementById('clockTime'), cd = document.getElementById('clockDate');
+    if (ct) ct.textContent = hm;
+    if (cd) cd.textContent = (now.getMonth() + 1) + '月' + now.getDate() + '日 周' + ['日','一','二','三','四','五','六'][now.getDay()];
+    var lt = document.getElementById('lockTime'), ld = document.getElementById('lockDate');
+    if (lt) lt.textContent = hm;
+    if (ld) ld.textContent = now.getFullYear() + ' 年 ' + (now.getMonth() + 1) + ' 月 ' + now.getDate() + ' 日';
+  }
+  setInterval(mbTickClock, 1000);
+  mbTickClock();
+
+  /* 面板互斥：同一时刻只开一个，并同步触摸区域（开着面板时整屏要能点） */
+  window.__chMbPanelOpen = function () {
+    return (mbCcPanel && mbCcPanel.classList.contains('open'))
+      || (mbCalPop && mbCalPop.classList.contains('open'))
+      || (mbSpotMask && mbSpotMask.classList.contains('open'))
+      || (mbAbout && mbAbout.classList.contains('open'))
+      || (mbLock && mbLock.classList.contains('show'));
+  };
+  function mbClosePanels(except) {
+    [mbCcPanel, mbCalPop, mbSpotMask, mbAbout].forEach(function (el) {
+      if (el && el !== except) el.classList.remove('open');
+    });
+    reportTouchables();
+  }
+
+  /* ---------- 关于沧海系统 ---------- */
+  function mbOpenAbout() {
+    mbClosePanels(mbAbout);
+    try {
+      var raw = bridge('getAboutInfo');
+      var o = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : {};
+      var ver = document.getElementById('abVer');
+      if (ver) {
+        if (o.version || o.apkVersion) {
+          ver.style.display = '';
+          ver.textContent = '沧海 ' + (o.version || '—') + ' · APK ' + (o.apkVersion || '—');
+        } else { ver.style.display = 'none'; }
+      }
+      /* 桥没给的数据就不摆出来（全是横线像坏了）；联系方式是写死的，永远在 */
+      var rows = [['反馈邮箱', 'cunkai.wang@foxmail.com']];
+      if (o.model) rows.push(['设备', o.model]);
+      if (o.android) rows.push(['Android', o.android]);
+      if (o.htmlApps != null) rows.push(['内置软件', o.htmlApps + ' 个']);
+      if (o.installedApps != null) rows.push(['已装应用', o.installedApps + ' 个']);
+      if (o.apkCode != null) rows.push(['构建号', String(o.apkCode)]);
+      var box = document.getElementById('abRows');
+      if (box) box.innerHTML = rows.map(function (r) {
+        return '<div class="abRow"><b>' + esc(r[0]) + '</b><span>' + esc(r[1]) + '</span></div>';
+      }).join('');
+    } catch (e) {}
+    if (mbAbout) mbAbout.classList.add('open');
+    reportTouchables();
+  }
+
+  /* ---------- 控制中心 ---------- */
+  function mbReadDockAutoHide() {
+    try {
+      var v = bridge('getDockAutoHide');
+      return v === true || v === 'true';
+    } catch (e) { return false; }
+  }
+  function mbSyncCcSwitches() {
+    var ccHide = document.getElementById('ccHide');
+    if (ccHide) ccHide.classList.toggle('on', mbReadDockAutoHide());
+  }
+  function mbOpenCc() {
+    mbClosePanels(mbCcPanel);
+    var open = mbCcPanel.classList.toggle('open');
+    if (!open) { reportTouchables(); return; }
+    mbSyncCcSwitches();
+    reportTouchables();
+  }
+
+  (function mbBindCc() {
+    var bright = document.getElementById('ccBright');
+    var vol = document.getElementById('ccVol');
+    if (bright) bright.addEventListener('input', function () {
+      document.getElementById('ccBrightVal').textContent = bright.value + '%';
+      if (mbBright) mbBright.style.opacity = String((100 - Number(bright.value)) / 100 * 0.55);
+    });
+    if (vol) vol.addEventListener('input', function () {
+      document.getElementById('ccVolVal').textContent = vol.value + '%';
+    });
+    var dnd = document.getElementById('ccDnd');
+    if (dnd) dnd.addEventListener('click', function () {
+      var on = dnd.classList.toggle('on');
+      mbToast(on ? '勿扰模式已开' : '勿扰模式已关');
+    });
+    var dark = document.getElementById('ccDark');
+    if (dark) dark.addEventListener('click', function () {
+      var on = dark.classList.toggle('on');
+      document.getElementById('menubar').style.background = on ? 'rgba(18,28,42,.75)' : 'rgba(226,236,248,.82)';
+      document.getElementById('menubar').style.color = on ? '#fff' : '#14263a';
+      mbToast(on ? '已切换到深色外观' : '已切换到浅色外观');
+    });
+    var hide = document.getElementById('ccHide');
+    if (hide) hide.addEventListener('click', function () {
+      var next = !mbReadDockAutoHide();
+      try { bridge('setDockAutoHide', next); } catch (e) {}
+      hide.classList.toggle('on', next);
+      mbToast(next ? 'Dock 自动隐藏已开，鼠标贴边唤出' : 'Dock 自动隐藏已关');
+    });
+    var lockBtn = document.getElementById('ccLock');
+    if (lockBtn) lockBtn.addEventListener('click', function () { mbClosePanels(null); mbLockScreen(); });
+  })();
+
+  /* ---------- 日历 ---------- */
+  function mbCalHTML() {
+    var now = new Date(), y = now.getFullYear(), m = now.getMonth();
+    var first = new Date(y, m, 1).getDay(), days = new Date(y, m + 1, 0).getDate();
+    var prev = new Date(y, m, 0).getDate();
+    var s = '<div class="w-cal"><h4>' + y + '年' + (m + 1) + '月 <span>日历</span></h4><table><tr><th>日</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th></tr><tr>';
+    var cellN = 0;
+    for (var i = first - 1; i >= 0; i--) { s += '<td class="dim">' + (prev - i) + '</td>'; cellN++; }
+    for (var d = 1; d <= days; d++) {
+      s += '<td class="' + (d === now.getDate() ? 'today' : '') + '">' + d + '</td>';
+      cellN++;
+      if (cellN % 7 === 0 && d < days) s += '</tr><tr>';
+    }
+    var tail = (7 - cellN % 7) % 7;
+    for (var t = 1; t <= tail; t++) s += '<td class="dim">' + t + '</td>';
+    return s + '</tr></table></div>';
+  }
+  function mbOpenCal() {
+    if (mbCalPop && mbCalPop.classList.contains('open')) { mbCalPop.classList.remove('open'); reportTouchables(); return; }
+    mbClosePanels(mbCalPop);
+    var body = document.getElementById('calPopBody');
+    if (body) body.innerHTML = mbCalHTML();
+    var now = new Date();
+    var foot = document.getElementById('calPopFoot');
+    if (foot) foot.textContent = '今天是 ' + now.getFullYear() + ' 年 ' + (now.getMonth() + 1) + ' 月 ' + now.getDate() + ' 日，星期' + ['日','一','二','三','四','五','六'][now.getDay()];
+    if (mbCalPop) mbCalPop.classList.add('open');
+    reportTouchables();
+  }
+
+  /* ---------- 聚焦搜索 ---------- */
+  var mbSpotResults = [], mbSpotActive = 0;
+  function mbRenderSpot(q) {
+    var listEl = document.getElementById('spotList');
+    if (!listEl) return;
+    var apps = allLpApps();
+    q = (q || '').trim().toLowerCase();
+    if (q) {
+      apps = apps.filter(function (a) {
+        return (a.name && a.name.toLowerCase().indexOf(q) >= 0)
+          || (a.id && a.id.toLowerCase().indexOf(q) >= 0)
+          || (a.comp && a.comp.toLowerCase().indexOf(q) >= 0);
+      });
+    }
+    mbSpotResults = apps;
+    if (!apps.length) { listEl.innerHTML = '<div class="spotEmpty">没有匹配的应用</div>'; return; }
+    listEl.innerHTML = apps.map(function (a, i) {
+      var kind = a.kind === 'native' ? '安卓应用' : '沧海应用';
+      return '<div class="spotItem' + (i === mbSpotActive ? ' active' : '') + '" data-i="' + i + '">'
+        + '<div class="sic" style="background:' + iconBg(a) + '">' + iconInner(a) + '</div>'
+        + '<div><b>' + esc(a.name) + '</b><span>' + kind + '</span></div></div>';
+    }).join('');
+  }
+  function mbOpenSpot() {
+    mbClosePanels(mbSpotMask);
+    mbSpotActive = 0;
+    var inp = document.getElementById('spotInput');
+    if (inp) inp.value = '';
+    mbRenderSpot('');
+    if (mbSpotMask) mbSpotMask.classList.add('open');
+    reportTouchables();
+    setTimeout(function () { try { inp.focus(); } catch (e) {} }, 30);
+  }
+  function mbCloseSpot() {
+    if (mbSpotMask) mbSpotMask.classList.remove('open');
+    reportTouchables();
+  }
+  function mbActivateSpot(i) {
+    var a = mbSpotResults[i];
+    if (!a) return;
+    mbCloseSpot();
+    try {
+      if (a.kind === 'native' && a.comp) bridge('launch', a.comp);
+      else bridge('openApp', a.id);
+    } catch (e) {}
+  }
+  (function mbBindSpot() {
+    var inp = document.getElementById('spotInput');
+    var listEl = document.getElementById('spotList');
+    if (inp) {
+      inp.addEventListener('input', function () { mbSpotActive = 0; mbRenderSpot(inp.value); });
+      inp.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); mbSpotActive = Math.min(mbSpotResults.length - 1, mbSpotActive + 1); mbRenderSpot(inp.value); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); mbSpotActive = Math.max(0, mbSpotActive - 1); mbRenderSpot(inp.value); }
+        else if (e.key === 'Enter') { mbActivateSpot(mbSpotActive); }
+        else if (e.key === 'Escape') { mbCloseSpot(); }
+      });
+    }
+    if (listEl) listEl.addEventListener('click', function (e) {
+      var it = e.target.closest('.spotItem');
+      if (it) mbActivateSpot(Number(it.getAttribute('data-i')));
+    });
+    if (mbSpotMask) mbSpotMask.addEventListener('pointerdown', function (e) { if (e.target === mbSpotMask) mbCloseSpot(); });
+  })();
+
+  /* ---------- 锁屏 ---------- */
+  var mbLockTimer = null;
+  function mbLockScreen() {
+    mbClosePanels(null);
+    if (mbLock) { mbLock.classList.remove('unlocking'); mbLock.classList.add('show'); }
+    mbTickClock();
+    reportTouchables();
+    clearTimeout(mbLockTimer);
+    mbLockTimer = setTimeout(function () {
+      mbLockTimer = null;
+      if (!mbLock || !mbLock.classList.contains('show') || mbLock.classList.contains('unlocking')) return;
+      try { bridge('lockDevice'); } catch (e) {}
+    }, 1000);
+  }
+  function mbUnlockScreen() {
+    clearTimeout(mbLockTimer);
+    mbLockTimer = null;
+    if (!mbLock || !mbLock.classList.contains('show')) return;
+    mbLock.classList.add('unlocking');
+    setTimeout(function () {
+      if (mbLock) mbLock.classList.remove('show', 'unlocking');
+      reportTouchables();
+    }, 420);
+  }
+  window.onDeviceLockChanged = function (locked) {
+    if (locked === false && mbLock && mbLock.classList.contains('show')) mbUnlockScreen();
+  };
+  (function mbBindLock() {
+    var av = document.getElementById('lockAvatar');
+    if (av) av.addEventListener('click', function (e) { e.stopPropagation(); mbUnlockScreen(); });
+    if (mbLock) mbLock.addEventListener('click', mbUnlockScreen);
+  })();
+
+  /* ---------- 菜单栏按钮总装 ---------- */
+  (function mbBindBar() {
+    var about = document.getElementById('aboutBtn');
+    if (about) {
+      about.addEventListener('click', mbOpenAbout);
+      about.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); mbOpenAbout(); } });
+    }
+    var spot = document.getElementById('spotBtn');
+    if (spot) spot.addEventListener('click', mbOpenSpot);
+    var cc = document.getElementById('ccBtn');
+    if (cc) cc.addEventListener('click', mbOpenCc);
+    var clock = document.getElementById('clockBox');
+    if (clock) clock.addEventListener('click', mbOpenCal);
+    var avatar = document.getElementById('avatarBtn');
+    if (avatar) avatar.addEventListener('click', mbLockScreen);
+    var ok = document.getElementById('abOk');
+    if (ok) ok.addEventListener('click', function () { if (mbAbout) mbAbout.classList.remove('open'); reportTouchables(); });
+    if (mbAbout) mbAbout.addEventListener('pointerdown', function (e) { if (e.target === mbAbout) { mbAbout.classList.remove('open'); reportTouchables(); } });
+    /* 弹窗点外面就关：按下去的那一下落在弹窗外、也不在顶栏按钮上，就收起所有弹窗。
+       用 pointerdown 而不用 click：滑杆拖出面板再松手时 click 会落在外面，不能误关。 */
+    document.addEventListener('pointerdown', function (e) {
+      var t = e.target;
+      if (!t || !t.closest) return;
+      var anyOpen = [mbCcPanel, mbCalPop, mbSpotMask, mbAbout].some(function (el) { return el && el.classList.contains('open'); });
+      if (!anyOpen) return;
+      if (t.closest('#ccPanel, #calPop, #spotBox, #aboutCard')) return;
+      if (t.closest('#ccBtn, #clockBox, #spotBtn, #aboutBtn')) return;
+      mbClosePanels(null);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { mbClosePanels(null); mbCloseSpot(); }
+    });
+  })();
+
+  // 当安卓原生应用被激活时：前台 HTML 窗口无感退到桌面层，释放悬浮层触摸
+  window.onAndroidAppActivated = function(){
+    if(!fgWinLayer) return;
+    var wins = fgWinLayer.querySelectorAll('.fgWin:not(.demoted)');
+    wins.forEach(function(w){
+      w.classList.add('demoted');
+    });
+    if(window.CanghaiDock && typeof CanghaiDock.syncWindowsToDesktop === 'function'){
+      CanghaiDock.syncWindowsToDesktop();
+    }
+    reportTouchables();
+  };
+
+  // 在悬浮层第 1 层打开/激活 HTML 应用
+  window.openFgHtmlApp = function(appId, title){
+    if(!fgWinLayer || !appId) return;
+    var win = fgWins[appId];
+    if(win && win.el){
+      win.el.classList.remove('demoted');
+      win.el.classList.remove('minimized');
+      win.el.style.zIndex = ++fgTopZ;
+      reportTouchables();
+      return;
+    }
+    var app = (state.html || []).find(function(a){ return a.id === appId; });
+    var url = (app && app.url) ? app.url : ('../apps/' + appId + '/index.html');
+    var w = Math.min(Math.round(window.innerWidth * 0.8), 780);
+    var h = Math.min(Math.round(window.innerHeight * 0.75), 520);
+    var x = Math.max(16, Math.round((window.innerWidth - w) / 2));
+    var y = Math.max(48, Math.round((window.innerHeight - h) / 2));
+
+    var el = document.createElement('div');
+    el.className = 'fgWin';
+    el.id = 'fgwin_' + appId;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    el.style.width = w + 'px';
+    el.style.height = h + 'px';
+    el.style.zIndex = ++fgTopZ;
+
+    el.innerHTML = '<div class="winbar">'
+      + '<div class="traffic"><span class="tl r" title="关闭"></span><span class="tl y" title="最小化"></span><span class="tl g" title="最大化"></span></div>'
+      + '<div class="winTitle">' + (title || (app ? app.name : appId)) + '</div>'
+      + '<div style="width:40px"></div>'
+      + '</div>'
+      + '<div class="winbody"><iframe src="' + url + '"></iframe></div>'
+      + '<div class="winResize"></div>';
+
+    // 拖动
+    var bar = el.querySelector('.winbar');
+    bar.addEventListener('pointerdown', function(e){
+      if(e.target.closest('.tl')) return;
+      el.style.zIndex = ++fgTopZ;
+      var sx = e.clientX, sy = e.clientY, ox = el.offsetLeft, oy = el.offsetTop;
+      try{ bar.setPointerCapture(e.pointerId); }catch(err){}
+      el.classList.add('dragging');
+      function mv(ev){
+        el.style.left = Math.max(0, Math.min(ox + ev.clientX - sx, window.innerWidth - 60)) + 'px';
+        el.style.top = Math.max(38, Math.min(oy + ev.clientY - sy, window.innerHeight - 50)) + 'px';
+        reportTouchables();
+      }
+      function up(){
+        bar.removeEventListener('pointermove', mv);
+        bar.removeEventListener('pointerup', up);
+        bar.removeEventListener('pointercancel', up);
+        el.classList.remove('dragging');
+        reportTouchables();
+      }
+      bar.addEventListener('pointermove', mv);
+      bar.addEventListener('pointerup', up);
+      bar.addEventListener('pointercancel', up);
+    });
+
+    // 缩放
+    var grip = el.querySelector('.winResize');
+    grip.addEventListener('pointerdown', function(e){
+      e.stopPropagation();
+      var sx = e.clientX, sy = e.clientY, ow = el.offsetWidth, oh = el.offsetHeight;
+      try{ grip.setPointerCapture(e.pointerId); }catch(err){}
+      function mv(ev){
+        el.style.width = Math.max(260, ow + ev.clientX - sx) + 'px';
+        el.style.height = Math.max(180, oh + ev.clientY - sy) + 'px';
+        reportTouchables();
+      }
+      function up(){
+        grip.removeEventListener('pointermove', mv);
+        grip.removeEventListener('pointerup', up);
+        grip.removeEventListener('pointercancel', up);
+        reportTouchables();
+      }
+      grip.addEventListener('pointermove', mv);
+      grip.addEventListener('pointerup', up);
+      grip.addEventListener('pointercancel', up);
+    });
+
+    // 红黄绿三色点
+    el.querySelector('.tl.r').addEventListener('click', function(e){
+      e.stopPropagation();
+      el.remove();
+      delete fgWins[appId];
+      reportTouchables();
+    });
+    el.querySelector('.tl.y').addEventListener('click', function(e){
+      e.stopPropagation();
+      el.classList.add('minimized');
+      el.style.display = 'none';
+      reportTouchables();
+    });
+    el.querySelector('.tl.g').addEventListener('click', function(e){
+      e.stopPropagation();
+      if(!el.classList.contains('max')){
+        el._ox = el.offsetLeft; el._oy = el.offsetTop; el._ow = el.offsetWidth; el._oh = el.offsetHeight;
+        el.classList.add('max');
+        el.style.left = '0px'; el.style.top = '38px'; el.style.width = '100%'; el.style.height = 'calc(100% - 38px)';
+      } else {
+        el.classList.remove('max');
+        el.style.left = el._ox + 'px'; el.style.top = el._oy + 'px'; el.style.width = el._ow + 'px'; el.style.height = el._oh + 'px';
+      }
+      reportTouchables();
+    });
+
+    fgWinLayer.appendChild(el);
+    fgWins[appId] = { el: el, id: appId };
+    reportTouchables();
+  };
+
+  window.__lpSetOpen = function(open){
+    var isOpen = !!open;
+    lpOpen = isOpen;
+    lpLayer.classList.toggle('open', isOpen);
+    document.body.classList.toggle('lp-open', isOpen);
+    try { bridge('notifyLaunchpadState', isOpen); } catch(e){}
+    if(isOpen){
+      lpSearch.value = '';
+      lpSearchClear.style.display = 'none';
+      renderLp('');
+      lpFocusedIndex = 0;
+      setTimeout(function(){
+        var items = lpGrid2.querySelectorAll('.lpItem2');
+        if(items && items.length > 0){
+          items.forEach(function(el, i){ el.classList.toggle('gamepad-focused', i === 0); });
+          items[0].focus();
+        }
+      }, 50);
+    } else {
+      lpFocusedIndex = -1;
+      var items = lpGrid2.querySelectorAll('.lpItem2');
+      if(items) items.forEach(function(el){ el.classList.remove('gamepad-focused'); });
+    }
+  };
+
+  lpLayer.addEventListener('click', function(e){
+    if(e.target.closest('#dockMenu')) return;
+    if(e.target.closest('#lpSearchWrap')) return;
+    var it = e.target.closest('.lpItem2');
+    if(it){
+      var kind = it.getAttribute('data-kind');
+      if(kind === 'native'){
+        bridge('launch', it.getAttribute('data-comp'));
+      } else {
+        bridge('openApp', it.getAttribute('data-id'));
+      }
+      bridge('setDockLaunchpad', false);
+      return;
+    }
+    bridge('setDockLaunchpad', false);
+  });
+
+  window.addEventListener('click', function(e){
+    if(!lpLayer.classList.contains('open')) return;
+    // 右键菜单开着的时候点一下只是关菜单，别顺手把应用台也关掉
+    if(dockMenu && dockMenu.style.display !== 'none') return;
+    if(e.target.closest('.lpItem2')) return;
+    if(e.target.closest('#lpSearchWrap')) return;
+    if(e.target.closest('#dockWrap')) return;
+    bridge('setDockLaunchpad', false);
+  });
+
+  window.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && lpLayer.classList.contains('open')){
+      bridge('setDockLaunchpad', false);
+    }
+  });
+
+  window.addEventListener('pointermove', function(e){
+    if (state.autoHide) {
+      if (e.clientY >= window.innerHeight - 30) {
+        if (state.hidden) {
+          state.hidden = false;
+          applyHidden();
+        }
+      } else if (e.clientY < window.innerHeight - 110) {
+        if (!state.hidden && !lpLayer.classList.contains('open') && (!dockMenu || dockMenu.style.display === 'none')) {
+          state.hidden = true;
+          applyHidden();
+        }
+      }
+    }
+  });
+
+  applyState(parse(bridge('getState'), {}));
+  setTimeout(function(){ reportDockBounds(); reportTouchables(); }, 80);
+  setTimeout(function(){ reportDockBounds(); reportTouchables(); }, 250);
+  try {
+    var rawHide = bridge('getDockAutoHide');
+    state.autoHide = (rawHide === true || rawHide === 'true');
+    // 默认保持常驻显示，不自动隐藏
+    state.hidden = false;
+    applyHidden();
+  } catch(err) {}
+  setTimeout(function(){ if(!state.native.length && !state.html.length) window.__dockRefresh(); }, 500);
+})();
+</script>
+</body>
+</html>

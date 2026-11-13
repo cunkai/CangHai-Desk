@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_screen_card"
+    android:padding="20dp">
+
+    <!-- 弹窗标题 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="鼠标与指针偏好设置"
+        android:textColor="#F8FAFC"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="16dp" />
+
+    <!-- 小节 1: 鼠标大小 (无级调节) -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="鼠标大小（无级调节）"
+        android:textColor="#94A3B8"
+        android:textSize="13sp"
+        android:textStyle="bold" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="8dp">
+
+        <TextView
+            android:id="@+id/btnScaleMinus"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:gravity="center"
+            android:background="@drawable/bg_oneui_control_btn"
+            android:text="-"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <SeekBar
+            android:id="@+id/sbCursorScale"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="8dp"
+            android:max="36"
+            android:progress="6" />
+
+        <TextView
+            android:id="@+id/btnScalePlus"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:gravity="center"
+            android:background="@drawable/bg_oneui_control_btn"
+            android:text="+"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="6dp">
+
+        <TextView
+            android:id="@+id/tvCurrentScale"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="当前缩放：1.00x"
+            android:textColor="#38BDF8"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <!-- 实时光标预览卡片 -->
+        <FrameLayout
+            android:id="@+id/flCursorPreviewContainer"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="#0F172A"
+            android:padding="4dp">
+            <!-- 动态添加 MouseCursorView 实时预览 -->
+        </FrameLayout>
+    </LinearLayout>
+
+    <!-- 分割线 -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#1E293B"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp" />
+
+    <!-- 小节 2: 鼠标样子 -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="鼠标样子"
+        android:textColor="#94A3B8"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="36dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btnStyleArrow"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:background="@drawable/bg_oneui_control_btn"
+            android:text="经典箭头"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/btnStyleDot"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:gravity="center"
+            android:background="@drawable/bg_oneui_control_btn"
+            android:text="圆点"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/btnStyleBlock"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:gravity="center"
+            android:background="@drawable/bg_oneui_control_btn"
+            android:text="方块"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:clickable="true"
+            android:focusable="true" />
+
+        <TextView
+            android:id="@+id/btnStyleCustomSvg"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:gravity="center"
+            android:background="@drawable/bg_oneui_control_btn"
+            android:text="自定义SVG"
+            android:textColor="#FFFFFF"
+            android:textSize="12sp"
+            android:clickable="true"
+            android:focusable="true" />
+    </LinearLayout>
+
+    <!-- 小节 3: 自定义 SVG 代码输入区 (当选中自定义SVG时可见) -->
+    <LinearLayout
+        android:id="@+id/layoutCustomSvgInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_marginTop="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="输入/粘贴 SVG Path 路径数据："
+            android:textColor="#94A3B8"
+            android:textSize="12sp"
+            android:layout_marginBottom="4dp" />
+
+        <EditText
+            android:id="@+id/etCustomSvgPath"
+            android:layout_width="match_parent"
+            android:layout_height="80dp"
+            android:gravity="top|start"
+            android:padding="8dp"
+            android:background="@drawable/bg_oneui_edittext"
+            android:hint="如: M0,0 L0,27 L6.8,21 L11.4,31 L16.2,28.7 L11.5,18.8 L20,18.8 Z"
+            android:textColor="#FFFFFF"
+            android:textColorHint="#64748B"
+            android:textSize="12sp"
+            android:fontFamily="monospace" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="36dp"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <TextView
+                android:id="@+id/btnSvgSampleCross"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:background="@drawable/bg_oneui_control_btn"
+                android:text="示例: 十字瞄准"
+                android:textColor="#CBD5E1"
+                android:textSize="11sp"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <TextView
+                android:id="@+id/btnSvgSamplePointer"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_marginStart="6dp"
+                android:gravity="center"
+                android:background="@drawable/bg_oneui_control_btn"
+                android:text="示例: 精准尖针"
+                android:textColor="#CBD5E1"
+                android:textSize="11sp"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <TextView
+                android:id="@+id/btnApplySvg"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1.2"
+                android:layout_marginStart="6dp"
+                android:gravity="center"
+                android:background="@drawable/bg_btn_primary"
+                android:text="保存并应用"
+                android:textColor="#FFFFFF"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:clickable="true"
+                android:focusable="true" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- 底部关闭按钮 -->
+    <TextView
+        android:id="@+id/btnCloseSettings"
+        android:layout_width="match_parent"
+        android:layout_height="42dp"
+        android:gravity="center"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_oneui_control_btn"
+        android:text="完成"
+        android:textColor="#FFFFFF"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:clickable="true"
+        android:focusable="true" />
+
+</LinearLayout>

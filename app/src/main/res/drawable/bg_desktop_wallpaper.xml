@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 底层渐变：深邃星空夜蓝 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="linear"
+                android:angle="135"
+                android:startColor="#10142C"
+                android:centerColor="#1E1948"
+                android:endColor="#0C152B" />
+        </shape>
+    </item>
+    <!-- 右上方极光紫光晕 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="75%p"
+                android:centerX="85%"
+                android:centerY="15%"
+                android:startColor="#666366F1"
+                android:endColor="#00000000" />
+        </shape>
+    </item>
+    <!-- 左下方天青蓝光晕 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="70%p"
+                android:centerX="15%"
+                android:centerY="85%"
+                android:startColor="#5506B6D4"
+                android:endColor="#00000000" />
+        </shape>
+    </item>
+    <!-- 中部暖粉紫流光 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:gradientRadius="60%p"
+                android:centerX="55%"
+                android:centerY="45%"
+                android:startColor="#44A855F7"
+                android:endColor="#00000000" />
+        </shape>
+    </item>
+</layer-list>
