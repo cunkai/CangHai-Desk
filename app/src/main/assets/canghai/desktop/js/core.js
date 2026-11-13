@@ -87,7 +87,7 @@ var curDesk = 0; /* 单桌面：多桌面模式已去掉，桌面只有这一个
 /* 默认 Dock 钉选（用户定，2026-11-13 晚改）：音乐、一个游戏、一个文本、便签四个，
    其余应用默认只在启动台。快照里有用户自己的钉选时以快照为准，这里只定「全新桌面」
    的默认。四个一个都没注册进来时（比如只剩系统应用的兜底注册表）退回旧规则，避免 Dock 全空。 */
-var DEFAULT_DOCK_PINS = ['music-player', 'jump', 'markdown', 'sticky'];
+var DEFAULT_DOCK_PINS = ['huiyin', 'jump', 'markdown', 'sticky', 'huaban'];
 function chDefaultDockPins(){
   var pins = [];
   DEFAULT_DOCK_PINS.forEach(function(id){

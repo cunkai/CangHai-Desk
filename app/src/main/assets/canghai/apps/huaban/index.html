@@ -1,0 +1,4196 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>画板</title>
+    <style>
+        :root {
+            --paper-cream: #faf6ed;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: #07111c;
+            background-image: 
+                linear-gradient(180deg, #0a1a2a 0%, #060e18 100%);
+            overflow: hidden;
+            user-select: none;
+            -webkit-user-select: none;
+            width: 100vw;
+            height: 100dvh;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* 顶部悬浮抽屉毛玻璃木纹融合质感 */
+        .floating-drawer-surface {
+            background: linear-gradient(165deg, #0e2236 0%, #0a1826 100%);
+            box-shadow: 
+                0 20px 50px rgba(0, 0, 0, 0.85),
+                inset 0 -1px 0 rgba(201, 168, 92, 0.25);
+        }
+
+        /* 3排自适应调色盘网格 */
+        #paletteGrid3Rows {
+            display: grid;
+            grid-template-rows: repeat(3, minmax(0, 1fr));
+            gap: 6px;
+            align-items: center;
+            justify-items: center;
+            width: 100%;
+            height: 112px;
+        }
+
+        /* 左上角占4格 (2列×2行) 的五彩斑斓一次性色盘按钮 */
+        .rainbow-4slot-wheel {
+            grid-column: 1 / span 2;
+            grid-row: 1 / span 2;
+            width: 100%;
+            height: 100%;
+            max-width: 72px;
+            max-height: 72px;
+            aspect-ratio: 1 / 1;
+            border-radius: 9999px;
+            background: conic-gradient(
+                from 0deg,
+                #ff2a55,
+                #ff7b00,
+                #ffd900,
+                #26e659,
+                #00d9ff,
+                #3b5bff,
+                #b833ff,
+                #ff2a55
+            );
+            box-shadow: 
+                0 4px 16px rgba(0, 0, 0, 0.65),
+                inset 0 0 0 2.5px rgba(255, 255, 255, 0.45),
+                0 0 18px rgba(201, 168, 92, 0.3);
+            position: relative;
+            transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease;
+        }
+        .rainbow-4slot-wheel:hover {
+            transform: scale(1.07) rotate(18deg);
+            box-shadow: 
+                0 6px 22px rgba(201, 168, 92, 0.5),
+                inset 0 0 0 3px rgba(255, 255, 255, 0.8);
+        }
+        .rainbow-4slot-wheel::after {
+            content: '';
+            position: absolute;
+            inset: 23%;
+            border-radius: 9999px;
+            background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.15) 70%, transparent 100%);
+            box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+            pointer-events: none;
+        }
+
+        /* 颜料圆格 */
+        .paint-well {
+            width: 31px;
+            height: 31px;
+            border-radius: 9999px;
+            padding: 2.5px;
+            background: rgba(4, 12, 20, 0.85);
+            box-shadow: 
+                inset 0 2px 4px rgba(0,0,0,0.75),
+                0 1px 1px rgba(255,255,255,0.08);
+            transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.16s ease;
+            position: relative;
+        }
+        .paint-well:hover {
+            transform: scale(1.12);
+        }
+        .paint-well.active {
+            transform: scale(1.18);
+            box-shadow: 
+                0 0 0 2px #ecd28f,
+                0 0 12px rgba(201, 168, 92, 0.85);
+            z-index: 10;
+        }
+        .paint-blob {
+            width: 100%;
+            height: 100%;
+            border-radius: 9999px;
+            box-shadow: 
+                inset -2px -2px 4px rgba(0,0,0,0.38),
+                inset 2px 2px 4px rgba(255,255,255,0.38);
+        }
+
+        /* 右侧 3 排画笔矩阵 */
+        #brushGrid3Rows {
+            display: grid;
+            grid-template-rows: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 5px;
+            height: 112px;
+        }
+
+        .brush-cell {
+            background: rgba(6, 17, 28, 0.6);
+            border: 1px solid rgba(201, 168, 92, 0.18);
+            border-radius: 10px;
+            transition: all 0.16s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2px 4px;
+            cursor: pointer;
+            position: relative;
+        }
+        .brush-cell:hover {
+            border-color: rgba(201, 168, 92, 0.55);
+            background: rgba(201, 168, 92, 0.12);
+        }
+        .brush-cell.active {
+            background: rgba(201, 168, 92, 0.22);
+            border-color: #c9a85c;
+            box-shadow: 0 0 12px rgba(201, 168, 92, 0.35);
+        }
+
+        /* 画板木框 */
+        .easel-board {
+            box-shadow: 
+                0 25px 65px -12px rgba(0, 0, 0, 0.9),
+                0 0 0 7px #0d1f30,
+                0 0 0 8px rgba(201, 168, 92, 0.55),
+                0 0 0 9px rgba(255,255,255,0.1);
+            background-color: var(--paper-cream);
+            cursor: none;
+            touch-action: none;
+        }
+
+        /* 底部大气视频级控制栏 */
+        .video-dock-glass {
+            background: linear-gradient(180deg, #0e2236 0%, #0a1826 100%);
+            border: 1px solid rgba(201, 168, 92, 0.25);
+            box-shadow: 0 16px 42px rgba(0, 0, 0, 0.85);
+        }
+
+        /* 视频进度条滑块美化 */
+        input[type=range].video-scrubber {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        input[type=range].video-scrubber::-webkit-slider-runnable-track {
+            height: 6px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.16);
+        }
+        input[type=range].video-scrubber::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 999px;
+            background: #c9a85c;
+            border: 2px solid #fff;
+            margin-top: -5px;
+            box-shadow: 0 0 10px rgba(201, 168, 92, 0.9);
+            transition: transform 0.12s ease;
+        }
+        input[type=range].video-scrubber:hover::-webkit-slider-thumb {
+            transform: scale(1.22);
+        }
+
+        /* 涟漪动画 */
+        @keyframes dip-ripple {
+            0% { transform: scale(0.3); opacity: 0.95; }
+            100% { transform: scale(2.4); opacity: 0; }
+        }
+        .ripple-ring {
+            animation: dip-ripple 0.52s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        /* 品牌角标：金色弯月 + 画板 / 沧海软件（只作标识，不挡画布） */
+        .brand-chip {
+            position: fixed;
+            top: 10px;
+            left: 12px;
+            z-index: 40;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            pointer-events: none;
+            opacity: 0.92;
+        }
+        .brand-chip .brand-name {
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #e9eff6;
+            text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+        }
+        .brand-chip .brand-sub {
+            font-size: 10px;
+            letter-spacing: 1px;
+            color: #8ba3b8;
+            text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
+        }
+
+        /* 快捷键键帽 */
+        .kbd-key {
+            display: inline-block;
+            min-width: 22px;
+            text-align: center;
+            padding: 1px 6px;
+            border-radius: 6px;
+            border: 1px solid rgba(201, 168, 92, 0.4);
+            border-bottom-width: 2px;
+            background: rgba(6, 17, 28, 0.85);
+            color: #ecd28f;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+            font-size: 11px;
+            line-height: 1.6;
+            white-space: nowrap;
+        }
+
+        @media (max-width: 640px) {
+            .paint-well { width: 26px; height: 26px; }
+            #paletteGrid3Rows { height: 94px; gap: 4px; }
+            #brushGrid3Rows { height: 94px; gap: 4px; }
+        }
+    /* Tailwind subset: static utilities covering every class used in this file (offline, no CDN) */
+*,::before,::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:currentColor}
+html{line-height:1.5;-webkit-text-size-adjust:100%}
+h1,h2,h3,h4,h5,h6,p{margin:0}
+button,input,select,textarea{font:inherit;color:inherit;margin:0;padding:0}
+button{background-color:transparent;background-image:none}
+img,svg,video,canvas{display:block;vertical-align:middle}
+.-translate-x-1\/2{--tw-tx:-50%}
+.-translate-y-1\/2{--tw-ty:-50%}
+.-translate-x-1\/2,.-translate-y-1\/2{transform:translate(var(--tw-tx,0),var(--tw-ty,0))}
+.bg-gradient-to-r{background-image:linear-gradient(to right,var(--tw-gradient-stops))}
+.from-\[\#ecd28f\]{--tw-gradient-from:#ecd28f;--tw-gradient-to:rgba(236,210,143,0);--tw-gradient-stops:var(--tw-gradient-from),var(--tw-gradient-to)}
+.to-\[\#c9a85c\]{--tw-gradient-to:#c9a85c}
+.block{display:block}
+.hidden{display:none}
+.flex{display:flex}
+.inline-flex{display:inline-flex}
+.grid{display:grid}
+.fixed{position:fixed}
+.absolute{position:absolute}
+.relative{position:relative}
+.inset-0{top:0;right:0;bottom:0;left:0}
+.top-0{top:0}
+.top-1\/2{top:50%}
+.top-14{top:3.5rem}
+.left-0{left:0}
+.left-1\/2{left:50%}
+.right-0{right:0}
+.bottom-0{bottom:0}
+.z-10{z-index:10}
+.z-30{z-index:30}
+.z-40{z-index:40}
+.z-50{z-index:50}
+.flex-1{flex:1 1 0%}
+.flex-col{flex-direction:column}
+.flex-wrap{flex-wrap:wrap}
+.flex-shrink-0{flex-shrink:0}
+.items-center{align-items:center}
+.items-stretch{align-items:stretch}
+.justify-between{justify-content:space-between}
+.justify-center{justify-content:center}
+.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr))}
+.gap-x-5{column-gap:1.25rem}
+.gap-y-1\.5{row-gap:0.375rem}
+.min-w-0{min-width:0}
+.p-0\.5{padding:0.125rem}
+.px-0\.5{padding-left:0.125rem;padding-right:0.125rem}
+.py-0\.5{padding-top:0.125rem;padding-bottom:0.125rem}
+.pt-0\.5{padding-top:0.125rem}
+.pb-0\.5{padding-bottom:0.125rem}
+.gap-0\.5{gap:0.125rem}
+.p-1{padding:0.25rem}
+.px-1{padding-left:0.25rem;padding-right:0.25rem}
+.py-1{padding-top:0.25rem;padding-bottom:0.25rem}
+.pt-1{padding-top:0.25rem}
+.pb-1{padding-bottom:0.25rem}
+.gap-1{gap:0.25rem}
+.p-1\.5{padding:0.375rem}
+.px-1\.5{padding-left:0.375rem;padding-right:0.375rem}
+.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem}
+.pt-1\.5{padding-top:0.375rem}
+.pb-1\.5{padding-bottom:0.375rem}
+.gap-1\.5{gap:0.375rem}
+.p-2{padding:0.5rem}
+.px-2{padding-left:0.5rem;padding-right:0.5rem}
+.py-2{padding-top:0.5rem;padding-bottom:0.5rem}
+.pt-2{padding-top:0.5rem}
+.pb-2{padding-bottom:0.5rem}
+.gap-2{gap:0.5rem}
+.p-2\.5{padding:0.625rem}
+.px-2\.5{padding-left:0.625rem;padding-right:0.625rem}
+.py-2\.5{padding-top:0.625rem;padding-bottom:0.625rem}
+.pt-2\.5{padding-top:0.625rem}
+.pb-2\.5{padding-bottom:0.625rem}
+.gap-2\.5{gap:0.625rem}
+.p-3{padding:0.75rem}
+.px-3{padding-left:0.75rem;padding-right:0.75rem}
+.py-3{padding-top:0.75rem;padding-bottom:0.75rem}
+.pt-3{padding-top:0.75rem}
+.pb-3{padding-bottom:0.75rem}
+.gap-3{gap:0.75rem}
+.p-4{padding:1rem}
+.px-4{padding-left:1rem;padding-right:1rem}
+.py-4{padding-top:1rem;padding-bottom:1rem}
+.pt-4{padding-top:1rem}
+.pb-4{padding-bottom:1rem}
+.gap-4{gap:1rem}
+.p-5{padding:1.25rem}
+.px-5{padding-left:1.25rem;padding-right:1.25rem}
+.py-5{padding-top:1.25rem;padding-bottom:1.25rem}
+.pt-5{padding-top:1.25rem}
+.pb-5{padding-bottom:1.25rem}
+.gap-5{gap:1.25rem}
+.p-7{padding:1.75rem}
+.px-7{padding-left:1.75rem;padding-right:1.75rem}
+.py-7{padding-top:1.75rem;padding-bottom:1.75rem}
+.pt-7{padding-top:1.75rem}
+.pb-7{padding-bottom:1.75rem}
+.gap-7{gap:1.75rem}
+.p-8{padding:2rem}
+.px-8{padding-left:2rem;padding-right:2rem}
+.py-8{padding-top:2rem;padding-bottom:2rem}
+.pt-8{padding-top:2rem}
+.pb-8{padding-bottom:2rem}
+.gap-8{gap:2rem}
+.p-10{padding:2.5rem}
+.px-10{padding-left:2.5rem;padding-right:2.5rem}
+.py-10{padding-top:2.5rem;padding-bottom:2.5rem}
+.pt-10{padding-top:2.5rem}
+.pb-10{padding-bottom:2.5rem}
+.gap-10{gap:2.5rem}
+.p-16{padding:4rem}
+.px-16{padding-left:4rem;padding-right:4rem}
+.py-16{padding-top:4rem;padding-bottom:4rem}
+.pt-16{padding-top:4rem}
+.pb-16{padding-bottom:4rem}
+.gap-16{gap:4rem}
+.p-28{padding:7rem}
+.px-28{padding-left:7rem;padding-right:7rem}
+.py-28{padding-top:7rem;padding-bottom:7rem}
+.pt-28{padding-top:7rem}
+.pb-28{padding-bottom:7rem}
+.gap-28{gap:7rem}
+.p-56{padding:14rem}
+.px-56{padding-left:14rem;padding-right:14rem}
+.py-56{padding-top:14rem;padding-bottom:14rem}
+.pt-56{padding-top:14rem}
+.pb-56{padding-bottom:14rem}
+.gap-56{gap:14rem}
+.mt-0\.5{margin-top:0.125rem}
+.mx-auto{margin-left:auto;margin-right:auto}
+.w-0\.5{width:0.125rem}
+.h-0\.5{height:0.125rem}
+.w-1{width:0.25rem}
+.h-1{height:0.25rem}
+.w-1\.5{width:0.375rem}
+.h-1\.5{height:0.375rem}
+.w-2{width:0.5rem}
+.h-2{height:0.5rem}
+.w-2\.5{width:0.625rem}
+.h-2\.5{height:0.625rem}
+.w-3{width:0.75rem}
+.h-3{height:0.75rem}
+.w-4{width:1rem}
+.h-4{height:1rem}
+.w-5{width:1.25rem}
+.h-5{height:1.25rem}
+.w-7{width:1.75rem}
+.h-7{height:1.75rem}
+.w-8{width:2rem}
+.h-8{height:2rem}
+.w-10{width:2.5rem}
+.h-10{height:2.5rem}
+.w-16{width:4rem}
+.h-16{height:4rem}
+.w-28{width:7rem}
+.h-28{height:7rem}
+.w-56{width:14rem}
+.h-56{height:14rem}
+.w-full{width:100%}
+.w-px{width:1px}
+.w-screen{width:100vw}
+.h-full{height:100%}
+.h-dvh{height:100dvh}
+.max-w-full{max-width:100%}
+.max-w-md{max-width:28rem}
+.max-w-sm{max-width:24rem}
+.max-w-\[1380px\]{max-width:1380px}
+.max-w-\[1440px\]{max-width:1440px}
+.max-w-\[240px\]{max-width:240px}
+.text-\[10px\]{font-size:10px}
+.text-\[11px\]{font-size:11px}
+.text-xs{font-size:0.75rem;line-height:1rem}
+.text-sm{font-size:0.875rem;line-height:1.25rem}
+.text-center{text-align:center}
+.font-bold{font-weight:700}
+.font-medium{font-weight:500}
+.font-semibold{font-weight:600}
+.font-mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
+.leading-none{line-height:1}
+.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.whitespace-nowrap{white-space:nowrap}
+.bg-\[\#04090f\]{background-color:#04090f}
+.bg-\[\#0a1826\]{background-color:#0a1826}
+.bg-\[\#0a1826\]\/95{background-color:rgba(10, 24, 38, 0.95)}
+.bg-\[\#0d1f30\]{background-color:#0d1f30}
+.bg-\[\#12293d\]{background-color:#12293d}
+.bg-\[\#24405a\]{background-color:#24405a}
+.bg-\[\#c9a85c\]{background-color:#c9a85c}
+.bg-\[\#c9a85c\]\/20{background-color:rgba(201, 168, 92, 0.2)}
+.bg-\[\#c9a85c\]\/25{background-color:rgba(201, 168, 92, 0.25)}
+.bg-\[\#c9a85c\]\/35{background-color:rgba(201, 168, 92, 0.35)}
+.bg-\[\#1a3a56\]{background-color:#1a3a56}
+.bg-\[\#d9bc72\]{background-color:#d9bc72}
+.border-\[\#c9a85c\]{border-color:#c9a85c}
+.border-\[\#c9a85c\]\/25{border-color:rgba(201, 168, 92, 0.25)}
+.border-\[\#c9a85c\]\/35{border-color:rgba(201, 168, 92, 0.35)}
+.border-\[\#c9a85c\]\/40{border-color:rgba(201, 168, 92, 0.4)}
+.text-\[\#1a1408\]{color:#1a1408}
+.text-\[\#8ba3b8\]{color:#8ba3b8}
+.text-\[\#e9eff6\]{color:#e9eff6}
+.text-\[\#e9eff6\]\/75{color:rgba(233, 239, 246, 0.75)}
+.text-\[\#e9eff6\]\/85{color:rgba(233, 239, 246, 0.85)}
+.text-\[\#e9eff6\]\/90{color:rgba(233, 239, 246, 0.9)}
+.text-\[\#ecd28f\]{color:#ecd28f}
+.bg-black\/35{background-color:rgba(0,0,0,0.35)}
+.bg-black\/40{background-color:rgba(0,0,0,0.4)}
+.bg-black\/65{background-color:rgba(0,0,0,0.65)}
+.bg-black\/70{background-color:rgba(0,0,0,0.7)}
+.bg-white\/5{background-color:rgba(255,255,255,0.05)}
+.bg-white\/10{background-color:rgba(255,255,255,0.1)}
+.bg-white\/15{background-color:rgba(255,255,255,0.15)}
+.bg-white\/20{background-color:rgba(255,255,255,0.2)}
+.bg-transparent{background-color:transparent}
+.border-white{border-color:#fff}
+.border-white\/10{border-color:rgba(255,255,255,0.1)}
+.border-white\/20{border-color:rgba(255,255,255,0.2)}
+.border-white\/25{border-color:rgba(255,255,255,0.25)}
+.border-white\/70{border-color:rgba(255,255,255,0.7)}
+.text-white{color:#fff}
+.accent-\[\#c9a85c\]{accent-color:#c9a85c}
+.border{border-width:1px}
+.border-2{border-width:2px}
+.border-b{border-bottom-width:1px}
+.border-t{border-top-width:1px}
+.border-t-0{border-top-width:0}
+.rounded-lg{border-radius:0.5rem}
+.rounded-xl{border-radius:0.75rem}
+.rounded-2xl{border-radius:1rem}
+.rounded-3xl{border-radius:1.5rem}
+.rounded-full{border-radius:9999px}
+.rounded-b-2xl{border-bottom-right-radius:1rem;border-bottom-left-radius:1rem}
+.shadow-sm{box-shadow:0 1px 2px 0 rgba(0,0,0,0.05)}
+.shadow-md{box-shadow:0 4px 6px -1px rgba(0,0,0,0.1),0 2px 4px -2px rgba(0,0,0,0.1)}
+.shadow-lg{box-shadow:0 10px 15px -3px rgba(0,0,0,0.1),0 4px 6px -4px rgba(0,0,0,0.1)}
+.shadow-xl{box-shadow:0 20px 25px -5px rgba(0,0,0,0.1),0 8px 10px -6px rgba(0,0,0,0.1)}
+.shadow-2xl{box-shadow:0 25px 50px -12px rgba(0,0,0,0.25)}
+.opacity-0{opacity:0}
+.opacity-25{opacity:0.25}
+.mix-blend-multiply{mix-blend-mode:multiply}
+.origin-top-left{transform-origin:top left}
+.will-change-transform{will-change:transform}
+.transition-all{transition-property:all;transition-timing-function:cubic-bezier(0.4,0,0.2,1);transition-duration:150ms}
+.transition-opacity{transition-property:opacity;transition-timing-function:cubic-bezier(0.4,0,0.2,1);transition-duration:150ms}
+.transition-transform{transition-property:transform;transition-timing-function:cubic-bezier(0.4,0,0.2,1);transition-duration:150ms}
+.duration-75{transition-duration:75ms}
+.duration-300{transition-duration:300ms}
+.ease-out{transition-timing-function:cubic-bezier(0,0,0.2,1)}
+.cursor-pointer{cursor:pointer}
+.cursor-crosshair{cursor:crosshair}
+.pointer-events-none{pointer-events:none}
+.pointer-events-auto{pointer-events:auto}
+.touch-none{touch-action:none}
+.appearance-none{-webkit-appearance:none;appearance:none}
+.overflow-hidden{overflow:hidden}
+.overflow-visible{overflow:visible}
+.overflow-x-auto{overflow-x:auto}
+.hover\:bg-\[\#1a3a56\]:hover{background-color:#1a3a56}
+.hover\:bg-\[\#c9a85c\]\/20:hover{background-color:rgba(201, 168, 92, 0.2)}
+.hover\:bg-\[\#c9a85c\]\/35:hover{background-color:rgba(201, 168, 92, 0.35)}
+.hover\:bg-\[\#d9bc72\]:hover{background-color:#d9bc72}
+.hover\:bg-white\/20:hover{background-color:rgba(255,255,255,0.2)}
+.hover\:text-white:hover{color:#fff}
+.active\:scale-95:active{transform:scale(0.95)}
+.disabled\:bg-white\/10:disabled{background-color:rgba(255,255,255,0.1)}
+.disabled\:cursor-not-allowed:disabled{cursor:not-allowed}
+.disabled\:opacity-40:disabled{opacity:0.4}
+.disabled\:text-\[\#8ba3b8\]:disabled{color:#8ba3b8}
+.focus\:outline-none:focus{outline:2px solid transparent;outline-offset:2px}
+@media (min-width:640px){
+.sm\:inline{display:inline}
+.sm\:p-4{padding:1rem}
+.sm\:px-4{padding-left:1rem;padding-right:1rem}
+.sm\:px-5{padding-left:1.25rem;padding-right:1.25rem}
+.sm\:max-w-\[460px\]{max-width:460px}
+.sm\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (min-width:1024px){
+.lg\:block{display:block}
+.lg\:flex-row{flex-direction:row}
+.lg\:items-center{align-items:center}
+.lg\:w-\[390px\]{width:390px}
+}
+@media (min-width:1280px){
+.xl\:inline{display:inline}
+}
+    .mr-1{margin-right:0.25rem}
+.shadow-inner{box-shadow:inset 0 2px 4px 0 rgb(0 0 0 / 0.05)}
+
+        /* 计算进度浮层：CSS 转圈动画走合成层，主线程算得再忙也照样转 */
+        .compute-overlay { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: rgba(4, 9, 15, 0.72); }
+        .compute-card { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 34px; border-radius: 20px; background: #0d1f30; border: 1px solid rgba(201, 168, 92, 0.4); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); min-width: 240px; }
+        .compute-spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(201, 168, 92, 0.25); border-top-color: #ecd28f; animation: compute-spin 0.9s linear infinite; }
+        @keyframes compute-spin { to { transform: rotate(360deg); } }
+        .compute-title { font-size: 16px; font-weight: 700; color: #e9eff6; letter-spacing: 1px; }
+        .compute-phase { font-size: 12px; color: #8ba3b8; }
+        .compute-bar { width: 200px; height: 6px; border-radius: 3px; background: #24405a; overflow: hidden; }
+        .compute-bar > div { height: 100%; width: 0%; border-radius: 3px; background: linear-gradient(90deg, #ecd28f, #c9a85c); transition: width 0.15s; }
+        .compute-pct { font-size: 12px; font-family: monospace; color: #ecd28f; }
+        .compute-cancel { margin-top: 4px; padding: 6px 22px; border-radius: 999px; border: 1px solid rgba(201, 168, 92, 0.55); background: transparent; color: #ecd28f; font-size: 13px; cursor: pointer; }
+        .compute-cancel:active { transform: scale(0.95); }
+.mt-1{margin-top:0.25rem}
+
+        /* 底部控制条：两条窄条 + 上滑抽屉（一条一个） */
+        .control-sheet { position: absolute; left: 8px; right: 8px; bottom: calc(100% + 6px); transform: translateY(10px); opacity: 0; pointer-events: none; transition: transform 0.28s ease, opacity 0.22s ease; z-index: 5; }
+        @media (min-width: 640px) { .control-sheet { left: 16px; right: 16px; } }
+        .sheet-open .control-sheet { transform: none; opacity: 1; pointer-events: auto; }
+        .sheet-inner { max-width: 1380px; margin: 0 auto; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; max-height: min(62vh, 560px); }
+        .sheet-head { display: flex; align-items: center; justify-content: center; position: relative; padding: 10px 12px 6px; touch-action: none; cursor: grab; flex-shrink: 0; }
+        .sheet-close { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 12px; color: #8ba3b8; background: none; border: none; cursor: pointer; padding: 4px 6px; }
+        .sheet-list { overflow-y: auto; padding: 0 8px 10px; -webkit-overflow-scrolling: touch; }
+        .sheet-section { font-size: 11px; color: #8ba3b8; padding: 10px 10px 4px; }
+        .sheet-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 8px 10px; border-radius: 12px; background: transparent; border: none; color: #e9eff6; font-size: 14px; text-align: left; cursor: pointer; transition: background 0.15s; }
+        .sheet-row:hover { background: rgba(255,255,255,0.06); }
+        .sheet-row:active { background: rgba(255,255,255,0.10); }
+        .sheet-row-icon { font-size: 17px; width: 24px; text-align: center; flex-shrink: 0; }
+        .sheet-row-label { flex: 1; }
+        .sheet-row-note { font-size: 11px; color: #8ba3b8; }
+        .sheet-check { opacity: 0; color: #c9a85c; font-weight: 700; }
+        .sheet-row-active { background: rgba(201,168,92,0.12); }
+        .sheet-row-active .sheet-check { opacity: 1; }
+        .sheet-row-active .sheet-row-label { color: #ecd28f; font-weight: 600; }
+        .sheet-row-primary .sheet-row-label { color: #ecd28f; font-weight: 600; }
+        .sheet-handle-row { display: flex; align-items: center; gap: 8px; padding: 5px 0 2px; border-top: 1px solid rgba(255,255,255,0.08); touch-action: none; }
+        .sheet-nav { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 2px; overflow-x: auto; scrollbar-width: none; }
+        .sheet-nav::-webkit-scrollbar { display: none; }
+        .sheet-nav-btn { flex-shrink: 0; padding: 4px 10px; border-radius: 999px; background: none; border: none; font-size: 12px; color: #8ba3b8; cursor: pointer; white-space: nowrap; transition: background 0.15s, color 0.15s; }
+        .sheet-nav-btn:hover { background: rgba(255,255,255,0.08); color: #e9eff6; }
+        .sheet-nav-btn.sheet-nav-active { color: #ecd28f; background: rgba(201,168,92,0.15); font-weight: 600; }
+        .sheet-handle-btn { flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 10px; background: none; border: none; cursor: pointer; color: #8ba3b8; }
+        .sheet-grabber { width: 44px; height: 4px; border-radius: 999px; background: rgba(255,255,255,0.25); flex-shrink: 0; }
+        .sheet-chevron { font-size: 12px; line-height: 1; }
+    </style>
+</head>
+<body class="text-[#e9eff6]/90 relative w-screen h-dvh overflow-hidden">
+<!-- 品牌角标：金色弯月 + 画板 / 沧海软件 -->
+<div class="brand-chip" aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 24 24"><defs><linearGradient id="brandMoonGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ecd28f"/><stop offset="1" stop-color="#c9a85c"/></linearGradient></defs><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill="url(#brandMoonGrad)"/></svg>
+    <span class="brand-name">画板</span>
+    <span class="brand-sub">沧海软件</span>
+</div>
+
+
+<!-- ======================= 1. 顶部悬浮式折叠抽屉 (不挤压画布，点击箭头展开/收起，落笔自动收起) ======================= -->
+<div id="topFloatingDrawer" 
+     class="fixed top-0 left-0 right-0 z-40 transition-transform duration-300 ease-out"
+     style="transform: translateY(calc(-100% + 30px));">
+    
+    <!-- 抽屉主体内容 -->
+    <div class="floating-drawer-surface w-full border-b border-[#c9a85c]/25 px-3 sm:px-5 py-2.5">
+        <div class="max-w-[1440px] mx-auto flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+            
+            <!-- 左侧：颜色选择区（占4格的2×2五彩斑斓一次性色盘 + 3排动态列数色块） -->
+            <div class="flex-1 min-w-0 flex flex-col gap-1" id="paletteSectionContainer">
+                <div id="paletteGrid3Rows">
+                    <!-- 由 JS 动态计算列数并渲染：第1~2行×第1~2列为五彩斑斓色盘，其余填满3排 -->
+                </div>
+            </div>
+
+            <!-- 分隔线 -->
+            <div class="hidden lg:block w-px h-28 bg-[#c9a85c]/25 flex-shrink-0"></div>
+
+            <!-- 右侧：画笔设置区（3排×4列共12种画笔，含PNG/SVG自定义笔头 + 笔头大小滑块） -->
+            <div class="w-full lg:w-[390px] flex-shrink-0 flex flex-col gap-1.5">
+                <div id="brushGrid3Rows">
+                    <!-- 由 JS 渲染 12 格画笔（第12格为自定义 PNG/SVG 上传） -->
+                </div>
+
+                <!-- 笔头大小无级调节滑块 -->
+                <div class="flex items-center gap-2.5 bg-black/35 px-3 py-1 rounded-xl border border-white/10">
+                    <span class="text-[11px] text-[#8ba3b8] font-medium whitespace-nowrap">笔头大小</span>
+                    <input type="range" id="brushSizeSlider" min="2" max="90" value="18"
+                           oninput="onBrushSizeSliderChange(this.value)"
+                           class="flex-1 h-1.5 bg-[#24405a] rounded-lg appearance-none cursor-pointer accent-[#c9a85c]">
+                    <div class="flex items-center justify-center w-7 h-5">
+                        <span id="brushSizeValueText" class="text-[11px] font-mono text-[#ecd28f] font-semibold">18px</span>
+                    </div>
+                </div>
+                <input type="file" id="customBrushFileInput" accept=".png,.svg,image/png,image/svg+xml" class="hidden" onchange="handleCustomBrushUpload(this.files[0])">
+            </div>
+
+        </div>
+    </div>
+
+    <!-- 悬挂在顶部的正中央下拉/收起箭头把手 -->
+    <div class="w-full flex justify-center pointer-events-none">
+        <button id="drawerToggleArrowBtn" onclick="toggleTopDrawer()"
+                class="pointer-events-auto group flex items-center gap-1.5 px-5 py-1.5 rounded-b-2xl floating-drawer-surface border border-t-0 border-[#c9a85c]/35 text-[#ecd28f] hover:text-white shadow-xl transition-all active:scale-95 cursor-pointer"
+                title="点击展开或收起色盘与画笔面板">
+            <span id="drawerCurrentColorDot" class="w-3 h-3 rounded-full border border-white/70 shadow-sm" style="background-color: #f59e0b;"></span>
+            <span id="drawerCurrentBrushTag" class="text-[11px] font-medium text-[#e9eff6]/90 hidden sm:inline">中平刷</span>
+            <svg id="drawerArrowIcon" class="w-4 h-4 text-[#ecd28f] transition-transform duration-300" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/>
+            </svg>
+        </button>
+    </div>
+</div>
+
+<!-- ======================= 2. 全屏铺满的主画布区域 (绝不被顶部面板挤压) ======================= -->
+<main id="studioStage" class="w-screen h-dvh flex items-center justify-center p-2 sm:p-4 relative overflow-hidden">
+    <!-- 画纸外框 -->
+    <div id="canvasWrapper" class="easel-board relative rounded-lg overflow-hidden flex items-center justify-center">
+        <canvas id="paintCanvas" class="block"></canvas>
+        <canvas id="paperGrainCanvas" class="absolute inset-0 pointer-events-none opacity-25 mix-blend-multiply"></canvas>
+        <canvas id="referenceCanvas" class="absolute inset-0 pointer-events-none opacity-0 transition-opacity duration-300"></canvas>
+    </div>
+
+    <!-- 全屏视频模式下点击画布中央浮现的播放/暂停指示器 -->
+    <div id="fullscreenCenterIndicator" class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-40 pointer-events-none opacity-0 transition-opacity duration-300">
+        <div class="w-16 h-16 rounded-full bg-black/70 border border-white/25 flex items-center justify-center text-[#ecd28f] shadow-2xl">
+            <svg id="fsCenterIcon" class="w-8 h-8" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M8 5v14l11-7z"/>
+            </svg>
+        </div>
+    </div>
+</main>
+
+<!-- ======================= 3. 下方视频级进度条与画笔外观控制面板 ======================= -->
+<footer id="bottomVideoDock" class="fixed bottom-0 left-0 right-0 z-30 px-2 sm:px-4 pb-2 pt-1 transition-all duration-300">
+    <!-- 上滑抽屉：全部控制，一条一个（绝对定位，不占控制条高度） -->
+    <div id="controlSheet" class="control-sheet">
+        <div class="sheet-inner video-dock-glass">
+            <div class="sheet-head" id="sheetHead">
+                <span class="sheet-grabber"></span>
+                <button type="button" class="sheet-close" onclick="setControlSheetOpen(false)">收起 ⌄</button>
+            </div>
+            <div class="sheet-list">
+                <div class="sheet-section" id="sheet-sec-pick">选择图片</div>
+                <label class="sheet-row sheet-row-primary">
+                    <span class="sheet-row-icon">🖼️</span><span class="sheet-row-label">选图自动画</span><span class="sheet-row-note">从相册选一张图</span>
+                    <input type="file" id="imageUploadInput" accept="image/*" class="hidden">
+                </label>
+                <button type="button" class="sheet-row" onclick="enterFreehandBlankCanvas(); setControlSheetOpen(false);">
+                    <span class="sheet-row-icon">📄</span><span class="sheet-row-label">自由画布</span><span class="sheet-row-note">空白画布</span>
+                </button>
+                <div class="sheet-section" id="sheet-sec-presets">内置图片</div>
+                <button type="button" class="sheet-row" onclick="startAutoPaintPreset('sunflower'); setControlSheetOpen(false);">
+                    <span class="sheet-row-icon">🌻</span><span class="sheet-row-label">向日葵</span><span class="sheet-row-note">示例</span>
+                </button>
+                <button type="button" class="sheet-row" onclick="startAutoPaintPreset('cottage'); setControlSheetOpen(false);">
+                    <span class="sheet-row-icon">🏡</span><span class="sheet-row-label">木屋</span><span class="sheet-row-note">示例</span>
+                </button>
+                <button type="button" class="sheet-row" onclick="startAutoPaintPreset('sailboat'); setControlSheetOpen(false);">
+                    <span class="sheet-row-icon">⛵</span><span class="sheet-row-label">帆影</span><span class="sheet-row-note">示例</span>
+                </button>
+                <div class="sheet-section" id="sheet-sec-style">画风</div>
+                <button type="button" class="sheet-row sheet-style-row sheet-row-active" data-style="masterpiece" onclick="onArtStyleChange('masterpiece')">
+                    <span class="sheet-row-icon">🏆</span><span class="sheet-row-label">原画</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-style-row" data-style="watercolor" onclick="onArtStyleChange('watercolor')">
+                    <span class="sheet-row-icon">💧</span><span class="sheet-row-label">水彩</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-style-row" data-style="pixel" onclick="onArtStyleChange('pixel')">
+                    <span class="sheet-row-icon">👾</span><span class="sheet-row-label">像素</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-style-row" data-style="impasto" onclick="onArtStyleChange('impasto')">
+                    <span class="sheet-row-icon">🌻</span><span class="sheet-row-label">厚涂</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-style-row" data-style="pencil" onclick="onArtStyleChange('pencil')">
+                    <span class="sheet-row-icon">✏️</span><span class="sheet-row-label">彩铅</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-style-row" data-style="ink" onclick="onArtStyleChange('ink')">
+                    <span class="sheet-row-icon">🏔️</span><span class="sheet-row-label">国画</span><span class="sheet-check">✓</span>
+                </button>
+                <div class="sheet-section" id="sheet-sec-skin">画笔</div>
+                <button type="button" class="sheet-row sheet-skin-row" data-skin="outline" onclick="setBrushSkinStyle('outline')">
+                    <span class="sheet-row-icon">⭕</span><span class="sheet-row-label">仅轮廓</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-skin-row sheet-row-active" data-skin="classic" onclick="setBrushSkinStyle('classic')">
+                    <span class="sheet-row-icon">🖌️</span><span class="sheet-row-label">经典款</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-skin-row" data-skin="chinese" onclick="setBrushSkinStyle('chinese')">
+                    <span class="sheet-row-icon">🎋</span><span class="sheet-row-label">中式毛笔</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-skin-row" data-skin="western_oil" onclick="setBrushSkinStyle('western_oil')">
+                    <span class="sheet-row-icon">🎨</span><span class="sheet-row-label">西式油画</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-skin-row" data-skin="western_royal" onclick="setBrushSkinStyle('western_royal')">
+                    <span class="sheet-row-icon">⚜️</span><span class="sheet-row-label">西式水彩</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-skin-row" data-skin="japanese" onclick="setBrushSkinStyle('japanese')">
+                    <span class="sheet-row-icon">🌸</span><span class="sheet-row-label">日式和风</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-skin-row" data-skin="korean" onclick="setBrushSkinStyle('korean')">
+                    <span class="sheet-row-icon">🍬</span><span class="sheet-row-label">韩式奶油</span><span class="sheet-check">✓</span>
+                </button>
+                <div class="sheet-section" id="sheet-sec-speed">速度</div>
+                <button type="button" class="sheet-row sheet-speed-row" data-speed="0.6" onclick="updateSpeedTier('0.6')">
+                    <span class="sheet-row-icon">🐢</span><span class="sheet-row-label">0.6x 慢速</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-speed-row sheet-row-active" data-speed="1.0" onclick="updateSpeedTier('1.0')">
+                    <span class="sheet-row-icon">🚶</span><span class="sheet-row-label">1.0x 常速</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-speed-row" data-speed="2.2" onclick="updateSpeedTier('2.2')">
+                    <span class="sheet-row-icon">🏃</span><span class="sheet-row-label">2.2x 熟练</span><span class="sheet-check">✓</span>
+                </button>
+                <button type="button" class="sheet-row sheet-speed-row" data-speed="5.0" onclick="updateSpeedTier('5.0')">
+                    <span class="sheet-row-icon">🚀</span><span class="sheet-row-label">5.0x 快进</span><span class="sheet-check">✓</span>
+                </button>
+                <div class="sheet-section" id="sheet-sec-tools">工具</div>
+                <button type="button" class="sheet-row" onclick="toggleAudio()">
+                    <span class="sheet-row-icon" id="soundIcon">🔇</span><span class="sheet-row-label">画笔声效</span>
+                </button>
+                <button type="button" class="sheet-row" onmousedown="showReference(true)" onmouseup="showReference(false)" onmouseleave="showReference(false)" ontouchstart="showReference(true)" ontouchend="showReference(false)">
+                    <span class="sheet-row-icon">👁️</span><span class="sheet-row-label">按住看原图</span><span class="sheet-row-note">按住不放</span>
+                </button>
+                <button type="button" class="sheet-row" onclick="savePaintingAsPng()">
+                    <span class="sheet-row-icon">💾</span><span class="sheet-row-label">保存为 PNG</span>
+                </button>
+                <button type="button" class="sheet-row" onclick="toggleShortcutHelp(true)">
+                    <span class="sheet-row-icon">⌨️</span><span class="sheet-row-label">快捷键</span>
+                </button>
+                <button type="button" class="sheet-row" id="fullscreenBtn" onclick="toggleSmartFullscreen()">
+                    <span class="sheet-row-icon">⛶</span><span class="sheet-row-label">全屏</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="max-w-[1380px] mx-auto video-dock-glass rounded-2xl px-3 sm:px-4 py-2 flex flex-col gap-2">
+        
+        <!-- 第一层：视频播放器级大气可拖动进度条 (绘画时可任意拖动快进/回退) -->
+        <div id="timelineScrubberRow" class="flex items-center gap-3 w-full pt-0.5">
+            <button id="videoPlayBtn" onclick="toggleAutoPlayPause()" disabled
+                    class="w-8 h-8 rounded-xl bg-[#c9a85c] hover:bg-[#d9bc72] disabled:bg-white/10 text-[#1a1408] disabled:text-[#8ba3b8] flex items-center justify-center transition-all active:scale-95 flex-shrink-0 cursor-pointer disabled:cursor-not-allowed"
+                    title="播放 / 暂停">
+                <svg id="playPauseIcon" class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                </svg>
+            </button>
+
+            <!-- 进度条容器 -->
+            <div class="flex-1 flex flex-col gap-0.5">
+                <div class="relative flex items-center w-full">
+                    <div class="w-full h-1.5 bg-white/15 rounded-full overflow-hidden pointer-events-none absolute left-0 right-0">
+                        <div id="timelineFillBar" class="h-full bg-gradient-to-r from-[#ecd28f] to-[#c9a85c] transition-all duration-75" style="width: 0%;"></div>
+                    </div>
+                    <input type="range" id="timelineScrubber" min="0" max="1000" value="0" disabled
+                           oninput="onTimelineScrubInput(this.value)"
+                           onchange="onTimelineScrubCommit(this.value)"
+                           class="video-scrubber w-full z-10 disabled:opacity-40">
+                </div>
+                <div class="flex justify-between items-center text-[10px] text-[#8ba3b8] font-mono px-0.5">
+                    <span id="timelineStageLabel" class="truncate max-w-[240px] sm:max-w-[460px]">自由手绘模式 · 点击上方箭头选色换笔，或选择下方图片开始自动手绘</span>
+                    <span id="timelineStepCounter">00:00 / 00:00</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 把手条：点分组名展开抽屉并定位到该组，点右侧把手开关，上滑/下滑拖动开关 -->
+        <div id="sheetHandle" class="sheet-handle-row">
+            <div class="sheet-nav">
+                <button type="button" class="sheet-nav-btn" data-sec="sheet-sec-pick" onclick="sheetLabelClick('sheet-sec-pick', this)">选择图片</button>
+                <button type="button" class="sheet-nav-btn" data-sec="sheet-sec-presets" onclick="sheetLabelClick('sheet-sec-presets', this)">内置图片</button>
+                <button type="button" class="sheet-nav-btn" data-sec="sheet-sec-style" onclick="sheetLabelClick('sheet-sec-style', this)">画风</button>
+                <button type="button" class="sheet-nav-btn" data-sec="sheet-sec-skin" onclick="sheetLabelClick('sheet-sec-skin', this)">画笔</button>
+                <button type="button" class="sheet-nav-btn" data-sec="sheet-sec-speed" onclick="sheetLabelClick('sheet-sec-speed', this)">速度</button>
+                <button type="button" class="sheet-nav-btn" data-sec="sheet-sec-tools" onclick="sheetLabelClick('sheet-sec-tools', this)">工具</button>
+            </div>
+            <button type="button" id="sheetHandleBtn" class="sheet-handle-btn" title="展开/收起全部控制">
+                <span class="sheet-grabber"></span>
+                <span id="sheetChevron" class="sheet-chevron">⌃</span>
+            </button>
+        </div>
+    </div>
+</footer>
+
+<!-- ======================= 4. 五彩斑斓一次性调色盘浮层 (点左上角2×2色轮弹出，仅一次性蘸取) ======================= -->
+<div id="oneTimeWheelModal" class="fixed inset-0 z-50 bg-black/65 hidden items-center justify-center p-4" onclick="if(event.target===this) closeOneTimeWheelModal()">
+    <div class="floating-drawer-surface w-full max-w-sm rounded-3xl p-5 border border-[#c9a85c]/35 shadow-2xl flex flex-col items-center gap-4 text-[#e9eff6]">
+        <div class="w-full flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-bold text-[#e9eff6]">🌈 一次性艺术光谱调色盘</h3>
+                <p class="text-[11px] text-[#8ba3b8]">滑动选取任意颜色直接落笔作画（不覆盖固定色格）</p>
+            </div>
+            <button onclick="closeOneTimeWheelModal()" class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs">✕</button>
+        </div>
+
+        <!-- 高设计感环形色轮 + 明度饱和度画布 -->
+        <div class="relative w-56 h-56 rounded-full p-2 shadow-2xl flex items-center justify-center"
+             style="background: conic-gradient(from 0deg, #ff0040, #ff8000, #ffff00, #00ff40, #00ffff, #0040ff, #8000ff, #ff00ff, #ff0040);">
+            <div class="w-full h-full rounded-full bg-[#04090f] p-3 flex items-center justify-center">
+                <div id="svBoxWrapper" class="relative w-full h-full rounded-full overflow-hidden border border-white/20 cursor-crosshair touch-none">
+                    <canvas id="svPickerCanvas" width="200" height="200" class="w-full h-full block"></canvas>
+                    <div id="svCursor" class="w-4 h-4 rounded-full border-2 border-white shadow-md pointer-events-none absolute -translate-x-1/2 -translate-y-1/2" style="left: 75%; top: 25%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 色相环绕滑块 -->
+        <div class="w-full flex flex-col gap-1">
+            <div class="flex justify-between text-[11px] text-[#8ba3b8]">
+                <span>光谱色相旋转</span>
+                <span id="pickerHexLabel" class="font-mono font-bold text-[#ecd28f]">#F59E0B</span>
+            </div>
+            <input type="range" id="hueSlider" min="0" max="360" value="38"
+                   class="w-full h-2.5 rounded-lg appearance-none cursor-pointer"
+                   style="background: linear-gradient(to right, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);"
+                   oninput="onHueSliderChange(this.value)">
+        </div>
+
+        <!-- 预览与一次性确认按钮 -->
+        <div class="w-full flex items-center gap-3">
+            <div id="pickerPreviewSwatch" class="w-10 h-10 rounded-2xl border-2 border-white shadow-lg flex-shrink-0" style="background-color: #f59e0b;"></div>
+            <button onclick="confirmOneTimeColor()"
+                    class="flex-1 py-2.5 rounded-2xl bg-gradient-to-r from-[#ecd28f] to-[#c9a85c] text-[#1a1408] font-bold text-xs shadow-lg transition-all active:scale-95 cursor-pointer">
+                ✨ 蘸取此一次性颜色作画
+            </button>
+        </div>
+    </div>
+</div>
+
+<div id="shortcutHelpModal" class="fixed inset-0 z-50 bg-black/65 hidden items-center justify-center p-4" onclick="if(event.target===this) toggleShortcutHelp(false)">
+    <div class="floating-drawer-surface w-full max-w-md rounded-3xl p-5 border border-[#c9a85c]/35 shadow-2xl flex flex-col gap-3 text-[#e9eff6]">
+        <div class="w-full flex items-center justify-between">
+            <h3 class="text-sm font-bold">⌨️ 键盘快捷键</h3>
+            <button onclick="toggleShortcutHelp(false)" class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-xs">✕</button>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1.5 text-xs">
+            <div class="flex items-center justify-between gap-2"><span>播放 / 暂停</span><span class="kbd-key">空格</span></div>
+            <div class="flex items-center justify-between gap-2"><span>快退 / 快进</span><span><span class="kbd-key">←</span> <span class="kbd-key">→</span></span></div>
+            <div class="flex items-center justify-between gap-2"><span>大步跳转</span><span><span class="kbd-key">Shift</span> + <span class="kbd-key">←</span> <span class="kbd-key">→</span></span></div>
+            <div class="flex items-center justify-between gap-2"><span>回到开头 / 结尾</span><span><span class="kbd-key">Home</span> <span class="kbd-key">End</span></span></div>
+            <div class="flex items-center justify-between gap-2"><span>速度减档 / 加档</span><span><span class="kbd-key">↓</span> <span class="kbd-key">↑</span></span></div>
+            <div class="flex items-center justify-between gap-2"><span>全屏</span><span class="kbd-key">F</span></div>
+            <div class="flex items-center justify-between gap-2"><span>色盘抽屉</span><span class="kbd-key">P</span></div>
+            <div class="flex items-center justify-between gap-2"><span>上一支 / 下一支笔</span><span><span class="kbd-key">[</span> <span class="kbd-key">]</span></span></div>
+            <div class="flex items-center justify-between gap-2"><span>上一个 / 下一个颜色</span><span><span class="kbd-key">,</span> <span class="kbd-key">.</span></span></div>
+            <div class="flex items-center justify-between gap-2"><span>笔头缩小 / 放大</span><span><span class="kbd-key">-</span> <span class="kbd-key">=</span></span></div>
+            <div class="flex items-center justify-between gap-2"><span>橡皮擦切换</span><span class="kbd-key">E</span></div>
+            <div class="flex items-center justify-between gap-2"><span>声效开关</span><span class="kbd-key">M</span></div>
+            <div class="flex items-center justify-between gap-2"><span>按住看原图</span><span class="kbd-key">R</span></div>
+            <div class="flex items-center justify-between gap-2"><span>示例画作</span><span><span class="kbd-key">1</span> <span class="kbd-key">2</span> <span class="kbd-key">3</span></span></div>
+            <div class="flex items-center justify-between gap-2"><span>新自由画布</span><span class="kbd-key">N</span></div>
+            <div class="flex items-center justify-between gap-2"><span>保存 PNG</span><span><span class="kbd-key">Ctrl</span> + <span class="kbd-key">S</span></span></div>
+            <div class="flex items-center justify-between gap-2"><span>选图自动画</span><span><span class="kbd-key">Ctrl</span> + <span class="kbd-key">O</span></span></div>
+            <div class="flex items-center justify-between gap-2"><span>本帮助 / 关闭</span><span><span class="kbd-key">H</span> <span class="kbd-key">Esc</span></span></div>
+        </div>
+        <p class="text-[11px] text-[#8ba3b8]">焦点在滑块、选框上时，方向键与空格先归控件本身；点一下画布即可恢复全局快捷键。</p>
+        <p class="text-[11px] text-[#8ba3b8] mt-1">画风（原画级别 / 水彩画风 / 像素化 / 厚涂油画 / 彩铅手绘 / 国画设色）在下方控制条切换，切换后按新风格重新绘制。</p>
+    </div>
+</div>
+
+<!-- ======================= 5. 全局浮动拟真画笔与轮廓层 ======================= -->
+<div id="FloatingBrushLayer" class="fixed inset-0 pointer-events-none z-50 overflow-hidden">
+    <!-- 笔刷形状轮廓指示器（在“仅轮廓”模式下高亮显示真实笔刷形状，其他模式下轻柔辅助） -->
+    <div id="brushOutlineCursor" class="fixed top-0 left-0 -translate-x-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center"
+         style="width: 24px; height: 24px;">
+        <svg id="outlineCursorSvg" width="120" height="120" viewBox="-60 -60 120 120" class="overflow-visible"></svg>
+    </div>
+
+    <!-- 实体 SVG 画笔容器 -->
+    <div id="virtualBrush" class="fixed top-0 left-0 pointer-events-none will-change-transform"
+         style="transform: translate3d(-300px, -300px, 0);">
+        <div id="brushInnerTransform" class="origin-top-left">
+            <svg width="270" height="270" viewBox="0 0 270 270" fill="none" xmlns="http://www.w3.org/2000/svg" class="overflow-visible">
+                <defs>
+                    <filter id="brushDropShadow" x="-30%" y="-30%" width="200%" height="200%">
+                        <feDropShadow dx="9" dy="13" stdDeviation="5.5" flood-color="#000000" flood-opacity="0.46"/>
+                    </filter>
+                    <linearGradient id="classicWood" x1="30" y1="30" x2="220" y2="220" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#9a3412"/><stop offset="100%" stop-color="#431407"/>
+                    </linearGradient>
+                    <linearGradient id="bambooGrad" x1="25" y1="25" x2="215" y2="215" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#d4a359"/><stop offset="50%" stop-color="#b07d3b"/><stop offset="100%" stop-color="#784f1d"/>
+                    </linearGradient>
+                    <linearGradient id="walnutOilGrad" x1="25" y1="25" x2="230" y2="230" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#5c3a21"/><stop offset="50%" stop-color="#3b2212"/><stop offset="100%" stop-color="#1f1108"/>
+                    </linearGradient>
+                    <linearGradient id="royalIvoryGrad" x1="25" y1="25" x2="215" y2="215" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#fefce8"/><stop offset="60%" stop-color="#fde68a"/><stop offset="100%" stop-color="#d97706"/>
+                    </linearGradient>
+                    <linearGradient id="hinokiWoodGrad" x1="25" y1="25" x2="215" y2="215" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#fde6ba"/><stop offset="100%" stop-color="#d4a373"/>
+                    </linearGradient>
+                    <linearGradient id="koreanPastelGrad" x1="30" y1="30" x2="205" y2="205" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#fbcfe8"/><stop offset="52%" stop-color="#e9d5ff"/><stop offset="100%" stop-color="#bfdbfe"/>
+                    </linearGradient>
+                    <linearGradient id="ferruleGold" x1="16" y1="34" x2="38" y2="16" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#ca8a04"/><stop offset="50%" stop-color="#fef08a"/><stop offset="100%" stop-color="#713f12"/>
+                    </linearGradient>
+                    <linearGradient id="ferruleSilver" x1="16" y1="34" x2="38" y2="16" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stop-color="#94a3b8"/><stop offset="50%" stop-color="#f8fafc"/><stop offset="100%" stop-color="#475569"/>
+                    </linearGradient>
+                </defs>
+                <g id="svgBrushGeometry" filter="url(#brushDropShadow)"></g>
+            </svg>
+        </div>
+    </div>
+</div>
+
+<!-- 底部轻提示 -->
+<div id="toastMsg" class="fixed top-14 left-1/2 -translate-x-1/2 z-50 px-4 py-1.5 rounded-full bg-[#0a1826]/95 border border-[#c9a85c]/40 text-[#e9eff6] text-xs shadow-2xl opacity-0 pointer-events-none transition-opacity duration-300 whitespace-nowrap">
+    提示消息
+</div>
+
+<!-- 计算进度浮层：生成绘画路径时盖住全屏，显示“正在计算”与进度，可取消 -->
+<div id="computeOverlay" class="compute-overlay" style="display:none">
+    <div class="compute-card">
+        <div class="compute-spinner"></div>
+        <div class="compute-title">正在计算…</div>
+        <div id="computePhase" class="compute-phase">正在分析图片</div>
+        <div class="compute-bar"><div id="computeBarFill"></div></div>
+        <div id="computePct" class="compute-pct">0%</div>
+        <button id="computeCancelBtn" class="compute-cancel">取消</button>
+    </div>
+</div>
+
+    <script>
+    /********************************************************************
+     * 1. 12 格画笔矩阵配置 (3排×4列，包含丰富笔触类型与第12格 PNG/SVG 自定义笔刷)
+     ********************************************************************/
+    const BRUSH_PRESETS = [
+        { id: 'flat16',   name: '#16 宽平刷', short: '宽平刷', radius: 24, aspect: 0.40, style: 'flat',    speed: 0.38, icon: '▬' },
+        { id: 'flat12',   name: '#12 中平刷', short: '中平刷', radius: 15, aspect: 0.48, style: 'flat',    speed: 0.33, icon: '▰' },
+        { id: 'round8',   name: '#8 圆头笔',  short: '圆头笔', radius: 10, aspect: 0.88, style: 'round',   speed: 0.28, icon: '●' },
+        { id: 'filbert4', name: '#4 舌形笔',  short: '舌形笔', radius: 6,  aspect: 0.68, style: 'filbert', speed: 0.24, icon: '◗' },
+        { id: 'liner1',   name: '#1 勾线笔',  short: '勾线笔', radius: 3,  aspect: 0.96, style: 'liner',   speed: 0.20, icon: '╱' },
+        { id: 'fan',      name: '扇形晕染笔', short: '扇形笔', radius: 20, aspect: 0.35, style: 'fan',     speed: 0.30, icon: '扇' },
+        { id: 'hake',     name: '宽幅排笔',   short: '排笔',   radius: 28, aspect: 0.32, style: 'hake',    speed: 0.40, icon: '▤' },
+        { id: 'knife',    name: '油画刮刀',   short: '刮刀笔', radius: 16, aspect: 0.38, style: 'knife',   speed: 0.32, icon: '◆' },
+        { id: 'splatter', name: '星点喷溅笔', short: '喷溅笔', radius: 22, aspect: 1.00, style: 'splatter',speed: 0.30, icon: '✦' },
+        { id: 'dry',      name: '干毛皴擦笔', short: '干皴笔', radius: 14, aspect: 0.65, style: 'dry',     speed: 0.28, icon: '▒' },
+        { id: 'eraser',   name: '柔和橡皮擦', short: '橡皮擦', radius: 18, aspect: 0.95, style: 'eraser',  speed: 0.34, icon: '⌫' },
+        { id: 'custom',   name: '自定义笔头', short: '自定义', radius: 22, aspect: 1.00, style: 'custom',  speed: 0.28, icon: '➕' }
+    ];
+
+    const BRUSH_MAP = {};
+    BRUSH_PRESETS.forEach(b => { BRUSH_MAP[b.id] = b; });
+    // 像素画专用笔头：只进 BRUSH_MAP、不进画笔架；半径随像素格重算，
+    // 不动 round8，避免一次像素化后把圆头笔的尺寸永久改掉。
+    BRUSH_MAP.pixelDot = { id: 'pixelDot', name: '像素点阵笔', short: '像素笔', radius: 8, aspect: 1.0, style: 'round', speed: 0.28, icon: '▪' };
+
+    /********************************************************************
+     * 2. 全局状态管理
+     ********************************************************************/
+    const paintCanvas = document.getElementById('paintCanvas');
+    const ctx = paintCanvas.getContext('2d', { willReadFrequently: true });
+    const paperGrainCanvas = document.getElementById('paperGrainCanvas');
+    const grainCtx = paperGrainCanvas.getContext('2d');
+    const referenceCanvas = document.getElementById('referenceCanvas');
+    const refCtx = referenceCanvas.getContext('2d', { willReadFrequently: true });
+
+    const virtualBrush = document.getElementById('virtualBrush');
+    const brushInnerTransform = document.getElementById('brushInnerTransform');
+    const brushOutlineCursor = document.getElementById('brushOutlineCursor');
+    const outlineCursorSvg = document.getElementById('outlineCursorSvg');
+    const svgBrushGeometry = document.getElementById('svgBrushGeometry');
+
+    let state = {
+        mode: 'FREEHAND', // 'FREEHAND' | 'AUTO'
+        isAutoPlaying: false,
+        speedMultiplier: 1.0,
+        drawerOpen: false,
+        drawerAutoTimer: null,
+
+        // 7种画笔外观样式: 'outline' | 'classic' | 'chinese' | 'western_oil' | 'western_royal' | 'japanese' | 'korean'
+        brushSkin: 'classic',
+
+        // 6大画风: 'masterpiece' | 'watercolor' | 'pixel' | 'impasto' | 'pencil' | 'ink'
+        artStyle: 'masterpiece',
+
+        // 3排自适应调色盘（根据宽度计算 N 列，總格数 = 3*N - 4）
+        paletteCols: 10,
+        paletteSlotCount: 26,
+        palette: [],
+        activeColorIdx: 0,
+        activeColor: null,
+
+        // 画笔与自定义笔头
+        activeBrushId: 'flat12',
+        customBrushRadius: 15,
+        customStampImage: null,
+        customStampCanvas: null,
+
+        // 手动绘画状态
+        isUserDragging: false,
+        lastUserPt: null,
+
+        // 自动绘画时间轴与可拖动关键帧引擎 (Scrubbable Timeline)
+        autoActions: [],        // 包含换笔、蘸色、以及细分后的曲线笔画段
+        strokeFlattenList: [],  // 扁平化的所有笔画步骤，用于进度条0~1000毫秒级任意跳转
+        keyframeSnapshots: [],  // 每隔 K 步保存一张离屏 Canvas 快照
+        KEYFRAME_INTERVAL: 25,
+        autoActionIdx: 0,
+        subPhase: 'IDLE',
+        isScrubbing: false,
+
+        motion: {
+            startTime: 0,
+            duration: 400,
+            fromX: 0,
+            fromY: 0,
+            toX: 0,
+            toY: 0,
+            arcHeight: -35,
+            targetGetter: null,
+            onArrive: null,
+            onPressDone: null
+        },
+        strokeRunner: {
+            action: null,
+            ptFloatIdx: 0
+        },
+
+        // 一次性五彩斑斓调色盘状态
+        pickerH: 38,
+        pickerS: 90,
+        pickerV: 95,
+
+        // 全屏智能控制
+        isFullscreen: false,
+        fsDockHideTimer: null,
+
+        brushX: window.innerWidth * 0.5,
+        brushY: window.innerHeight * 0.5,
+        brushAngle: -10,
+        brushPressure: 0,
+        lastFrameTime: performance.now(),
+        sourceImageCanvas: null
+    };
+
+    /********************************************************************
+     * 3. 顶部悬浮折叠抽屉控制（点击箭头收展、落笔自动收回、自动换色时滑出）
+     ********************************************************************/
+    function setTopDrawerOpen(open, autoCloseMs = 0) {
+        clearTimeout(state.drawerAutoTimer);
+        state.drawerOpen = open;
+        const drawer = document.getElementById('topFloatingDrawer');
+        const arrowIcon = document.getElementById('drawerArrowIcon');
+        if (open) {
+            drawer.style.transform = 'translateY(0%)';
+            arrowIcon.style.transform = 'rotate(180deg)';
+            if (autoCloseMs > 0) {
+                state.drawerAutoTimer = setTimeout(() => {
+                    setTopDrawerOpen(false);
+                }, autoCloseMs);
+            }
+        } else {
+            drawer.style.transform = 'translateY(calc(-100% + 30px))';
+            arrowIcon.style.transform = 'rotate(0deg)';
+        }
+    }
+
+    function toggleTopDrawer() {
+        setTopDrawerOpen(!state.drawerOpen);
+    }
+
+    /********************************************************************
+     * 4. 3排动态列数调色盘 + 左上角占4格(2×2)五彩斑斓一次性色盘
+     ********************************************************************/
+    function hslToRgbObj(h, s, l) {
+        s /= 100; l /= 100;
+        const k = n => (n + h / 30) % 12;
+        const a = s * Math.min(l, 1 - l);
+        const f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+        const r = Math.round(255 * f(0));
+        const g = Math.round(255 * f(8));
+        const b = Math.round(255 * f(4));
+        const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+        return { r, g, b, hex };
+    }
+
+    function calculateResponsivePaletteColumns() {
+        const container = document.getElementById('paletteSectionContainer');
+        const availW = container ? container.clientWidth : (window.innerWidth * 0.62);
+        const cellUnit = window.innerWidth < 640 ? 31 : 38;
+        const cols = Math.max(7, Math.min(18, Math.floor(availW / cellUnit)));
+        state.paletteCols = cols;
+        state.paletteSlotCount = cols * 3 - 4; // 3排，减去左上角2×2占用的4个定位
+        return state.paletteSlotCount;
+    }
+
+    function generateDefaultPaletteForSlots(slotCount) {
+        const families = [
+            { name: '黄橙系', hues: [52, 44, 36, 26, 18], s: 90, lStart: 86, lEnd: 44 },
+            { name: '红色系', hues: [350, 358, 5, 12, 342], s: 85, lStart: 83, lEnd: 32 },
+            { name: '绿色系', hues: [85, 110, 132, 150, 100], s: 76, lStart: 82, lEnd: 26 },
+            { name: '蓝青系', hues: [190, 204, 216, 228, 198], s: 84, lStart: 84, lEnd: 25 },
+            { name: '紫棕系', hues: [275, 290, 30, 22, 265], s: 65, lStart: 78, lEnd: 22 },
+            { name: '黑白灰', hues: [40, 30, 210, 215], s: 6, lStart: 98, lEnd: 10 }
+        ];
+        const palette = [];
+        for (let i = 0; i < slotCount; i++) {
+            const fIdx = Math.floor((i / slotCount) * families.length);
+            const fam = families[Math.min(families.length - 1, fIdx)];
+            const localT = ((i / slotCount) * families.length) - fIdx;
+            const h = fam.hues[i % fam.hues.length];
+            const s = fam.name === '黑白灰' ? (i === slotCount - 1 ? 0 : 6) : fam.s;
+            const l = fam.lStart + (fam.lEnd - fam.lStart) * localT;
+            const { r, g, b, hex } = hslToRgbObj(h, s, l);
+            palette.push({
+                index: i,
+                familyOrder: fIdx + 1,
+                familyName: fam.name,
+                name: `${fam.name.slice(0, 2)}#${i + 1}`,
+                r, g, b, hex,
+                lum: 0.299 * r + 0.587 * g + 0.114 * b
+            });
+        }
+        return palette;
+    }
+
+    function renderPaletteGrid3Rows() {
+        const grid = document.getElementById('paletteGrid3Rows');
+        if (!grid) return;
+        grid.style.gridTemplateColumns = `repeat(${state.paletteCols}, minmax(0, 1fr))`;
+        grid.innerHTML = '';
+
+        // 1. 第一行前两个 + 第二行前两个 (占4格定位 2×2)：五彩斑斓一次性调色盘
+        const wheelBtn = document.createElement('button');
+        wheelBtn.className = 'rainbow-4slot-wheel cursor-pointer flex items-center justify-center';
+        wheelBtn.title = '五彩斑斓色盘：点击调制一次性颜色';
+        wheelBtn.onclick = (e) => {
+            e.stopPropagation();
+            openOneTimeWheelModal();
+        };
+        grid.appendChild(wheelBtn);
+
+        // 2. 其余 3*Cols - 4 个颜色格自动按网格流式填满3排
+        state.palette.slice(0, state.paletteSlotCount).forEach((sw, idx) => {
+            const well = document.createElement('button');
+            well.id = `swatch-well-${idx}`;
+            well.className = `paint-well flex items-center justify-center cursor-pointer ${idx === state.activeColorIdx ? 'active' : ''}`;
+            well.title = `${sw.name} (${sw.hex})`;
+            well.onclick = () => userSelectColorSwatch(idx);
+
+            const blob = document.createElement('div');
+            blob.className = 'paint-blob';
+            blob.style.backgroundColor = sw.hex;
+
+            well.appendChild(blob);
+            grid.appendChild(well);
+        });
+    }
+
+    function renderBrushGrid3Rows() {
+        const grid = document.getElementById('brushGrid3Rows');
+        if (!grid) return;
+        grid.innerHTML = '';
+
+        BRUSH_PRESETS.forEach((b) => {
+            const cell = document.createElement('button');
+            cell.id = `rack-brush-${b.id}`;
+            cell.className = `brush-cell ${state.activeBrushId === b.id ? 'active' : ''}`;
+            cell.title = b.id === 'custom' ? '点击上传 PNG 或 SVG 图片作为自定义笔头' : `${b.name} (${b.radius * 2}px)`;
+            cell.onclick = () => {
+                if (b.id === 'custom' && !state.customStampCanvas) {
+                    document.getElementById('customBrushFileInput').click();
+                } else {
+                    userSelectBrush(b.id);
+                }
+            };
+            cell.ondblclick = () => {
+                if (b.id === 'custom') {
+                    document.getElementById('customBrushFileInput').click();
+                }
+            };
+
+            cell.innerHTML = `
+                <span class="text-xs font-bold text-[#ecd28f] leading-none">${b.icon}</span>
+                <span class="text-[10px] text-[#e9eff6]/90 font-medium truncate w-full text-center mt-0.5">${b.short}</span>
+            `;
+            grid.appendChild(cell);
+        });
+    }
+
+    /********************************************************************
+     * 5. 自定义 PNG / SVG 笔头上传与笔头大小调节
+     ********************************************************************/
+    function handleCustomBrushUpload(file) {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const stampSize = 128;
+                const off = document.createElement('canvas');
+                off.width = stampSize;
+                off.height = stampSize;
+                const oCtx = off.getContext('2d');
+                oCtx.clearRect(0, 0, stampSize, stampSize);
+
+                // 保持比例居中绘制到 128x128 印章画布
+                const scale = Math.min(stampSize / img.width, stampSize / img.height) * 0.88;
+                const dw = img.width * scale;
+                const dh = img.height * scale;
+                oCtx.drawImage(img, (stampSize - dw) / 2, (stampSize - dh) / 2, dw, dh);
+
+                // 如果图片是纯黑底白图或无透明通道，将亮度转换为 Alpha 遮罩以便自由着色
+                const imgData = oCtx.getImageData(0, 0, stampSize, stampSize);
+                const d = imgData.data;
+                let hasTransparency = false;
+                for (let i = 3; i < d.length; i += 4) {
+                    if (d[i] < 245) { hasTransparency = true; break; }
+                }
+                for (let i = 0; i < d.length; i += 4) {
+                    const lum = (d[i] * 0.299 + d[i + 1] * 0.587 + d[i + 2] * 0.114);
+                    const alpha = hasTransparency ? d[i + 3] : (255 - lum);
+                    d[i] = 255;
+                    d[i + 1] = 255;
+                    d[i + 2] = 255;
+                    d[i + 3] = alpha;
+                }
+                oCtx.putImageData(imgData, 0, 0);
+
+                state.customStampCanvas = off;
+                userSelectBrush('custom');
+                showToast(`已载入自定义笔头「${file.name.slice(0, 12)}」，可拖动滑块调节大小`);
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function onBrushSizeSliderChange(val) {
+        const r = Math.max(2, Math.min(90, parseFloat(val) || 16));
+        state.customBrushRadius = r;
+        const b = BRUSH_MAP[state.activeBrushId];
+        if (b) b.radius = r;
+        document.getElementById('brushSizeValueText').textContent = `${Math.round(r * 2)}px`;
+        updateBrushAndColorIndicators();
+    }
+
+    /********************************************************************
+     * 6. 七款中外画笔外观样式（含“仅轮廓”、经典、中式毛笔、西式2款、日式、韩式）
+     ********************************************************************/
+    function setBrushSkinStyle(skinId) {
+        state.brushSkin = skinId;
+        document.querySelectorAll('.sheet-skin-row').forEach(r => r.classList.toggle('sheet-row-active', r.dataset.skin === skinId));
+        renderBrushAppearance();
+    }
+
+    function renderBrushAppearance() {
+        const b = BRUSH_MAP[state.activeBrushId] || BRUSH_PRESETS[1];
+        const tipHex = b.id === 'eraser' ? '#faf6ed' : (state.activeColor ? state.activeColor.hex : '#f59e0b');
+        const scaledR = Math.max(3, b.radius * (paintCanvas.width / 760));
+        const rx = scaledR * 1.15;
+        const ry = Math.max(2, scaledR * b.aspect);
+
+        // 1. 渲染笔刷形状轮廓圈 (在 'outline' 模式下高清晰显示，其他模式下淡化)
+        const isOutlineOnly = state.brushSkin === 'outline';
+        virtualBrush.style.display = isOutlineOnly ? 'none' : 'block';
+        brushOutlineCursor.style.opacity = isOutlineOnly ? '0.95' : '0.32';
+
+        if (b.style === 'flat' || b.style === 'hake' || b.style === 'knife') {
+            outlineCursorSvg.innerHTML = `
+                <rect x="${-rx}" y="${-ry}" width="${rx * 2}" height="${ry * 2}" rx="${ry * 0.4}"
+                      fill="${isOutlineOnly ? tipHex + '33' : 'none'}"
+                      stroke="${tipHex}" stroke-width="${isOutlineOnly ? 2 : 1.2}" stroke-dasharray="${isOutlineOnly ? 'none' : '3 2'}"/>
+                ${isOutlineOnly ? `<circle cx="0" cy="0" r="2" fill="${tipHex}"/>` : ''}
+            `;
+        } else if (b.style === 'fan') {
+            outlineCursorSvg.innerHTML = `
+                <path d="M ${-rx * 1.2} ${-ry * 0.5} Q 0 ${-rx * 1.3} ${rx * 1.2} ${-ry * 0.5} L 0 ${ry} Z"
+                      fill="${isOutlineOnly ? tipHex + '33' : 'none'}"
+                      stroke="${tipHex}" stroke-width="${isOutlineOnly ? 2 : 1.2}"/>
+            `;
+        } else {
+            outlineCursorSvg.innerHTML = `
+                <ellipse cx="0" cy="0" rx="${rx}" ry="${ry}"
+                         fill="${isOutlineOnly ? tipHex + '33' : 'none'}"
+                         stroke="${tipHex}" stroke-width="${isOutlineOnly ? 2 : 1.2}" stroke-dasharray="${isOutlineOnly ? 'none' : '3 2'}"/>
+                ${isOutlineOnly ? `<circle cx="0" cy="0" r="2" fill="${tipHex}"/>` : ''}
+            `;
+        }
+
+        if (isOutlineOnly) return;
+
+        // 2. 渲染 6 款实体画笔 SVG 外观（笔尖位于 (0,0)，笔身向右下延伸）
+        const bw = Math.max(6, Math.min(26, scaledR * 1.1));
+        let svgContent = '';
+
+        if (state.brushSkin === 'chinese') {
+            // 🎋 中式湘妃竹节毛笔
+            svgContent = `
+                <g transform="rotate(45)">
+                    <!-- 圆锥羊毫/狼毫笔锋 -->
+                    <path d="M 0 0 C ${bw * 0.45} ${bw * 0.8}, ${bw * 0.65} 22, ${bw * 0.52} 34 L ${-bw * 0.52} 34 C ${-bw * 0.65} 22, ${-bw * 0.45} ${bw * 0.8}, 0 0 Z" fill="#f5f5f4"/>
+                    <path d="M 0 0 C ${bw * 0.38} ${bw * 0.6}, ${bw * 0.48} 15, ${bw * 0.35} 22 L ${-bw * 0.35} 22 C ${-bw * 0.48} 15, ${-bw * 0.38} ${bw * 0.6}, 0 0 Z" fill="${tipHex}" opacity="0.92"/>
+                    <!-- 黑檀木笔斗 -->
+                    <path d="M -7 33 L 7 33 L 8.5 48 L -8.5 48 Z" fill="#1c1917" stroke="#d97706" stroke-width="0.8"/>
+                    <!-- 湘妃竹节笔杆 -->
+                    <rect x="-7.5" y="48" width="15" height="145" rx="6" fill="url(#bambooGrad)"/>
+                    <line x1="-7.5" y1="82" x2="7.5" y2="82" stroke="#451a03" stroke-width="2" opacity="0.65"/>
+                    <line x1="-7.5" y1="122" x2="7.5" y2="122" stroke="#451a03" stroke-width="2" opacity="0.65"/>
+                    <line x1="-7.5" y1="162" x2="7.5" y2="162" stroke="#451a03" stroke-width="2" opacity="0.65"/>
+                    <!-- 顶部红绳挂环 -->
+                    <path d="M 0 193 Q 12 208 0 218 Q -12 208 0 193" fill="none" stroke="#dc2626" stroke-width="2.2"/>
+                </g>
+            `;
+        } else if (state.brushSkin === 'western_oil') {
+            // 🎨 西式胡桃木古典油画长柄刷
+            svgContent = `
+                <g transform="rotate(45)">
+                    <rect x="${-bw * 0.65}" y="0" width="${bw * 1.3}" height="24" rx="3" fill="#fde68a"/>
+                    <rect x="${-bw * 0.65}" y="0" width="${bw * 1.3}" height="14" rx="2" fill="${tipHex}"/>
+                    <rect x="${-bw * 0.68}" y="23" width="${bw * 1.36}" height="18" rx="1.5" fill="url(#ferruleSilver)"/>
+                    <path d="M -8 41 L 8 41 L 11 115 L 6 205 L -6 205 L -11 115 Z" fill="url(#walnutOilGrad)"/>
+                </g>
+            `;
+        } else if (state.brushSkin === 'western_royal') {
+            // ⚜️ 西式象牙白巴洛克金箍水彩笔
+            svgContent = `
+                <g transform="rotate(45)">
+                    <path d="M 0 0 C ${bw * 0.55} 8, ${bw * 0.6} 20, ${bw * 0.45} 28 L ${-bw * 0.45} 28 C ${-bw * 0.6} 20, ${-bw * 0.55} 8, 0 0 Z" fill="#451a03"/>
+                    <path d="M 0 0 C ${bw * 0.45} 6, ${bw * 0.5} 14, ${bw * 0.35} 19 L ${-bw * 0.35} 19 C ${-bw * 0.5} 14, ${-bw * 0.45} 6, 0 0 Z" fill="${tipHex}"/>
+                    <rect x="-7.5" y="27" width="15" height="18" rx="2" fill="url(#ferruleGold)"/>
+                    <path d="M -7.5 45 L 7.5 45 L 9 125 L 4 198 L -4 198 L -9 125 Z" fill="url(#royalIvoryGrad)"/>
+                </g>
+            `;
+        } else if (state.brushSkin === 'japanese') {
+            // 🌸 日式桧木青海波纹和风绘笔
+            svgContent = `
+                <g transform="rotate(45)">
+                    <path d="M 0 0 C ${bw * 0.42} 7, ${bw * 0.5} 19, ${bw * 0.42} 28 L ${-bw * 0.42} 28 C ${-bw * 0.5} 19, ${-bw * 0.42} 7, 0 0 Z" fill="#fffbeb"/>
+                    <path d="M 0 0 C ${bw * 0.35} 5, ${bw * 0.4} 13, ${bw * 0.3} 18 L ${-bw * 0.3} 18 C ${-bw * 0.4} 13, ${-bw * 0.35} 5, 0 0 Z" fill="${tipHex}"/>
+                    <rect x="-7" y="27" width="14" height="190" rx="5" fill="url(#hinokiWoodGrad)"/>
+                    <rect x="-7.2" y="38" width="14.4" height="52" rx="2" fill="#1e3a8a"/>
+                    <circle cx="0" cy="52" r="4" fill="none" stroke="#93c5fd" stroke-width="1"/>
+                    <circle cx="0" cy="70" r="4" fill="none" stroke="#93c5fd" stroke-width="1"/>
+                </g>
+            `;
+        } else if (state.brushSkin === 'korean') {
+            // 🍬 韩式INS莫兰迪粉蓝奶油画笔
+            svgContent = `
+                <g transform="rotate(45)">
+                    <rect x="${-bw * 0.55}" y="0" width="${bw * 1.1}" height="24" rx="6" fill="#fce7f3"/>
+                    <rect x="${-bw * 0.55}" y="0" width="${bw * 1.1}" height="14" rx="5" fill="${tipHex}"/>
+                    <rect x="-8" y="23" width="16" height="14" rx="3" fill="#f9a8d4"/>
+                    <rect x="-8.5" y="36" width="17" height="152" rx="8.5" fill="url(#koreanPastelGrad)"/>
+                </g>
+            `;
+        } else {
+            // 🖌️ 默认经典红木金箍画笔
+            svgContent = `
+                <g transform="rotate(45)">
+                    <rect x="${-bw * 0.58}" y="0" width="${bw * 1.16}" height="25" rx="4" fill="#fef08a"/>
+                    <rect x="${-bw * 0.58}" y="0" width="${bw * 1.16}" height="15" rx="3" fill="${tipHex}"/>
+                    <rect x="${-bw * 0.6}" y="24" width="${bw * 1.2}" height="16" rx="2" fill="url(#ferruleGold)"/>
+                    <path d="M -7.5 40 L 7.5 40 L 9.5 118 L 5 196 L -5 196 L -9.5 118 Z" fill="url(#classicWood)"/>
+                </g>
+            `;
+        }
+
+        svgBrushGeometry.innerHTML = svgContent;
+    }
+
+    function updateBrushAndColorIndicators() {
+        const b = BRUSH_MAP[state.activeBrushId] || BRUSH_PRESETS[1];
+        const hex = state.activeColor ? state.activeColor.hex : '#f59e0b';
+
+        // 更新顶部抽屉把手上的圆点与当前画笔名
+        const dot = document.getElementById('drawerCurrentColorDot');
+        if (dot) dot.style.backgroundColor = hex;
+        const tag = document.getElementById('drawerCurrentBrushTag');
+        if (tag) tag.textContent = b.short;
+
+        // 同步大小滑块
+        const slider = document.getElementById('brushSizeSlider');
+        const sizeLabel = document.getElementById('brushSizeValueText');
+        if (slider) slider.value = b.radius;
+        if (sizeLabel) sizeLabel.textContent = `${Math.round(b.radius * 2)}px`;
+
+        // 同步色盘与画笔矩阵的高亮态
+        document.querySelectorAll('.paint-well').forEach((el, idx) => {
+            el.classList.toggle('active', idx === state.activeColorIdx);
+        });
+        document.querySelectorAll('.brush-cell').forEach((el) => {
+            el.classList.toggle('active', el.id === `rack-brush-${state.activeBrushId}`);
+        });
+
+        renderBrushAppearance();
+    }
+
+    /********************************************************************
+     * 7. 笔触印章渲染引擎 (支持 12 种内置笔型、6 大画风肌理、自定义 PNG/SVG 着色、动态弧度压感)
+     ********************************************************************/
+    function drawSingleDab(targetCtx, cx, cy, angleRad, brushId, swatch, alpha = 0.9, pressureScale = 1.0, styleOverride = null) {
+        const b = BRUSH_MAP[brushId] || BRUSH_PRESETS[1];
+        const curStyle = styleOverride || (state.mode === 'AUTO' ? state.artStyle : 'standard');
+        const baseR = b.radius * (paintCanvas.width / 760) * pressureScale;
+        const rx = Math.max(1.2, baseR * 1.15);
+        const ry = Math.max(1.0, baseR * b.aspect);
+
+        targetCtx.save();
+        targetCtx.translate(cx, cy);
+
+        if (b.style === 'eraser') {
+            targetCtx.globalAlpha = 0.85;
+            targetCtx.fillStyle = '#faf6ed';
+            targetCtx.beginPath();
+            targetCtx.arc(0, 0, rx, 0, Math.PI * 2);
+            targetCtx.fill();
+            targetCtx.restore();
+            return;
+        }
+
+        const { r, g, b: blue, hex } = swatch || { r: 245, g: 158, b: 11, hex: '#f59e0b' };
+
+        // 1. 像素化级别专属方块笔头（带微立体高光与暗部倒角）
+        if (curStyle === 'pixel') {
+            const pSize = Math.max(4, Math.round(baseR * 1.65));
+            const half = pSize / 2;
+            targetCtx.fillStyle = `rgb(${r}, ${g}, ${blue})`;
+            targetCtx.fillRect(-half, -half, pSize, pSize);
+            // 像素高光上边与左边
+            targetCtx.fillStyle = 'rgba(255,255,255,0.22)';
+            targetCtx.fillRect(-half, -half, pSize, 1.2);
+            targetCtx.fillRect(-half, -half, 1.2, pSize);
+            // 像素暗部下边与右边
+            targetCtx.fillStyle = 'rgba(0,0,0,0.18)';
+            targetCtx.fillRect(-half, half - 1.2, pSize, 1.2);
+            targetCtx.fillRect(half - 1.2, -half, 1.2, pSize);
+            targetCtx.restore();
+            return;
+        }
+
+        targetCtx.rotate(angleRad);
+
+        // 2. 若是用户上传的 PNG/SVG 自定义笔头
+        if (b.style === 'custom' && state.customStampCanvas) {
+            const tintCanvas = document.createElement('canvas');
+            tintCanvas.width = 64;
+            tintCanvas.height = 64;
+            const tCtx = tintCanvas.getContext('2d');
+            tCtx.drawImage(state.customStampCanvas, 0, 0, 64, 64);
+            tCtx.globalCompositeOperation = 'source-in';
+            tCtx.fillStyle = hex;
+            tCtx.fillRect(0, 0, 64, 64);
+
+            targetCtx.globalAlpha = alpha;
+            targetCtx.drawImage(tintCanvas, -rx, -rx, rx * 2, rx * 2);
+            targetCtx.restore();
+            return;
+        }
+
+        // 3. 水彩画风：通透半透明叠色 + 边缘微深的水渍圈 (Water Ring Edge)
+        if (curStyle === 'watercolor') {
+            const wcAlpha = Math.min(0.52, alpha * 0.42);
+            const grad = targetCtx.createRadialGradient(0, 0, ry * 0.15, 0, 0, rx * 1.08);
+            grad.addColorStop(0, `rgba(${r}, ${g}, ${blue}, ${wcAlpha * 0.72})`);
+            grad.addColorStop(0.76, `rgba(${r}, ${g}, ${blue}, ${wcAlpha * 0.88})`);
+            // 水彩边缘色素沉积水痕圈
+            grad.addColorStop(0.92, `rgba(${Math.max(0, r - 18)}, ${Math.max(0, g - 18)}, ${Math.max(0, blue - 18)}, ${wcAlpha * 1.15})`);
+            grad.addColorStop(1, `rgba(${r}, ${g}, ${blue}, 0)`);
+
+            targetCtx.fillStyle = grad;
+            targetCtx.beginPath();
+            targetCtx.ellipse(0, 0, rx * 1.08, ry * 1.04, 0, 0, Math.PI * 2);
+            targetCtx.fill();
+            targetCtx.restore();
+            return;
+        }
+
+        // 4. 厚涂油画：带有立体猪鬃丝纹与高光/暗部浮雕感 (Impasto Bristle Texture)
+        if (curStyle === 'impasto') {
+            targetCtx.fillStyle = `rgba(${r}, ${g}, ${blue}, ${Math.min(1, alpha * 1.04)})`;
+            targetCtx.beginPath();
+            targetCtx.roundRect(-rx, -ry, rx * 2, ry * 2, ry * 0.4);
+            targetCtx.fill();
+
+            // 猪鬃立体高光丝与暗部沟槽
+            const ridges = 4;
+            for (let k = -ridges; k <= ridges; k++) {
+                const oy = (k / ridges) * ry * 0.82;
+                targetCtx.strokeStyle = k % 2 === 0
+                    ? `rgba(${Math.min(255, r + 38)}, ${Math.min(255, g + 38)}, ${Math.min(255, blue + 38)}, 0.45)`
+                    : `rgba(${Math.max(0, r - 32)}, ${Math.max(0, g - 32)}, ${Math.max(0, blue - 32)}, 0.38)`;
+                targetCtx.lineWidth = Math.max(0.9, ry * 0.16);
+                targetCtx.beginPath();
+                targetCtx.moveTo(-rx * 0.85, oy);
+                targetCtx.lineTo(rx * 0.85, oy);
+                targetCtx.stroke();
+            }
+            targetCtx.restore();
+            return;
+        }
+
+        // 5. 彩铅手绘：粗糙纸纹颗粒 + 多股平行细铅芯排线
+        if (curStyle === 'pencil') {
+            targetCtx.fillStyle = `rgba(${r}, ${g}, ${blue}, ${alpha * 0.78})`;
+            const lines = 3;
+            for (let l = -lines; l <= lines; l++) {
+                const oy = (l / lines) * ry * 0.88;
+                for (let x = -rx * 0.9; x <= rx * 0.9; x += 2.2) {
+                    if (((Math.round(cx + x) * 17 + Math.round(cy + oy) * 31) & 3) === 0) continue;
+                    targetCtx.fillRect(x, oy, 1.8, 1.25);
+                }
+            }
+            targetCtx.restore();
+            return;
+        }
+
+        // 6. 国画设色：水墨毛笔中锋浑厚、侧锋飞白渐染
+        if (curStyle === 'ink') {
+            const inkGrad = targetCtx.createRadialGradient(-rx * 0.15, 0, ry * 0.1, 0, 0, rx);
+            inkGrad.addColorStop(0, `rgba(${r}, ${g}, ${blue}, ${alpha * 0.92})`);
+            inkGrad.addColorStop(0.68, `rgba(${r}, ${g}, ${blue}, ${alpha * 0.65})`);
+            inkGrad.addColorStop(1, `rgba(${r}, ${g}, ${blue}, 0)`);
+            targetCtx.fillStyle = inkGrad;
+            targetCtx.beginPath();
+            targetCtx.ellipse(0, 0, rx, ry * 0.92, 0, 0, Math.PI * 2);
+            targetCtx.fill();
+            targetCtx.restore();
+            return;
+        }
+
+        if (b.style === 'splatter') {
+            targetCtx.fillStyle = `rgba(${r}, ${g}, ${blue}, ${alpha * 0.85})`;
+            for (let i = 0; i < 6; i++) {
+                const ang = Math.random() * Math.PI * 2;
+                const dist = Math.random() * rx * 1.1;
+                const dotR = Math.max(1, (1 - dist / (rx * 1.2)) * (rx * 0.28));
+                targetCtx.beginPath();
+                targetCtx.arc(Math.cos(ang) * dist, Math.sin(ang) * dist, dotR, 0, Math.PI * 2);
+                targetCtx.fill();
+            }
+            targetCtx.restore();
+            return;
+        }
+
+        if (b.style === 'dry') {
+            targetCtx.fillStyle = `rgba(${r}, ${g}, ${blue}, ${alpha * 0.65})`;
+            for (let line = -4; line <= 4; line++) {
+                if (Math.random() < 0.25) continue;
+                const oy = (line / 4) * ry;
+                targetCtx.fillRect(-rx * 0.8, oy, rx * 1.6, Math.max(1, ry * 0.22));
+            }
+            targetCtx.restore();
+            return;
+        }
+
+        if (b.style === 'fan') {
+            targetCtx.fillStyle = `rgba(${r}, ${g}, ${blue}, ${alpha * 0.78})`;
+            for (let a = -0.7; a <= 0.7; a += 0.2) {
+                targetCtx.beginPath();
+                targetCtx.ellipse(Math.cos(a) * rx * 0.4, Math.sin(a) * ry * 0.9, rx * 0.55, ry * 0.25, a, 0, Math.PI * 2);
+                targetCtx.fill();
+            }
+            targetCtx.restore();
+            return;
+        }
+
+        // 标准柔和笔触（平头刷 / 圆头笔 / 排笔 / 刮刀 / 细节笔）
+        const grad = targetCtx.createRadialGradient(0, 0, ry * 0.25, 0, 0, rx);
+        grad.addColorStop(0, `rgba(${r}, ${g}, ${blue}, ${alpha})`);
+        grad.addColorStop(0.82, `rgba(${r}, ${g}, ${blue}, ${alpha * 0.92})`);
+        grad.addColorStop(1, `rgba(${r}, ${g}, ${blue}, 0)`);
+
+        targetCtx.fillStyle = grad;
+        targetCtx.beginPath();
+        if (b.style === 'flat' || b.style === 'hake' || b.style === 'knife') {
+            targetCtx.roundRect(-rx, -ry, rx * 2, ry * 2, ry * 0.45);
+        } else {
+            targetCtx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
+        }
+        targetCtx.fill();
+        targetCtx.restore();
+    }
+
+    function drawSegmentOnCtx(targetCtx, p1, p2, brushId, swatch, alpha = 0.92, pressureScale = 1.0, styleOverride = null) {
+        const b = BRUSH_MAP[brushId] || BRUSH_PRESETS[1];
+        const curStyle = styleOverride || (state.mode === 'AUTO' ? state.artStyle : 'standard');
+        const scaledR = Math.max(1.2, b.radius * (paintCanvas.width / 760));
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+        const dist = Math.hypot(dx, dy);
+        const angle = Math.atan2(dy, dx);
+
+        // 像素化模式下按像素格步进点绘
+        const stepRatio = curStyle === 'pixel' ? 0.95 : (curStyle === 'watercolor' ? 0.35 : 0.22);
+        const step = Math.max(1.0, scaledR * stepRatio);
+        const steps = Math.max(1, Math.ceil(dist / step));
+
+        for (let i = 0; i <= steps; i++) {
+            const t = steps === 0 ? 0 : i / steps;
+            drawSingleDab(
+                targetCtx,
+                p1.x + dx * t,
+                p1.y + dy * t,
+                angle,
+                brushId,
+                swatch,
+                alpha,
+                pressureScale,
+                curStyle
+            );
+        }
+    }
+
+    /********************************************************************
+     * 8. 核心升级：有机手腕弧线涂抹算法 (彻底消灭0°/90°横平竖直扫描线与平行白缝)
+     *    - 步骤1：连通域分割 (Connected Components)
+     *    - 步骤2：边缘柔和内缩环绕曲线 (Organic Contour Loop)
+     *    - 步骤3：手腕自然斜向角度 (28°~64°) S形波浪往复弧线 + 圆润U型掉头弯
+     *    - 步骤4：像素级覆盖掩码 (Coverage Mask) 自检与随性揉涂补漏
+     ********************************************************************/
+    function evaluateCatmullRomChain(ctrlPts, samplesPerSeg = 6) {
+        if (ctrlPts.length < 2) return ctrlPts;
+        const out = [];
+        for (let i = 0; i < ctrlPts.length - 1; i++) {
+            const p0 = ctrlPts[Math.max(0, i - 1)];
+            const p1 = ctrlPts[i];
+            const p2 = ctrlPts[i + 1];
+            const p3 = ctrlPts[Math.min(ctrlPts.length - 1, i + 2)];
+
+            for (let s = 0; s < samplesPerSeg; s++) {
+                const t = s / samplesPerSeg;
+                const t2 = t * t;
+                const t3 = t2 * t;
+                const x = 0.5 * (
+                    (2 * p1.x) +
+                    (-p0.x + p2.x) * t +
+                    (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+                    (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3
+                );
+                const y = 0.5 * (
+                    (2 * p1.y) +
+                    (-p0.y + p2.y) * t +
+                    (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+                    (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3
+                );
+                out.push({ x, y });
+            }
+        }
+        out.push(ctrlPts[ctrlPts.length - 1]);
+        return out;
+    }
+
+    // 在内存覆盖图上标记已刷过的圆形区域
+    function stampCoverageMask(covMask, w, h, x, y, radiusGrid) {
+        const r = Math.max(1, Math.ceil(radiusGrid));
+        const rSq = radiusGrid * radiusGrid;
+        const ix = Math.round(x), iy = Math.round(y);
+        for (let dy = -r; dy <= r; dy++) {
+            const ny = iy + dy;
+            if (ny < 0 || ny >= h) continue;
+            for (let dx = -r; dx <= r; dx++) {
+                const nx = ix + dx;
+                if (nx < 0 || nx >= w) continue;
+                if (dx * dx + dy * dy <= rSq) {
+                    covMask[ny * w + nx] = 1;
+                }
+            }
+        }
+    }
+
+    function markPolylineOnCoverage(covMask, w, h, pts, scale, radiusGrid) {
+        for (let i = 0; i < pts.length - 1; i++) {
+            const x1 = pts[i].x * scale, y1 = pts[i].y * scale;
+            const x2 = pts[i + 1].x * scale, y2 = pts[i + 1].y * scale;
+            const dist = Math.hypot(x2 - x1, y2 - y1);
+            const steps = Math.max(1, Math.ceil(dist / Math.max(0.8, radiusGrid * 0.4)));
+            for (let s = 0; s <= steps; s++) {
+                const t = s / steps;
+                stampCoverageMask(covMask, w, h, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, radiusGrid);
+            }
+        }
+    }
+
+    // 为单个连通色块生成随性弯曲且100%填满的笔画集合
+    function generateOrganicCurvedStrokesForRegion(regionPixels, regionMask, w, h, invScale, brushRadiusCanvas) {
+        const scale = 1 / invScale;
+        const brushRGrid = Math.max(1.4, brushRadiusCanvas * scale * 0.92);
+        const covMask = new Uint8Array(w * h);
+        const strokes = [];
+
+        if (regionPixels.length === 0) return strokes;
+
+        // 1. 提取该区域的边缘像素，生成一条顺应色块轮廓的柔和弯曲环绕笔触
+        if (regionPixels.length >= 18) {
+            let cx = 0, cy = 0;
+            regionPixels.forEach(p => { cx += p.x; cy += p.y; });
+            cx /= regionPixels.length;
+            cy /= regionPixels.length;
+
+            const boundaryPts = [];
+            for (let i = 0; i < regionPixels.length; i++) {
+                const p = regionPixels[i];
+                const idx = p.y * w + p.x;
+                const isEdge = (
+                    p.x === 0 || p.x === w - 1 || p.y === 0 || p.y === h - 1 ||
+                    !regionMask[idx - 1] || !regionMask[idx + 1] ||
+                    !regionMask[idx - w] || !regionMask[idx + w]
+                );
+                if (isEdge) {
+                    const ang = Math.atan2(p.y - cy, p.x - cx);
+                    // 轻微向色块中心内缩，防止出界，同时叠加正弦手腕微摆
+                    const inset = Math.min(0.85, Math.max(0.15, brushRGrid * 0.35 / Math.max(2, Math.hypot(p.x - cx, p.y - cy))));
+                    const bx = (p.x + (cx - p.x) * inset) * invScale;
+                    const by = (p.y + (cy - p.y) * inset) * invScale;
+                    boundaryPts.push({ x: bx, y: by, ang });
+                }
+            }
+
+            if (boundaryPts.length >= 8) {
+                boundaryPts.sort((a, b) => a.ang - b.ang);
+                const ctrl = [];
+                const stride = Math.max(2, Math.floor(boundaryPts.length / 12));
+                for (let k = 0; k < boundaryPts.length; k += stride) {
+                    const pt = boundaryPts[k];
+                    const wobble = Math.sin(k * 1.7) * (brushRadiusCanvas * 0.14);
+                    ctrl.push({ x: pt.x + wobble, y: pt.y - wobble });
+                }
+                ctrl.push(ctrl[0]);
+                const smoothContour = evaluateCatmullRomChain(ctrl, 4);
+                // 轮廓守卫：极角排序 + 向心内缩只对紧凑无洞的色块成立；带洞/条带状
+                // 区域（如带花洞的天空）的轮廓弦会横切过空洞、盖掉已画好的内容。
+                // 两条红线，触一即弃：① 出界连续段过长（横切空洞的弦）；
+                // ② 界内点占比过低（整体跑偏的环）。手绘抖动与曲线外凸的
+                // 短暂出界只有几像素，远小于 14px 的弦阈值，不会误杀。
+                let inMaskPts = 0;
+                let outRunPx = 0, maxOutRunPx = 0;
+                for (let s = 0; s < smoothContour.length; s++) {
+                    const gx = Math.round(smoothContour[s].x * scale);
+                    const gy = Math.round(smoothContour[s].y * scale);
+                    const inside = gx >= 0 && gx < w && gy >= 0 && gy < h && regionMask[gy * w + gx];
+                    if (inside) {
+                        inMaskPts++;
+                        outRunPx = 0;
+                    } else if (s > 0) {
+                        outRunPx += Math.hypot(smoothContour[s].x - smoothContour[s - 1].x, smoothContour[s].y - smoothContour[s - 1].y);
+                        if (outRunPx > maxOutRunPx) maxOutRunPx = outRunPx;
+                    }
+                }
+                if (inMaskPts >= smoothContour.length * 0.8 && maxOutRunPx <= 14) {
+                    strokes.push(smoothContour);
+                    markPolylineOnCoverage(covMask, w, h, smoothContour, scale, brushRGrid * 0.95);
+                }
+            }
+        }
+
+        // 2. 手腕斜向 S 形波浪往复刷涂 (严禁 0° 水平或 90° 垂直！采用 28°~62° 的自然手腕斜角)
+        const wristAnglesDeg = [34, -38, 48, -52, 29, -33, 56, -44];
+        const chosenDeg = wristAnglesDeg[(regionPixels[0].x + regionPixels[0].y) % wristAnglesDeg.length];
+        const theta = (chosenDeg * Math.PI) / 180;
+        const cosT = Math.cos(theta), sinT = Math.sin(theta);
+
+        // 将区域像素投影到斜向旋转坐标系 (u, v)
+        let uMin = Infinity, uMax = -Infinity, vMin = Infinity, vMax = -Infinity;
+        for (let i = 0; i < regionPixels.length; i++) {
+            const p = regionPixels[i];
+            const u = p.x * cosT + p.y * sinT;
+            const v = -p.x * sinT + p.y * cosT;
+            if (u < uMin) uMin = u;
+            if (u > uMax) uMax = u;
+            if (v < vMin) vMin = v;
+            if (v > vMax) vMax = v;
+        }
+
+        // 行距严格设为笔刷半径的 0.72 倍（即约 64% 重叠率），彻底消灭平行白缝！
+        const stepV = Math.max(1.1, brushRGrid * 0.72);
+        const sampleU = Math.max(1.0, brushRGrid * 0.55);
+
+        let currentContinuousChain = [];
+        let flipDir = false;
+        let passIndex = 0;
+
+        for (let v = vMin; v <= vMax + stepV * 0.5; v += stepV) {
+            passIndex++;
+            const uValues = [];
+            for (let u = uMin; u <= uMax; u += sampleU) {
+                const gx = Math.round(u * cosT - v * sinT);
+                const gy = Math.round(u * sinT + v * cosT);
+                if (gx >= 0 && gx < w && gy >= 0 && gy < h && regionMask[gy * w + gx]) {
+                    uValues.push(u);
+                }
+            }
+
+            if (uValues.length === 0) continue;
+
+            // 将同一条斜向带上的点按连续区间分段
+            const segments = [];
+            let segStart = uValues[0];
+            let prevU = uValues[0];
+            for (let k = 1; k < uValues.length; k++) {
+                if (uValues[k] - prevU > sampleU * 2.6) {
+                    segments.push([segStart, prevU]);
+                    segStart = uValues[k];
+                }
+                prevU = uValues[k];
+            }
+            segments.push([segStart, prevU]);
+
+            if (flipDir) segments.reverse();
+
+            segments.forEach(seg => {
+                const u0 = flipDir ? seg[1] : seg[0];
+                const u1 = flipDir ? seg[0] : seg[1];
+                const span = Math.abs(u1 - u0);
+                const numCtrl = Math.max(3, Math.min(9, Math.ceil(span / (brushRGrid * 1.8)) + 2));
+                const segCtrlPts = [];
+
+                // 赋予每一趟明显的手腕自然弯曲弧度（S形/拱形波浪），且相邻趟相位交错咬合
+                const archAmp = Math.min(brushRGrid * 0.68, Math.max(brushRGrid * 0.28, span * 0.14));
+                const phaseShift = passIndex * 1.35;
+
+                for (let c = 0; c < numCtrl; c++) {
+                    const t = c / (numCtrl - 1);
+                    const uCur = u0 + (u1 - u0) * t;
+                    // 手腕弧度：中段自然拱起 + S型微摆
+                    const wristCurveV = Math.sin(t * Math.PI + phaseShift) * archAmp + Math.cos(t * Math.PI * 2) * (archAmp * 0.35);
+                    const vCur = v + wristCurveV;
+
+                    let gx = uCur * cosT - vCur * sinT;
+                    let gy = uCur * sinT + vCur * cosT;
+                    gx = Math.max(1, Math.min(w - 2, gx));
+                    gy = Math.max(1, Math.min(h - 2, gy));
+
+                    // 若弧线摆动超出了色块边界，拉回最近的色块内部点
+                    if (!regionMask[Math.round(gy) * w + Math.round(gx)]) {
+                        gx = uCur * cosT - v * sinT;
+                        gy = uCur * sinT + v * cosT;
+                    }
+
+                    segCtrlPts.push({ x: gx * invScale, y: gy * invScale });
+                }
+
+                // 如果与上一趟结尾距离很近，用圆润的手腕 U 型掉头弯直接连成一笔連続涂抹！
+                if (currentContinuousChain.length > 0) {
+                    const lastPt = currentContinuousChain[currentContinuousChain.length - 1];
+                    const firstNew = segCtrlPts[0];
+                    const gapDist = Math.hypot(firstNew.x - lastPt.x, firstNew.y - lastPt.y);
+
+                    if (gapDist < brushRadiusCanvas * 3.6 && currentContinuousChain.length < 36) {
+                        // 插入一个微向外拱的圆润掉头控制点
+                        const midX = (lastPt.x + firstNew.x) * 0.5 + (flipDir ? 1 : -1) * brushRadiusCanvas * 0.25;
+                        const midY = (lastPt.y + firstNew.y) * 0.5 + Math.sin(passIndex) * brushRadiusCanvas * 0.25;
+                        currentContinuousChain.push({ x: midX, y: midY });
+                        currentContinuousChain.push(...segCtrlPts);
+                    } else {
+                        const smoothStroke = evaluateCatmullRomChain(currentContinuousChain, 4);
+                        strokes.push(smoothStroke);
+                        markPolylineOnCoverage(covMask, w, h, smoothStroke, scale, brushRGrid);
+                        currentContinuousChain = [...segCtrlPts];
+                    }
+                } else {
+                    currentContinuousChain = [...segCtrlPts];
+                }
+            });
+
+            flipDir = !flipDir;
+        }
+
+        if (currentContinuousChain.length >= 2) {
+            const smoothStroke = evaluateCatmullRomChain(currentContinuousChain, 4);
+            strokes.push(smoothStroke);
+            markPolylineOnCoverage(covMask, w, h, smoothStroke, scale, brushRGrid);
+        }
+
+        // 3. 像素级覆盖率自检与随性揉涂补漏 (Coverage Mask Check)
+        // 检查该色块内是否还有未被涂到的漏白像素，生成弯曲的小弧线把漏白处 100% 揉满！
+        const uncoveredPts = [];
+        for (let i = 0; i < regionPixels.length; i++) {
+            const p = regionPixels[i];
+            if (!covMask[p.y * w + p.x]) {
+                uncoveredPts.push(p);
+            }
+        }
+
+        for (let i = 0; i < uncoveredPts.length; i++) {
+            const up = uncoveredPts[i];
+            if (covMask[up.y * w + up.x]) continue; // 已被前一个补漏笔触顺带盖住
+
+            // 在漏白点周围搜集相邻未覆盖点，连成一条弯弯的随性小揉涂曲线
+            const dabCtrl = [{ x: up.x * invScale, y: up.y * invScale }];
+            let cur = up;
+            stampCoverageMask(covMask, w, h, cur.x, cur.y, brushRGrid * 1.05);
+
+            for (let step = 0; step < 5; step++) {
+                let nextP = null;
+                let bestD = brushRGrid * 3.2;
+                for (let j = i + 1; j < Math.min(uncoveredPts.length, i + 90); j++) {
+                    const cand = uncoveredPts[j];
+                    if (covMask[cand.y * w + cand.x]) continue;
+                    const d = Math.hypot(cand.x - cur.x, cand.y - cur.y);
+                    if (d < bestD) {
+                        bestD = d;
+                        nextP = cand;
+                    }
+                }
+                if (nextP) {
+                    const curveOffset = (step % 2 === 0 ? 1 : -1) * brushRadiusCanvas * 0.32;
+                    dabCtrl.push({
+                        x: ((cur.x + nextP.x) * 0.5) * invScale + curveOffset,
+                        y: ((cur.y + nextP.y) * 0.5) * invScale - curveOffset * 0.7
+                    });
+                    dabCtrl.push({ x: nextP.x * invScale, y: nextP.y * invScale });
+                    cur = nextP;
+                    stampCoverageMask(covMask, w, h, cur.x, cur.y, brushRGrid * 1.05);
+                } else {
+                    break;
+                }
+            }
+
+            // 如果只是单个孤立漏白点，画一个小弯钩揉满它
+            if (dabCtrl.length === 1) {
+                const rHook = Math.max(3, brushRadiusCanvas * 0.48);
+                const ang = (i * 1.3) % (Math.PI * 2);
+                dabCtrl.push({
+                    x: dabCtrl[0].x + Math.cos(ang) * rHook,
+                    y: dabCtrl[0].y + Math.sin(ang) * rHook
+                });
+                dabCtrl.push({
+                    x: dabCtrl[0].x + Math.cos(ang + 1.1) * rHook * 0.9,
+                    y: dabCtrl[0].y + Math.sin(ang + 1.1) * rHook * 0.9
+                });
+            }
+
+            strokes.push(evaluateCatmullRomChain(dabCtrl, 3));
+        }
+
+        // 出界裁剪：无论哪一步生成的折线，出界连续段超过 10px 就在此截断分段，
+        // 兜底拦住所有越界涂抹（轮廓弦、掉头桥接、曲线外凸、补漏游走）。
+        // 10px 以内的短暂出界予以保留——笔锋贴边本就有几像素的自然洇出。
+        const clipped = [];
+        for (let si = 0; si < strokes.length; si++) {
+            const pts = strokes[si];
+            let cur = [];
+            let outRun = [];
+            let outRunLen = 0;
+            const flushOutRun = () => {
+                if (outRun.length === 0) return;
+                if (outRunLen <= 10) { cur.push(...outRun); }
+                else if (cur.length >= 2) { clipped.push(cur); cur = []; }
+                else { cur = []; }
+                outRun = [];
+                outRunLen = 0;
+            };
+            for (let pi = 0; pi < pts.length; pi++) {
+                const p = pts[pi];
+                const gx = Math.round(p.x * scale), gy = Math.round(p.y * scale);
+                const inside = gx >= 0 && gx < w && gy >= 0 && gy < h && regionMask[gy * w + gx];
+                if (inside) {
+                    flushOutRun();
+                    cur.push(p);
+                } else {
+                    if (outRun.length > 0) outRunLen += Math.hypot(p.x - outRun[outRun.length - 1].x, p.y - outRun[outRun.length - 1].y);
+                    else if (cur.length > 0) outRunLen = Math.hypot(p.x - cur[cur.length - 1].x, p.y - cur[cur.length - 1].y);
+                    outRun.push(p);
+                }
+            }
+            flushOutRun();
+            if (cur.length >= 2) clipped.push(cur);
+        }
+        return clipped;
+    }
+
+    /********************************************************************
+     * 9. 图片色彩按色系由浅入深拆解 + 构建可拖动时间轴队列
+     ********************************************************************/
+    function classifyHueFamily(r, g, b) {
+        r /= 255; g /= 255; b /= 255;
+        const max = Math.max(r, g, b), min = Math.min(r, g, b);
+        let h = 0, s = 0, l = (max + min) / 2;
+        if (max !== min) {
+            const d = max - min;
+            s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+            switch (max) {
+                case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                case g: h = (b - r) / d + 2; break;
+                case b: h = (r - g) / d + 4; break;
+            }
+            h *= 60;
+        }
+        if (s < 0.12 || l > 0.93 || l < 0.09) return { order: 6, familyName: '黑白灰' };
+        if (h >= 20 && h < 72) return { order: 1, familyName: '黄橙系' };
+        if (h < 20 || h >= 330) return { order: 2, familyName: '红色系' };
+        if (h >= 72 && h < 168) return { order: 3, familyName: '绿色系' };
+        if (h >= 168 && h < 260) return { order: 4, familyName: '蓝青系' };
+        return { order: 5, familyName: '紫棕系' };
+    }
+
+    // 贪心最近邻对连通区域与笔画排序，同色同笔跨区直接顺滑移过去画
+    function sortStrokesSpatially(strokes) {
+        if (strokes.length <= 2) return strokes;
+        const sorted = [];
+        const used = new Uint8Array(strokes.length);
+        used[0] = 1;
+        sorted.push(strokes[0]);
+
+        for (let s = 1; s < strokes.length; s++) {
+            const lastStroke = sorted[sorted.length - 1];
+            const endPt = lastStroke[lastStroke.length - 1];
+            let bestIdx = -1;
+            let bestDistSq = Infinity;
+            for (let j = 0; j < strokes.length; j++) {
+                if (used[j]) continue;
+                const stPt = strokes[j][0];
+                const dSq = (stPt.x - endPt.x) ** 2 + (stPt.y - endPt.y) ** 2;
+                if (dSq < bestDistSq) {
+                    bestDistSq = dSq;
+                    bestIdx = j;
+                }
+            }
+            if (bestIdx !== -1) {
+                used[bestIdx] = 1;
+                sorted.push(strokes[bestIdx]);
+            }
+        }
+        return sorted;
+    }
+
+    /********************************************************************
+     * 分片计算：生成绘画路径是重活，一口气算完会把页面卡死。改成每算完
+     * 一小片就把主线程还给浏览器（setTimeout 0），浮层上的转圈与进度条
+     * 才能刷新、取消按钮才能点到。buildToken 保证新任务进来时旧任务停下。
+     ********************************************************************/
+    let buildToken = 0;
+    let computeCancelled = false;
+
+    function showComputeOverlay() {
+        computeCancelled = false;
+        const btn = document.getElementById('computeCancelBtn');
+        if (btn) { btn.textContent = '取消'; btn.disabled = false; }
+        document.getElementById('computeOverlay').style.display = 'flex';
+        updateComputeProgress('正在分析图片', 0);
+    }
+    function hideComputeOverlay() {
+        document.getElementById('computeOverlay').style.display = 'none';
+    }
+    function updateComputeProgress(phase, frac) {
+        const f = Math.max(0, Math.min(1, frac));
+        const ph = document.getElementById('computePhase');
+        if (ph) ph.textContent = phase;
+        const bar = document.getElementById('computeBarFill');
+        if (bar) bar.style.width = Math.round(f * 100) + '%';
+        const pct = document.getElementById('computePct');
+        if (pct) pct.textContent = Math.round(f * 100) + '%';
+    }
+    async function computeTick(token, phase, frac) {
+        if (token !== buildToken || computeCancelled) throw { cancelled: true };
+        updateComputeProgress(phase, frac);
+        await new Promise(r => setTimeout(r, 0));
+        if (token !== buildToken || computeCancelled) throw { cancelled: true };
+    }
+
+    function nearestPaletteIdx(palette, r, g, b) {
+        let best = 0, bestD = Infinity;
+        for (let i = 0; i < palette.length; i++) {
+            const sw = palette[i];
+            const d = (r - sw.r) ** 2 * 0.3 + (g - sw.g) ** 2 * 0.59 + (b - sw.b) ** 2 * 0.11;
+            if (d < bestD) { bestD = d; best = i; }
+        }
+        return best;
+    }
+
+    // 原画级别专属精修：拿已生成的笔画离屏渲染后与原图比对，把色差大的地方
+    // 连成待修区、用同一有机弧线生成器以勾线笔整片复原；只在 masterpiece 风格
+    // 跑两遍（第二遍网格更细、阈值更低），直到贴近原图。取样色直接作色，
+    // 不走 50 色调色盘量化，渐变不被压扁。
+    async function buildRefinementStrokes(sourceCanvas, palette, baseStrokes, opts, tick, frac0, frac1) {
+        const stageW = paintCanvas.width, stageH = paintCanvas.height;
+
+        // 第一阶段成果离屏渲染（与快照同一画法）
+        const sim = document.createElement('canvas');
+        sim.width = stageW; sim.height = stageH;
+        const simCtx = sim.getContext('2d');
+        simCtx.fillStyle = '#faf6ed';
+        simCtx.fillRect(0, 0, stageW, stageH);
+        const prevPalette = state.palette;
+        state.palette = palette;
+        try {
+            for (let bi = 0; bi < baseStrokes.length; bi++) {
+                renderCompleteStrokeStepOnCtx(simCtx, baseStrokes[bi]);
+                if (tick && bi % 60 === 59) await tick('正在比对已画内容与原图…', frac0 + (frac1 - frac0) * 0.3 * (bi + 1) / baseStrokes.length);
+            }
+        } finally {
+            state.palette = prevPalette;
+        }
+
+        const cell = opts.cell;
+        const cols = Math.max(1, Math.round(stageW / cell));
+        const rows = Math.max(1, Math.round(stageH / cell));
+        const down = (cv) => {
+            const c = document.createElement('canvas');
+            c.width = cols; c.height = rows;
+            c.getContext('2d').drawImage(cv, 0, 0, cols, rows);
+            return c.getContext('2d').getImageData(0, 0, cols, rows).data;
+        };
+        const baseData = down(sim);
+        const srcData = down(sourceCanvas);
+
+        // 每格：色差超阈则归到取样色最近的调色盘色，得到“待修”标记 + 归属色
+        const total = cols * rows;
+        const owner = new Int16Array(total).fill(-1);
+        for (let i = 0; i < total; i++) {
+            const k = i * 4;
+            const diff = (Math.abs(baseData[k] - srcData[k]) + Math.abs(baseData[k + 1] - srcData[k + 1]) + Math.abs(baseData[k + 2] - srcData[k + 2])) / 3;
+            if (diff > opts.threshold) owner[i] = nearestPaletteIdx(palette, srcData[k], srcData[k + 1], srcData[k + 2]);
+        }
+
+        // 每色一块块连通分割（4 邻接），太小的碎块跳过
+        const visited = new Uint8Array(total);
+        const mask = new Uint8Array(total);
+        const brushRCanvas = BRUSH_MAP[opts.brushId].radius * (stageW / 760);
+        const gridToCanvas = stageW / cols; // 网格单位换画布像素（x 向；y 向同比）
+        const items = [];
+        const queue = [];
+        for (let sIdx = 0; sIdx < palette.length; sIdx++) {
+            for (let i = 0; i < total; i++) {
+                if (owner[i] !== sIdx || visited[i]) continue;
+                queue.length = 0;
+                queue.push(i);
+                visited[i] = 1;
+                const comp = [];
+                let rS = 0, gS = 0, bS = 0;
+                while (queue.length > 0) {
+                    const cur = queue.pop();
+                    const cx = cur % cols, cy = (cur / cols) | 0;
+                    comp.push({ x: cx, y: cy });
+                    const k4 = cur * 4;
+                    rS += srcData[k4]; gS += srcData[k4 + 1]; bS += srcData[k4 + 2];
+                    const nb = [cur - 1, cur + 1, cur - cols, cur + cols];
+                    for (let k = 0; k < 4; k++) {
+                        const ni = nb[k];
+                        if (ni < 0 || ni >= total || visited[ni] || owner[ni] !== sIdx) continue;
+                        if (k === 0 && cx === 0) continue;
+                        if (k === 1 && cx === cols - 1) continue;
+                        visited[ni] = 1;
+                        queue.push(ni);
+                    }
+                }
+                if (comp.length < 3) continue;
+                for (const p of comp) mask[p.y * cols + p.x] = 1;
+                // 生成器要“画布坐标 = 网格坐标 × invScale”，此处 invScale = 每格画布像素
+                const strokes = generateOrganicCurvedStrokesForRegion(comp, mask, cols, rows, gridToCanvas, brushRCanvas);
+                for (const p of comp) mask[p.y * cols + p.x] = 0;
+                // useSwatch 时用本片取样色的均值直接作色（不走调色盘量化），
+                // 渐变与细腻色彩不被 50 色压扁，原图风格借此贴近原图。
+                let swatch = null;
+                if (opts.useSwatch) {
+                    const n = comp.length;
+                    const mr = Math.round(rS / n), mg = Math.round(gS / n), mb = Math.round(bS / n);
+                    swatch = { r: mr, g: mg, b: mb, hex: '#' + [mr, mg, mb].map(v => v.toString(16).padStart(2, '0')).join('') };
+                }
+                for (const pts of strokes) {
+                    const item = {
+                        type: 'PAINT_STROKE',
+                        colorIdx: sIdx,
+                        brushId: opts.brushId,
+                        points: pts,
+                        alpha: opts.alpha,
+                        label: `${opts.label} · ${BRUSH_MAP[opts.brushId].short}`
+                    };
+                    if (swatch) item.swatch = swatch;
+                    items.push(item);
+                }
+            }
+            if (tick) await tick('正在复原细节…', frac0 + (frac1 - frac0) * (0.3 + 0.7 * (sIdx + 1) / palette.length));
+        }
+        // 贪心最近邻排序，运笔连贯不乱跳
+        if (items.length > 2) {
+            const sorted = [items[0]];
+            const used = new Uint8Array(items.length);
+            used[0] = 1;
+            for (let s = 1; s < items.length; s++) {
+                const lastPts = sorted[sorted.length - 1].points;
+                const endPt = lastPts[lastPts.length - 1];
+                let bestIdx = -1, bestD = Infinity;
+                for (let k = 0; k < items.length; k++) {
+                    if (used[k]) continue;
+                    const stPt = items[k].points[0];
+                    const d = (stPt.x - endPt.x) ** 2 + (stPt.y - endPt.y) ** 2;
+                    if (d < bestD) { bestD = d; bestIdx = k; }
+                }
+                if (bestIdx !== -1) { used[bestIdx] = 1; sorted.push(items[bestIdx]); }
+            }
+            return sorted;
+        }
+        return items;
+    }
+
+    async function buildAutoPaintingTimeline(sourceCanvas, token) {
+        const stageW = paintCanvas.width;
+        const stageH = paintCanvas.height;
+        const tick = (phase, frac) => computeTick(token, phase, frac);
+        const targetSlots = calculateResponsivePaletteColumns();
+
+        // 提高分色采样分辨率，让纯色块本身就能精准贴合原图形体
+        const scale = 0.62;
+        const w = Math.max(160, Math.round(stageW * scale));
+        const h = Math.max(110, Math.round(stageH * scale));
+        const invScale = 1 / scale;
+
+        const off = document.createElement('canvas');
+        off.width = w;
+        off.height = h;
+        const oCtx = off.getContext('2d');
+        oCtx.drawImage(sourceCanvas, 0, 0, w, h);
+        const data = oCtx.getImageData(0, 0, w, h).data;
+        const totalPixels = w * h;
+
+        const familyBuckets = new Map();
+        const pixelFam = new Uint8Array(totalPixels);
+
+        for (let i = 0; i < totalPixels; i++) {
+            const idx = i * 4;
+            const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+            const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+            const fam = classifyHueFamily(r, g, b);
+            pixelFam[i] = fam.order;
+            if (!familyBuckets.has(fam.order)) {
+                familyBuckets.set(fam.order, { order: fam.order, familyName: fam.familyName, pixels: [] });
+            }
+            familyBuckets.get(fam.order).pixels.push({ r, g, b, lum });
+        }
+
+        await tick('正在分析图片色彩…', 0.05);
+
+        const activeFams = Array.from(familyBuckets.values())
+            .filter(f => f.pixels.length > totalPixels * 0.003)
+            .sort((a, b) => a.order - b.order);
+
+        let remSlots = targetSlots;
+        const allocs = new Map();
+        activeFams.forEach(f => { allocs.set(f.order, 2); remSlots -= 2; });
+        if (remSlots > 0) {
+            activeFams.forEach((f, idx) => {
+                const share = f.pixels.length / totalPixels;
+                const extra = idx === activeFams.length - 1 ? Math.max(0, remSlots) : Math.max(0, Math.round(share * remSlots));
+                allocs.set(f.order, allocs.get(f.order) + extra);
+                remSlots -= extra;
+            });
+        }
+
+        const extractedPalette = [];
+        const famSwatchIndices = new Map();
+
+        activeFams.forEach(fam => {
+            fam.pixels.sort((a, b) => b.lum - a.lum); // 严格由浅到深
+            const tiers = Math.max(2, allocs.get(fam.order) || 3);
+            const indices = [];
+            for (let t = 0; t < tiers; t++) {
+                const s0 = Math.floor((t / tiers) * fam.pixels.length);
+                const s1 = Math.floor(((t + 1) / tiers) * fam.pixels.length);
+                const subSlice = fam.pixels.slice(s0, s1);
+                if (!subSlice.length) continue;
+
+                let rS = 0, gS = 0, bS = 0;
+                for (let p = 0; p < subSlice.length; p++) {
+                    rS += subSlice[p].r; gS += subSlice[p].g; bS += subSlice[p].b;
+                }
+                const r = Math.round(rS / subSlice.length);
+                const g = Math.round(gS / subSlice.length);
+                const b = Math.round(bS / subSlice.length);
+                const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+                const sIdx = extractedPalette.length;
+                extractedPalette.push({
+                    index: sIdx,
+                    familyOrder: fam.order,
+                    familyName: fam.familyName,
+                    tierIndex: t,
+                    numTiers: tiers,
+                    name: `${fam.familyName.slice(0, 2)}·层${t + 1}`,
+                    r, g, b, hex,
+                    lum: 0.299 * r + 0.587 * g + 0.114 * b
+                });
+                indices.push(sIdx);
+            }
+            famSwatchIndices.set(fam.order, indices);
+        });
+
+        await tick('正在提取调色盘…', 0.10);
+
+        // 全盘最近邻纯色匹配（按行分片，每 40 行让出主线程一次）
+        const pixelSwatch = new Uint16Array(totalPixels);
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                const i = y * w + x;
+                const idx = i * 4;
+                const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+                let best = 0, bestD = Infinity;
+                for (let c = 0; c < extractedPalette.length; c++) {
+                    const sw = extractedPalette[c];
+                    const famBonus = (sw.familyOrder === pixelFam[i]) ? 0.85 : 1.0;
+                    const d = ((r - sw.r) ** 2 * 0.3 + (g - sw.g) ** 2 * 0.59 + (b - sw.b) ** 2 * 0.11) * famBonus;
+                    if (d < bestD) { bestD = d; best = c; }
+                }
+                pixelSwatch[i] = best;
+            }
+            if (y % 40 === 39 || y === h - 1) await tick('正在给每个像素找最接近的颜料…', 0.10 + 0.15 * (y + 1) / h);
+        }
+
+        const autoActions = [];
+        const strokeFlattenList = [];
+        let simBrushId = '';
+        const artStyle = state.artStyle || 'masterpiece';
+
+        // ========= 若为「👾 像素化级别 (Pixel Art)」，采用专属网格方块分色点绘规划 =========
+        if (artStyle === 'pixel') {
+            const cols = 72;
+            const cellSize = stageW / cols;
+            const rows = Math.max(40, Math.round(stageH / cellSize));
+            const pOff = document.createElement('canvas');
+            pOff.width = cols; pOff.height = rows;
+            const pCtx = pOff.getContext('2d');
+            pCtx.drawImage(sourceCanvas, 0, 0, cols, rows);
+            const pData = pCtx.getImageData(0, 0, cols, rows).data;
+
+            const cellBySwatch = Array.from({ length: extractedPalette.length }, () => []);
+            for (let py = 0; py < rows; py++) {
+                for (let px = 0; px < cols; px++) {
+                    const idx = (py * cols + px) * 4;
+                    const r = pData[idx], g = pData[idx + 1], b = pData[idx + 2];
+                    let best = 0, bestD = Infinity;
+                    for (let s = 0; s < extractedPalette.length; s++) {
+                        const sw = extractedPalette[s];
+                        const d = (r - sw.r) ** 2 * 0.3 + (g - sw.g) ** 2 * 0.59 + (b - sw.b) ** 2 * 0.11;
+                        if (d < bestD) { bestD = d; best = s; }
+                    }
+                    cellBySwatch[best].push({
+                        x: (px + 0.5) * cellSize,
+                        y: (py + 0.5) * cellSize,
+                        px, py
+                    });
+                }
+            }
+
+            const pixelBrushId = 'pixelDot';
+            BRUSH_MAP[pixelBrushId].radius = Math.max(4, (cellSize / (stageW / 760)) * 0.65);
+            autoActions.push({ type: 'PICK_BRUSH', brushId: pixelBrushId, label: '切换【像素点阵笔头】' });
+
+            for (let sIdx = 0; sIdx < extractedPalette.length; sIdx++) {
+                const cells = cellBySwatch[sIdx];
+                if (!cells || cells.length === 0) continue;
+                const sw = extractedPalette[sIdx];
+                autoActions.push({ type: 'DIP_COLOR', colorIdx: sIdx, label: `蘸取像素色【${sw.name}】` });
+                await tick('正在规划像素点阵…', 0.25 + 0.45 * (sIdx + 1) / extractedPalette.length);
+
+                let curStroke = [cells[0]];
+                for (let i = 1; i < cells.length; i++) {
+                    const prev = cells[i - 1], cur = cells[i];
+                    if (Math.hypot(cur.px - prev.px, cur.py - prev.py) <= 2.2 && curStroke.length < 18) {
+                        curStroke.push(cur);
+                    } else {
+                        if (curStroke.length === 1) {
+                            curStroke.push({ x: curStroke[0].x + 0.5, y: curStroke[0].y + 0.5 });
+                        }
+                        const strokeObj = {
+                            type: 'PAINT_STROKE',
+                            strokeIdx: strokeFlattenList.length,
+                            colorIdx: sIdx,
+                            brushId: pixelBrushId,
+                            points: curStroke,
+                            alpha: 1.0,
+                            styleOverride: 'pixel',
+                            label: `像素点绘【${sw.name}】(${cells.length}格)`
+                        };
+                        autoActions.push(strokeObj);
+                        strokeFlattenList.push(strokeObj);
+                        curStroke = [cur];
+                    }
+                }
+                if (curStroke.length > 0) {
+                    if (curStroke.length === 1) curStroke.push({ x: curStroke[0].x + 0.5, y: curStroke[0].y + 0.5 });
+                    const strokeObj = {
+                        type: 'PAINT_STROKE',
+                        strokeIdx: strokeFlattenList.length,
+                        colorIdx: sIdx,
+                        brushId: pixelBrushId,
+                        points: curStroke,
+                        alpha: 1.0,
+                        styleOverride: 'pixel',
+                        label: `像素点绘【${sw.name}】`
+                    };
+                    autoActions.push(strokeObj);
+                    strokeFlattenList.push(strokeObj);
+                }
+            }
+            return { palette: extractedPalette, autoActions, strokeFlattenList };
+        }
+
+        // ========= 若为「🏔️ 国画设色 (Ink & Wash)」，先用中式毛笔蘸浓墨勾勒全图结构骨线 =========
+        if (artStyle === 'ink') {
+            const inkEdges = [];
+            for (let y = 1; y < h - 1; y += 2) {
+                for (let x = 1; x < w - 1; x += 2) {
+                    const iC = (y * w + x) * 4;
+                    const iR = (y * w + (x + 1)) * 4;
+                    const iD = ((y + 1) * w + x) * 4;
+                    const gx = Math.abs(data[iC] - data[iR]) + Math.abs(data[iC + 1] - data[iR + 1]);
+                    const gy = Math.abs(data[iC] - data[iD]) + Math.abs(data[iC + 1] - data[iD + 1]);
+                    if (gx + gy > 68) {
+                        inkEdges.push({ x: x * invScale, y: y * invScale });
+                    }
+                }
+                if (y % 60 === 1) await tick('正在勾勒结构骨线…', 0.25 + 0.05 * y / h);
+            }
+            if (inkEdges.length > 8) {
+                let darkestIdx = extractedPalette.length - 1;
+                let minLum = 999;
+                extractedPalette.forEach((sw, k) => { if (sw.lum < minLum) { minLum = sw.lum; darkestIdx = k; } });
+
+                autoActions.push({ type: 'PICK_BRUSH', brushId: 'liner1', label: '骨法用笔 · 切换【#1 勾线圭笔】' });
+                autoActions.push({ type: 'DIP_COLOR', colorIdx: darkestIdx, label: '蘸取浓墨勾勒全图轮廓骨线' });
+                simBrushId = 'liner1';
+
+                let lineChain = [inkEdges[0]];
+                for (let i = 1; i < inkEdges.length; i++) {
+                    const prev = inkEdges[i - 1], cur = inkEdges[i];
+                    if (Math.hypot(cur.x - prev.x, cur.y - prev.y) < 22 && lineChain.length < 16) {
+                        lineChain.push(cur);
+                    } else {
+                        if (lineChain.length >= 2) {
+                            const smoothInk = evaluateCatmullRomChain(lineChain, 3);
+                            const strokeObj = {
+                                type: 'PAINT_STROKE',
+                                strokeIdx: strokeFlattenList.length,
+                                colorIdx: darkestIdx,
+                                brushId: 'liner1',
+                                points: smoothInk,
+                                alpha: 0.78,
+                                styleOverride: 'ink',
+                                label: '国画白描 · 勾勒结构骨线'
+                            };
+                            autoActions.push(strokeObj);
+                            strokeFlattenList.push(strokeObj);
+                        }
+                        lineChain = [cur];
+                    }
+                }
+            }
+        }
+
+        // ========= 四轮全局递进单色手绘：先全图大笔铺色 → 再全图中笔塑形 → 再全图细笔刻画 → 最后勾线笔修边 =========
+        const pass1LargeByColor = new Map();
+        const pass2MediumByColor = new Map();
+        const pass3DetailByColor = new Map();
+
+        for (let sIdx = 0; sIdx < extractedPalette.length; sIdx++) {
+            const sw = extractedPalette[sIdx];
+            const mask = new Uint8Array(totalPixels);
+            let count = 0;
+
+            for (let i = 0; i < totalPixels; i++) {
+                const pSw = extractedPalette[pixelSwatch[i]];
+                if (!pSw) continue;
+                const underpaint = (pSw.familyOrder === sw.familyOrder && pSw.tierIndex >= sw.tierIndex && sw.tierIndex === 0);
+                if (pixelSwatch[i] === sIdx || underpaint) {
+                    mask[i] = 1;
+                    count++;
+                }
+            }
+            if (count < 1) continue;
+
+            const visited = new Uint8Array(totalPixels);
+            const largeRegions = [];
+            const mediumRegions = [];
+            const detailRegions = [];
+
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const startI = y * w + x;
+                    if (!mask[startI] || visited[startI]) continue;
+
+                    const comp = [];
+                    const queue = [startI];
+                    visited[startI] = 1;
+
+                    while (queue.length > 0) {
+                        const curr = queue.pop();
+                        const cy = Math.floor(curr / w);
+                        const cx = curr % w;
+                        comp.push({ x: cx, y: cy });
+
+                        const neighbors = [curr - 1, curr + 1, curr - w, curr + w];
+                        for (let n = 0; n < 4; n++) {
+                            const ni = neighbors[n];
+                            if (ni >= 0 && ni < totalPixels && mask[ni] && !visited[ni]) {
+                                visited[ni] = 1;
+                                queue.push(ni);
+                            }
+                        }
+                    }
+
+                    if (comp.length >= 110) largeRegions.push(comp);
+                    else if (comp.length >= 22) mediumRegions.push(comp);
+                    else detailRegions.push(comp);
+                }
+            }
+
+            if (largeRegions.length > 0) pass1LargeByColor.set(sIdx, largeRegions);
+            if (mediumRegions.length > 0) pass2MediumByColor.set(sIdx, mediumRegions);
+            if (detailRegions.length > 0) pass3DetailByColor.set(sIdx, detailRegions);
+            await tick('正在拆解色块…', 0.30 + 0.15 * (sIdx + 1) / extractedPalette.length);
+        }
+
+        const appendPassStrokes = async (regionsMap, brushSelector, stageTitle, alphaVal, frac0, frac1) => {
+            for (let sIdx = 0; sIdx < extractedPalette.length; sIdx++) {
+                const regs = regionsMap.get(sIdx);
+                if (!regs || regs.length === 0) continue;
+
+                const sw = extractedPalette[sIdx];
+                const brushId = brushSelector(sw);
+                const bRadiusCanvas = BRUSH_MAP[brushId].radius * (stageW / 760);
+
+                const regionMask = new Uint8Array(totalPixels);
+                regs.forEach(reg => reg.forEach(p => { regionMask[p.y * w + p.x] = 1; }));
+
+                let strokes = [];
+                regs.forEach(reg => {
+                    const regStrokes = generateOrganicCurvedStrokesForRegion(reg, regionMask, w, h, invScale, bRadiusCanvas);
+                    strokes.push(...regStrokes);
+                });
+
+                strokes = sortStrokesSpatially(strokes);
+                if (strokes.length === 0) continue;
+
+                if (simBrushId !== brushId) {
+                    autoActions.push({ type: 'PICK_BRUSH', brushId, label: `${stageTitle} · 切换【${BRUSH_MAP[brushId].name}】` });
+                    simBrushId = brushId;
+                }
+                autoActions.push({ type: 'DIP_COLOR', colorIdx: sIdx, label: `${stageTitle} · 蘸取【${sw.name}】` });
+
+                strokes.forEach(pts => {
+                    const strokeObj = {
+                        type: 'PAINT_STROKE',
+                        strokeIdx: strokeFlattenList.length,
+                        colorIdx: sIdx,
+                        brushId,
+                        points: pts,
+                        alpha: alphaVal,
+                        label: `${stageTitle}【${sw.name}】· ${BRUSH_MAP[brushId].short}`
+                    };
+                    autoActions.push(strokeObj);
+                    strokeFlattenList.push(strokeObj);
+                });
+                await tick(stageTitle + '…', frac0 + (frac1 - frac0) * (sIdx + 1) / extractedPalette.length);
+            }
+        };
+
+        // 第一轮：全图大色块铺底（大平刷 #16 / #12）
+        await appendPassStrokes(
+            pass1LargeByColor,
+            (sw) => (sw.tierIndex === 0 ? 'flat16' : 'flat12'),
+            '第一轮大笔铺底',
+            0.92, 0.45, 0.58
+        );
+
+        // 第二轮：全图中等块面塑形（圆头笔 #8）
+        await appendPassStrokes(
+            pass2MediumByColor,
+            () => 'round8',
+            '第二轮中笔塑形',
+            0.95, 0.58, 0.68
+        );
+
+        // 第三轮：全图细小结构深入刻画（舌形细节笔 #4）
+        await appendPassStrokes(
+            pass3DetailByColor,
+            () => 'filbert4',
+            '第三轮细笔刻画',
+            0.96, 0.68, 0.76
+        );
+
+        // 第四轮：用 #1 极细勾线笔对色块分界边缘与精细纹理进行真实单色修边
+        const edgeBySwatch = Array.from({ length: extractedPalette.length }, () => []);
+        for (let y = 1; y < h - 1; y++) {
+            for (let x = 1; x < w - 1; x++) {
+                const idx = y * w + x;
+                const mySw = pixelSwatch[idx];
+                if (
+                    pixelSwatch[idx - 1] !== mySw ||
+                    pixelSwatch[idx + 1] !== mySw ||
+                    pixelSwatch[idx - w] !== mySw ||
+                    pixelSwatch[idx + w] !== mySw
+                ) {
+                    if ((x + y) % 2 === 0) {
+                        edgeBySwatch[mySw].push({ x: x * invScale, y: y * invScale, gx: x, gy: y });
+                    }
+                }
+            }
+            if (y % 60 === 0) await tick('正在找色块分界…', 0.76 + 0.04 * y / h);
+        }
+
+        for (let sIdx = 0; sIdx < extractedPalette.length; sIdx++) {
+            const ePts = edgeBySwatch[sIdx];
+            if (!ePts || ePts.length < 3) continue;
+            const sw = extractedPalette[sIdx];
+
+            const used = new Uint8Array(ePts.length);
+            const fineStrokes = [];
+
+            for (let i = 0; i < ePts.length; i++) {
+                if (used[i]) continue;
+                used[i] = 1;
+                const chain = [{ x: ePts[i].x, y: ePts[i].y }];
+                let curr = ePts[i];
+
+                for (let step = 0; step < 10; step++) {
+                    let bestNext = -1;
+                    let bestD = 18;
+                    for (let j = i + 1; j < Math.min(ePts.length, i + 140); j++) {
+                        if (used[j]) continue;
+                        const d = Math.hypot(ePts[j].x - curr.x, ePts[j].y - curr.y);
+                        if (d < bestD) {
+                            bestD = d;
+                            bestNext = j;
+                        }
+                    }
+                    if (bestNext !== -1) {
+                        used[bestNext] = 1;
+                        curr = ePts[bestNext];
+                        chain.push({ x: curr.x, y: curr.y });
+                    } else {
+                        break;
+                    }
+                }
+
+                if (chain.length >= 2) {
+                    fineStrokes.push(evaluateCatmullRomChain(chain, 3));
+                }
+            }
+
+            if (fineStrokes.length > 0) {
+                if (simBrushId !== 'liner1') {
+                    autoActions.push({ type: 'PICK_BRUSH', brushId: 'liner1', label: '第四轮精修 · 切换【#1 极细勾线笔】' });
+                    simBrushId = 'liner1';
+                }
+                autoActions.push({ type: 'DIP_COLOR', colorIdx: sIdx, label: `第四轮精修 · 蘸取【${sw.name}】精细修边` });
+
+                fineStrokes.forEach(pts => {
+                    const strokeObj = {
+                        type: 'PAINT_STROKE',
+                        strokeIdx: strokeFlattenList.length,
+                        colorIdx: sIdx,
+                        brushId: 'liner1',
+                        points: pts,
+                        alpha: 0.98,
+                        label: `第四轮极细笔精修【${sw.name}】`
+                    };
+                    autoActions.push(strokeObj);
+                    strokeFlattenList.push(strokeObj);
+                });
+            }
+            await tick('第四轮精细修边…', 0.80 + 0.06 * (sIdx + 1) / extractedPalette.length);
+        }
+
+        // 第五轮：原画级别专属精修，两遍缺陷区复原，往原图上收。
+        if (artStyle === 'masterpiece') {
+            const detailOpts = { cell: 4, threshold: 20, brushId: 'liner1', alpha: 0.96, label: '细笔复原', useSwatch: true };
+            const refined = await buildRefinementStrokes(sourceCanvas, extractedPalette, strokeFlattenList, detailOpts, tick, 0.86, 0.93);
+            let refined2 = [];
+            if (refined.length > 0) {
+                refined2 = await buildRefinementStrokes(sourceCanvas, extractedPalette, strokeFlattenList.concat(refined),
+                    { cell: 3, threshold: 12, brushId: 'liner1', alpha: 0.97, label: '细笔复原', useSwatch: true }, tick, 0.93, 0.97);
+            }
+            const allRefined = refined.concat(refined2);
+            if (allRefined.length > 0) {
+                autoActions.push({ type: 'PICK_BRUSH', brushId: 'liner1', label: '换上细笔，开始精细刻画' });
+                for (const s of allRefined) {
+                    s.strokeIdx = strokeFlattenList.length;
+                    autoActions.push(s);
+                    strokeFlattenList.push(s);
+                }
+            }
+        }
+
+        return { palette: extractedPalette, autoActions, strokeFlattenList };
+    }
+
+    /********************************************************************
+     * 10. 视频级进度条预渲染关键帧快照引擎 (支持任意拖动毫秒级快进/回退)
+     ********************************************************************/
+    async function buildTimelineKeyframeSnapshots(token) {
+        state.keyframeSnapshots = [];
+        const w = paintCanvas.width, h = paintCanvas.height;
+
+        const simCanvas = document.createElement('canvas');
+        simCanvas.width = w;
+        simCanvas.height = h;
+        const sCtx = simCanvas.getContext('2d');
+        sCtx.fillStyle = '#faf6ed';
+        sCtx.fillRect(0, 0, w, h);
+
+        // 保存第 0 帧空白快照
+        const snap0 = document.createElement('canvas');
+        snap0.width = w; snap0.height = h;
+        snap0.getContext('2d').drawImage(simCanvas, 0, 0);
+        state.keyframeSnapshots.push({ strokeCount: 0, canvas: snap0 });
+
+        const total = state.strokeFlattenList.length;
+        for (let i = 0; i < total; i++) {
+            const st = state.strokeFlattenList[i];
+            renderCompleteStrokeStepOnCtx(sCtx, st);
+
+            if ((i + 1) % state.KEYFRAME_INTERVAL === 0 || i === total - 1) {
+                const snap = document.createElement('canvas');
+                snap.width = w; snap.height = h;
+                snap.getContext('2d').drawImage(simCanvas, 0, 0);
+                state.keyframeSnapshots.push({ strokeCount: i + 1, canvas: snap });
+            }
+            if (i % 80 === 79) await computeTick(token, '正在生成进度快照…', 0.97 + 0.03 * (i + 1) / total);
+        }
+    }
+
+    function renderCompleteStrokeStepOnCtx(targetCtx, stepObj) {
+        if (stepObj.type === 'PAINT_STROKE') {
+            const sw = stepObj.swatch || state.palette[stepObj.colorIdx];
+            const pts = stepObj.points;
+            for (let p = 0; p < pts.length - 1; p++) {
+                const prog = p / Math.max(1, pts.length - 1);
+                const pressure = 0.88 + Math.sin(prog * Math.PI) * 0.22;
+                drawSegmentOnCtx(targetCtx, pts[p], pts[p + 1], stepObj.brushId, sw, stepObj.alpha, pressure, stepObj.styleOverride);
+            }
+        }
+    }
+
+    // 拖动进度条时立即跳转到目标笔画进度 targetStrokeCount
+    function seekToStrokeCount(targetStrokeCount) {
+        const total = state.strokeFlattenList.length;
+        const clamped = Math.max(0, Math.min(total, targetStrokeCount));
+
+        let bestSnap = state.keyframeSnapshots[0];
+        for (let k = 0; k < state.keyframeSnapshots.length; k++) {
+            if (state.keyframeSnapshots[k].strokeCount <= clamped) {
+                bestSnap = state.keyframeSnapshots[k];
+            } else {
+                break;
+            }
+        }
+
+        ctx.clearRect(0, 0, paintCanvas.width, paintCanvas.height);
+        if (bestSnap && bestSnap.canvas) {
+            ctx.drawImage(bestSnap.canvas, 0, 0);
+        }
+
+        // 增量补齐从关键帧到 clamped 的剩余笔画
+        const startIdx = bestSnap ? bestSnap.strokeCount : 0;
+        for (let i = startIdx; i < clamped; i++) {
+            renderCompleteStrokeStepOnCtx(ctx, state.strokeFlattenList[i]);
+        }
+
+        // 同步画笔位置、颜色与 autoActionIdx 游标
+        if (clamped === 0) {
+            state.autoActionIdx = 0;
+        } else if (clamped >= total) {
+            state.autoActionIdx = state.autoActions.length;
+        } else {
+            const targetStep = state.strokeFlattenList[clamped - 1];
+            state.activeColorIdx = targetStep.colorIdx;
+            state.activeColor = state.palette[targetStep.colorIdx] || state.palette[0];
+            state.activeBrushId = targetStep.brushId || 'flat12';
+            updateBrushAndColorIndicators();
+
+            if (targetStep.points && targetStep.points.length) {
+                const lastPt = targetStep.points[targetStep.points.length - 1];
+                const rect = paintCanvas.getBoundingClientRect();
+                updateVirtualBrushPose(rect.left + lastPt.x, rect.top + lastPt.y, -10, 0.5);
+            }
+
+            // 将 autoActionIdx 对齐到该笔画之后
+            const idxInActions = state.autoActions.indexOf(targetStep);
+            if (idxInActions !== -1) {
+                state.autoActionIdx = idxInActions + 1;
+            }
+        }
+
+        updateVideoTimelineUI(clamped, total);
+    }
+
+    function onTimelineScrubInput(sliderVal) {
+        if (state.mode !== 'AUTO' || !state.strokeFlattenList.length) return;
+        state.isScrubbing = true;
+        const ratio = parseFloat(sliderVal) / 1000;
+        const targetStroke = Math.round(ratio * state.strokeFlattenList.length);
+        seekToStrokeCount(targetStroke);
+    }
+
+    function onTimelineScrubCommit(sliderVal) {
+        if (state.mode !== 'AUTO') return;
+        state.isScrubbing = false;
+        const ratio = parseFloat(sliderVal) / 1000;
+        const targetStroke = Math.round(ratio * state.strokeFlattenList.length);
+        seekToStrokeCount(targetStroke);
+        if (state.isAutoPlaying) {
+            state.lastFrameTime = performance.now();
+            dispatchNextAutoAction(performance.now());
+        }
+    }
+
+    function formatSecondsMMSS(sec) {
+        const m = Math.floor(sec / 60);
+        const s = Math.floor(sec % 60);
+        return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function updateVideoTimelineUI(doneStrokes, totalStrokes) {
+        const ratio = totalStrokes > 0 ? Math.min(1, doneStrokes / totalStrokes) : 0;
+        document.getElementById('timelineFillBar').style.width = `${(ratio * 100).toFixed(1)}%`;
+        if (!state.isScrubbing) {
+            document.getElementById('timelineScrubber').value = Math.round(ratio * 1000);
+        }
+
+        const estTotalSec = Math.max(15, Math.round(totalStrokes * 0.18));
+        const estCurSec = Math.round(ratio * estTotalSec);
+        document.getElementById('timelineStepCounter').textContent =
+            `${formatSecondsMMSS(estCurSec)} / ${formatSecondsMMSS(estTotalSec)}`;
+    }
+
+    /********************************************************************
+     * 11. 自动绘画执行引擎 (换笔/换色自动滑出顶部抽屉点按，回画布后自动收回)
+     ********************************************************************/
+    function easeInOutCubic(t) {
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    }
+
+    function spawnRipple(x, y, colorHex, size = 36) {
+        const ring = document.createElement('div');
+        ring.className = 'ripple-ring fixed rounded-full pointer-events-none z-50 border-2';
+        ring.style.width = `${size}px`;
+        ring.style.height = `${size}px`;
+        ring.style.left = `${x - size / 2}px`;
+        ring.style.top = `${y - size / 2}px`;
+        ring.style.borderColor = colorHex;
+        document.body.appendChild(ring);
+        setTimeout(() => ring.remove(), 550);
+    }
+
+    function getElementCenter(el) {
+        if (!el) return { x: window.innerWidth * 0.5, y: 48 };
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width * 0.5, y: r.top + r.height * 0.5 };
+    }
+
+    function updateVirtualBrushPose(screenX, screenY, angleDeg, pressure, now = performance.now()) {
+        const tremorX = Math.sin(now * 0.015) * 0.5;
+        const tremorY = Math.cos(now * 0.018) * 0.5;
+        const fx = screenX + tremorX;
+        const fy = screenY + tremorY;
+
+        state.brushX = fx;
+        state.brushY = fy;
+        state.brushPressure = pressure;
+
+        const scale = 1.04 - pressure * 0.07;
+        virtualBrush.style.transform = `translate3d(${fx.toFixed(1)}px, ${fy.toFixed(1)}px, 0)`;
+        brushInnerTransform.style.transform = `rotate(${angleDeg.toFixed(1)}deg) scale(${scale.toFixed(3)})`;
+
+        brushOutlineCursor.style.left = `${fx}px`;
+        brushOutlineCursor.style.top = `${fy}px`;
+        brushOutlineCursor.style.transform = `translate(-50%, -50%) rotate(${angleDeg.toFixed(1)}deg)`;
+    }
+
+    function dispatchNextAutoAction(now = performance.now()) {
+        if (state.autoActionIdx >= state.autoActions.length) {
+            finishAutoPainting();
+            return;
+        }
+
+        const act = state.autoActions[state.autoActionIdx];
+        const speedScale = 1 / state.speedMultiplier;
+        document.getElementById('timelineStageLabel').textContent = act.label || '正在自动绘制...';
+
+        if (act.type === 'PICK_BRUSH') {
+            setTopDrawerOpen(true);
+            const getter = () => getElementCenter(document.getElementById(`rack-brush-${act.brushId}`));
+            const target = getter();
+
+            state.subPhase = 'MOVING_TO_UI';
+            state.motion = {
+                startTime: now,
+                duration: Math.max(180, 460 * speedScale),
+                fromX: state.brushX,
+                fromY: state.brushY,
+                toX: target.x,
+                toY: target.y,
+                targetGetter: getter,
+                arcHeight: -36,
+                onArrive: () => {
+                    const latest = getter();
+                    state.subPhase = 'PRESSING_UI';
+                    state.motion.startTime = performance.now();
+                    state.motion.duration = Math.max(120, 280 * speedScale);
+                    state.activeBrushId = act.brushId;
+                    spawnRipple(latest.x, latest.y, '#fbbf24', 34);
+                    sfx.playRackClick();
+                    updateBrushAndColorIndicators();
+                    state.motion.onPressDone = () => {
+                        state.autoActionIdx++;
+                        dispatchNextAutoAction(performance.now());
+                    };
+                }
+            };
+            return;
+        }
+
+        if (act.type === 'DIP_COLOR') {
+            setTopDrawerOpen(true);
+            const getter = () => getElementCenter(document.getElementById(`swatch-well-${act.colorIdx}`));
+            const target = getter();
+            const sw = state.palette[act.colorIdx];
+
+            state.subPhase = 'MOVING_TO_UI';
+            state.motion = {
+                startTime: now,
+                duration: Math.max(180, 450 * speedScale),
+                fromX: state.brushX,
+                fromY: state.brushY,
+                toX: target.x,
+                toY: target.y,
+                targetGetter: getter,
+                arcHeight: -34,
+                onArrive: () => {
+                    const latest = getter();
+                    state.subPhase = 'PRESSING_UI';
+                    state.motion.startTime = performance.now();
+                    state.motion.duration = Math.max(130, 300 * speedScale);
+                    state.activeColorIdx = act.colorIdx;
+                    state.activeColor = sw;
+                    spawnRipple(latest.x, latest.y, sw.hex, 34);
+                    sfx.playDip();
+                    updateBrushAndColorIndicators();
+                    state.motion.onPressDone = () => {
+                        setTopDrawerOpen(false);
+                        state.autoActionIdx++;
+                        dispatchNextAutoAction(performance.now());
+                    };
+                }
+            };
+            return;
+        }
+
+        if (act.type === 'PAINT_STROKE') {
+            if (state.drawerOpen) setTopDrawerOpen(false);
+            const firstPt = act.points[0];
+            const rect = paintCanvas.getBoundingClientRect();
+            const tx = rect.left + firstPt.x;
+            const ty = rect.top + firstPt.y;
+            const dist = Math.hypot(tx - state.brushX, ty - state.brushY);
+
+            if (dist < 22) {
+                state.subPhase = 'DRAWING_STROKE';
+                state.strokeRunner = { action: act, ptFloatIdx: 0 };
+            } else {
+                state.subPhase = 'MOVING_TO_CANVAS_PT';
+                state.motion = {
+                    startTime: now,
+                    duration: Math.min(280, Math.max(55, dist * 0.6)) * speedScale,
+                    fromX: state.brushX,
+                    fromY: state.brushY,
+                    toX: tx,
+                    toY: ty,
+                    targetGetter: () => {
+                        const r = paintCanvas.getBoundingClientRect();
+                        return { x: r.left + firstPt.x, y: r.top + firstPt.y };
+                    },
+                    arcHeight: -Math.min(22, Math.max(5, dist * 0.1)),
+                    onArrive: () => {
+                        state.subPhase = 'DRAWING_STROKE';
+                        state.strokeRunner = { action: act, ptFloatIdx: 0 };
+                    }
+                };
+            }
+            return;
+        }
+    }
+
+    function mainLoop(now) {
+        requestAnimationFrame(mainLoop);
+        const dt = Math.min(50, Math.max(1, now - state.lastFrameTime));
+        state.lastFrameTime = now;
+
+        if (state.mode !== 'AUTO' || !state.isAutoPlaying || state.isScrubbing || state.subPhase === 'IDLE' || state.subPhase === 'FINISHED') {
+            return;
+        }
+
+        const m = state.motion;
+
+        if (state.subPhase === 'MOVING_TO_UI' || state.subPhase === 'MOVING_TO_CANVAS_PT') {
+            sfx.setBrushing(false);
+            if (m.targetGetter) {
+                const dyn = m.targetGetter();
+                m.toX = dyn.x;
+                m.toY = dyn.y;
+            }
+            const t = Math.min(1, (now - m.startTime) / m.duration);
+            const e = easeInOutCubic(t);
+            const lift = Math.sin(t * Math.PI) * m.arcHeight;
+            const cx = m.fromX + (m.toX - m.fromX) * e;
+            const cy = m.fromY + (m.toY - m.fromY) * e + lift;
+            updateVirtualBrushPose(cx, cy, -12 + Math.sin(t * Math.PI) * 8, 0.1, now);
+
+            if (t >= 1 && m.onArrive) {
+                const cb = m.onArrive;
+                m.onArrive = null;
+                cb();
+            }
+            return;
+        }
+
+        if (state.subPhase === 'PRESSING_UI') {
+            sfx.setBrushing(false);
+            if (m.targetGetter) {
+                const dyn = m.targetGetter();
+                m.toX = dyn.x;
+                m.toY = dyn.y;
+            }
+            const t = Math.min(1, (now - m.startTime) / m.duration);
+            const press = Math.sin(t * Math.PI);
+            updateVirtualBrushPose(
+                m.toX + Math.sin(t * Math.PI * 3) * 2.8,
+                m.toY + press * 2.2,
+                -10 + Math.sin(t * Math.PI * 2) * 8,
+                press,
+                now
+            );
+            if (t >= 1 && m.onPressDone) {
+                const cb = m.onPressDone;
+                m.onPressDone = null;
+                cb();
+            }
+            return;
+        }
+
+        if (state.subPhase === 'DRAWING_STROKE') {
+            const act = state.strokeRunner.action;
+            const pts = act.points;
+            const segIdx = Math.floor(state.strokeRunner.ptFloatIdx);
+            const segFrac = state.strokeRunner.ptFloatIdx - segIdx;
+
+            if (segIdx >= pts.length - 1) {
+                updateVideoTimelineUI(act.strokeIdx + 1, state.strokeFlattenList.length);
+                state.autoActionIdx++;
+                dispatchNextAutoAction(now);
+                return;
+            }
+
+            const pA = pts[segIdx];
+            const pB = pts[segIdx + 1];
+            const segDist = Math.max(1.5, Math.hypot(pB.x - pA.x, pB.y - pA.y));
+            const b = BRUSH_MAP[act.brushId] || BRUSH_PRESETS[1];
+
+            const prog = state.strokeRunner.ptFloatIdx / Math.max(1, pts.length - 1);
+            const pressure = 0.88 + Math.sin(prog * Math.PI) * 0.22;
+            const stepPx = b.speed * state.speedMultiplier * (0.75 + Math.sin(prog * Math.PI) * 0.45) * dt;
+            const nextFloat = Math.min(pts.length - 1, state.strokeRunner.ptFloatIdx + stepPx / segDist);
+
+            const curPos = {
+                x: pA.x + (pB.x - pA.x) * segFrac,
+                y: pA.y + (pB.y - pA.y) * segFrac
+            };
+
+            const nextSegIdx = Math.floor(nextFloat);
+            const nextSegFrac = nextFloat - nextSegIdx;
+            const sw = act.swatch || state.palette[act.colorIdx];
+            let endPos;
+
+            if (nextSegIdx > segIdx) {
+                drawSegmentOnCtx(ctx, curPos, pB, act.brushId, sw, act.alpha, pressure, act.styleOverride);
+                if (nextSegIdx < pts.length - 1) {
+                    const nA = pts[nextSegIdx];
+                    const nB = pts[nextSegIdx + 1];
+                    endPos = {
+                        x: nA.x + (nB.x - nA.x) * nextSegFrac,
+                        y: nA.y + (nB.y - nA.y) * nextSegFrac
+                    };
+                    drawSegmentOnCtx(ctx, nA, endPos, act.brushId, sw, act.alpha, pressure, act.styleOverride);
+                } else {
+                    endPos = pB;
+                }
+            } else {
+                endPos = {
+                    x: pA.x + (pB.x - pA.x) * nextSegFrac,
+                    y: pA.y + (pB.y - pA.y) * nextSegFrac
+                };
+                drawSegmentOnCtx(ctx, curPos, endPos, act.brushId, sw, act.alpha, pressure, act.styleOverride);
+            }
+
+            state.strokeRunner.ptFloatIdx = nextFloat;
+
+            const vx = endPos.x - curPos.x;
+            const vy = endPos.y - curPos.y;
+            const wristTilt = Math.max(-26, Math.min(26, vx * 1.4 - vy * 0.8));
+            state.brushAngle = state.brushAngle * 0.82 + wristTilt * 0.18;
+
+            const rect = paintCanvas.getBoundingClientRect();
+            updateVirtualBrushPose(rect.left + endPos.x, rect.top + endPos.y, state.brushAngle, pressure, now);
+            sfx.setBrushing(true, b.radius);
+            return;
+        }
+    }
+
+    function finishAutoPainting() {
+        state.subPhase = 'FINISHED';
+        state.isAutoPlaying = false;
+        sfx.setBrushing(false);
+        updateVideoTimelineUI(state.strokeFlattenList.length, state.strokeFlattenList.length);
+        document.getElementById('timelineStageLabel').textContent = '✨ 绘制完成！您可以随时拖动进度条回看任意阶段，或打开上方色盘自由添笔';
+        updatePlayPauseUI();
+    }
+
+    /********************************************************************
+     * 12. 手动选择颜色/画笔 + 五彩斑斓一次性调色盘交互
+     ********************************************************************/
+    function userSelectColorSwatch(idx) {
+        if (state.mode === 'AUTO' && state.isAutoPlaying) {
+            state.isAutoPlaying = false;
+            sfx.setBrushing(false);
+            updatePlayPauseUI();
+        }
+        state.activeColorIdx = idx;
+        state.activeColor = state.palette[idx];
+        if (state.activeBrushId === 'eraser') state.activeBrushId = 'flat12';
+        sfx.playDip();
+        updateBrushAndColorIndicators();
+    }
+
+    function userSelectBrush(brushId) {
+        if (state.mode === 'AUTO' && state.isAutoPlaying) {
+            state.isAutoPlaying = false;
+            sfx.setBrushing(false);
+            updatePlayPauseUI();
+        }
+        state.activeBrushId = brushId;
+        sfx.playRackClick();
+        updateBrushAndColorIndicators();
+    }
+
+    // 五彩斑斓一次性色盘弹窗逻辑
+    function hsvToRgb(h, s, v) {
+        s /= 100; v /= 100;
+        const c = v * s;
+        const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+        const m = v - c;
+        let r1 = 0, g1 = 0, b1 = 0;
+        if (h < 60) { r1 = c; g1 = x; }
+        else if (h < 120) { r1 = x; g1 = c; }
+        else if (h < 180) { g1 = c; b1 = x; }
+        else if (h < 240) { g1 = x; b1 = c; }
+        else if (h < 300) { r1 = x; b1 = c; }
+        else { r1 = c; b1 = x; }
+        const r = Math.round((r1 + m) * 255);
+        const g = Math.round((g1 + m) * 255);
+        const b = Math.round((b1 + m) * 255);
+        const hex = '#' + [r, g, b].map(val => val.toString(16).padStart(2, '0')).join('');
+        return { r, g, b, hex };
+    }
+
+    function renderOneTimeWheelCanvas() {
+        const svCanvas = document.getElementById('svPickerCanvas');
+        const svCtx = svCanvas.getContext('2d');
+        const w = svCanvas.width, h = svCanvas.height;
+
+        const pureHue = hsvToRgb(state.pickerH, 100, 100);
+        svCtx.fillStyle = pureHue.hex;
+        svCtx.fillRect(0, 0, w, h);
+
+        const whiteGrad = svCtx.createLinearGradient(0, 0, w, 0);
+        whiteGrad.addColorStop(0, 'rgba(255,255,255,1)');
+        whiteGrad.addColorStop(1, 'rgba(255,255,255,0)');
+        svCtx.fillStyle = whiteGrad;
+        svCtx.fillRect(0, 0, w, h);
+
+        const blackGrad = svCtx.createLinearGradient(0, 0, 0, h);
+        blackGrad.addColorStop(0, 'rgba(0,0,0,0)');
+        blackGrad.addColorStop(1, 'rgba(0,0,0,1)');
+        svCtx.fillStyle = blackGrad;
+        svCtx.fillRect(0, 0, w, h);
+
+        const cursor = document.getElementById('svCursor');
+        cursor.style.left = `${state.pickerS}%`;
+        cursor.style.top = `${100 - state.pickerV}%`;
+
+        const cur = hsvToRgb(state.pickerH, state.pickerS, state.pickerV);
+        document.getElementById('pickerPreviewSwatch').style.backgroundColor = cur.hex;
+        document.getElementById('pickerHexLabel').textContent = cur.hex.toUpperCase();
+    }
+
+    function openOneTimeWheelModal() {
+        renderOneTimeWheelCanvas();
+        const modal = document.getElementById('oneTimeWheelModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeOneTimeWheelModal() {
+        const modal = document.getElementById('oneTimeWheelModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    function onHueSliderChange(val) {
+        state.pickerH = parseFloat(val) || 0;
+        renderOneTimeWheelCanvas();
+    }
+
+    function confirmOneTimeColor() {
+        const { r, g, b, hex } = hsvToRgb(state.pickerH, state.pickerS, state.pickerV);
+        state.activeColorIdx = -1; // 一次性颜色，不占用也不覆盖3排色格
+        state.activeColor = {
+            index: -1,
+            name: `一次性·${hex.toUpperCase()}`,
+            r, g, b, hex
+        };
+        if (state.activeBrushId === 'eraser') state.activeBrushId = 'flat12';
+        sfx.playDip();
+        updateBrushAndColorIndicators();
+        closeOneTimeWheelModal();
+        setTopDrawerOpen(false);
+        showToast(`已蘸取一次性颜色 ${hex.toUpperCase()}，现在可在画布上直接作画`);
+    }
+
+    function setupOneTimeSVInteraction() {
+        const wrapper = document.getElementById('svBoxWrapper');
+        let dragging = false;
+        const pick = (cx, cy) => {
+            const rect = wrapper.getBoundingClientRect();
+            state.pickerS = Math.round(Math.max(0, Math.min(1, (cx - rect.left) / rect.width)) * 100);
+            state.pickerV = Math.round((1 - Math.max(0, Math.min(1, (cy - rect.top) / rect.height))) * 100);
+            renderOneTimeWheelCanvas();
+        };
+        wrapper.addEventListener('mousedown', e => { dragging = true; pick(e.clientX, e.clientY); });
+        window.addEventListener('mousemove', e => { if (dragging) pick(e.clientX, e.clientY); });
+        window.addEventListener('mouseup', () => { dragging = false; });
+        wrapper.addEventListener('touchstart', e => { dragging = true; pick(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+        wrapper.addEventListener('touchmove', e => { if (dragging) pick(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+        wrapper.addEventListener('touchend', () => { dragging = false; });
+    }
+
+    /********************************************************************
+     * 13. 画布交互 & 智能全屏控制 (区分自动播放全屏 vs 自由手绘全屏)
+     ********************************************************************/
+    function toggleSmartFullscreen() {
+        if (!document.fullscreenElement && !state.isFullscreen) {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            }
+            state.isFullscreen = true;
+            document.getElementById('fullscreenBtn').textContent = '✕ 退出全屏';
+            if (state.mode === 'AUTO') {
+                scheduleAutoHideBottomDockInFullscreen();
+                showToast('全屏播放模式：点击画布中间可唤出/隐藏视频进度条');
+            } else {
+                showToast('全屏手绘模式：可自由作画，点击顶部箭头可展开色盘');
+            }
+        } else {
+            if (document.fullscreenElement && document.exitFullscreen) {
+                document.exitFullscreen().catch(() => {});
+            }
+            state.isFullscreen = false;
+            clearTimeout(state.fsDockHideTimer);
+            document.getElementById('bottomVideoDock').style.transform = 'translateY(0%)';
+            document.getElementById('fullscreenBtn').textContent = '⛶ 全屏';
+        }
+        setTimeout(() => {
+            const w = state.sourceImageCanvas ? state.sourceImageCanvas.width : 760;
+            const h = state.sourceImageCanvas ? state.sourceImageCanvas.height : 500;
+            initCanvasSize(w, h, true);
+        }, 80);
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+        state.isFullscreen = !!document.fullscreenElement;
+        document.getElementById('fullscreenBtn').textContent = state.isFullscreen ? '✕ 退出全屏' : '⛶ 全屏';
+        if (!state.isFullscreen) {
+            clearTimeout(state.fsDockHideTimer);
+            document.getElementById('bottomVideoDock').style.transform = 'translateY(0%)';
+        }
+    });
+
+    function scheduleAutoHideBottomDockInFullscreen() {
+        clearTimeout(state.fsDockHideTimer);
+        if (!state.isFullscreen || state.mode !== 'AUTO') return;
+        state.fsDockHideTimer = setTimeout(() => {
+            if (state.isFullscreen && state.mode === 'AUTO' && !state.isScrubbing) {
+                document.getElementById('bottomVideoDock').style.transform = 'translateY(110%)';
+            }
+        }, 3200);
+    }
+
+    function flashFullscreenVideoOverlay() {
+        const dock = document.getElementById('bottomVideoDock');
+        const isHidden = dock.style.transform.includes('110%');
+        if (isHidden) {
+            dock.style.transform = 'translateY(0%)';
+            scheduleAutoHideBottomDockInFullscreen();
+        } else {
+            dock.style.transform = 'translateY(110%)';
+        }
+
+        const ind = document.getElementById('fullscreenCenterIndicator');
+        ind.style.opacity = '1';
+        setTimeout(() => { ind.style.opacity = '0'; }, 650);
+    }
+
+    function setupCanvasPointerInteractions() {
+        window.addEventListener('mousemove', (e) => {
+            if (state.mode === 'AUTO' && state.isAutoPlaying) return;
+
+            const rect = paintCanvas.getBoundingClientRect();
+            const inside = (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom);
+
+            if (state.isUserDragging && inside) {
+                const curPt = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+                if (state.lastUserPt) {
+                    drawSegmentOnCtx(ctx, state.lastUserPt, curPt, state.activeBrushId, state.activeColor, 0.92, 1.0);
+                    const vx = curPt.x - state.lastUserPt.x;
+                    const vy = curPt.y - state.lastUserPt.y;
+                    const tilt = Math.max(-24, Math.min(24, vx * 1.2 - vy * 0.6));
+                    state.brushAngle = state.brushAngle * 0.8 + tilt * 0.2;
+                }
+                state.lastUserPt = curPt;
+                updateVirtualBrushPose(e.clientX, e.clientY, state.brushAngle, 1.0);
+                sfx.setBrushing(true, BRUSH_MAP[state.activeBrushId].radius);
+            } else {
+                updateVirtualBrushPose(e.clientX, e.clientY, -10, 0.0);
+                sfx.setBrushing(false);
+            }
+        });
+
+        const onCanvasDown = (clientX, clientY) => {
+            // 规则：如果在全屏状态下且处于自动播放绘画模式，手不能在上面乱画，点击画布中间像视频播放器一样显示/隐藏进度条！
+            if (state.isFullscreen && state.mode === 'AUTO') {
+                flashFullscreenVideoOverlay();
+                return;
+            }
+
+            // 如果在非全屏下正在自动播放，点击画布先暂停接管并切换为可手绘
+            if (state.mode === 'AUTO' && state.isAutoPlaying) {
+                state.isAutoPlaying = false;
+                sfx.setBrushing(false);
+                updatePlayPauseUI();
+                showToast('已暂停自动播放，您现在可以在画布上自由手绘');
+            }
+
+            // 用户在画布上落笔开始画的时候，如果顶部悬浮面板开着，立即自动收回隐藏！
+            if (state.drawerOpen) {
+                setTopDrawerOpen(false);
+            }
+
+            const rect = paintCanvas.getBoundingClientRect();
+            const cx = clientX - rect.left;
+            const cy = clientY - rect.top;
+            state.isUserDragging = true;
+            state.lastUserPt = { x: cx, y: cy };
+            drawSingleDab(ctx, cx, cy, 0, state.activeBrushId, state.activeColor, 0.92, 1.0);
+            updateVirtualBrushPose(clientX, clientY, state.brushAngle, 1.0);
+            sfx.setBrushing(true, BRUSH_MAP[state.activeBrushId].radius);
+        };
+
+        paintCanvas.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            onCanvasDown(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (state.isUserDragging) {
+                state.isUserDragging = false;
+                state.lastUserPt = null;
+                sfx.setBrushing(false);
+            }
+        });
+
+        paintCanvas.addEventListener('touchstart', (e) => {
+            const t = e.touches[0];
+            onCanvasDown(t.clientX, t.clientY);
+        }, { passive: true });
+
+        paintCanvas.addEventListener('touchmove', (e) => {
+            if (!state.isUserDragging) return;
+            if (state.isFullscreen && state.mode === 'AUTO') return;
+            const t = e.touches[0];
+            const rect = paintCanvas.getBoundingClientRect();
+            const curPt = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+            if (state.lastUserPt) {
+                drawSegmentOnCtx(ctx, state.lastUserPt, curPt, state.activeBrushId, state.activeColor, 0.92, 1.0);
+            }
+            state.lastUserPt = curPt;
+            updateVirtualBrushPose(t.clientX, t.clientY, -8, 1.0);
+        }, { passive: true });
+
+        window.addEventListener('touchend', () => {
+            state.isUserDragging = false;
+            state.lastUserPt = null;
+            sfx.setBrushing(false);
+        });
+    }
+
+    /********************************************************************
+     * 14. 音效合成器、内置示例画作与初始化
+     ********************************************************************/
+    class SoundEffects {
+        constructor() { this.ctx = null; this.enabled = false; this.noiseGain = null; this.filter = null; }
+        init() {
+            if (this.ctx) return;
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioCtx();
+            const bufferSize = this.ctx.sampleRate * 2;
+            const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            let b0 = 0, b1 = 0, b2 = 0;
+            for (let i = 0; i < bufferSize; i++) {
+                const white = Math.random() * 2 - 1;
+                b0 = 0.997 * b0 + white * 0.099;
+                b1 = 0.963 * b1 + white * 0.296;
+                b2 = 0.570 * b2 + white * 1.052;
+                data[i] = (b0 + b1 + b2 + white * 0.18) * 0.04;
+            }
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buffer; noise.loop = true;
+            this.filter = this.ctx.createBiquadFilter();
+            this.filter.type = 'bandpass'; this.filter.frequency.value = 800;
+            this.noiseGain = this.ctx.createGain(); this.noiseGain.gain.value = 0;
+            noise.connect(this.filter); this.filter.connect(this.noiseGain); this.noiseGain.connect(this.ctx.destination);
+            noise.start(0);
+        }
+        toggle() {
+            this.init();
+            if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+            this.enabled = !this.enabled;
+            if (!this.enabled && this.noiseGain) this.noiseGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.04);
+            return this.enabled;
+        }
+        setBrushing(active, brushRadius = 12) {
+            if (!this.enabled || !this.ctx || !this.noiseGain) return;
+            const now = this.ctx.currentTime;
+            if (active) {
+                const freq = Math.max(400, 1300 - brushRadius * 20) + (Math.random() - 0.5) * 140;
+                this.filter.frequency.setTargetAtTime(freq, now, 0.04);
+                this.noiseGain.gain.setTargetAtTime(0.24, now, 0.03);
+            } else {
+                this.noiseGain.gain.setTargetAtTime(0, now, 0.05);
+            }
+        }
+        playDip() {
+            if (!this.enabled || !this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(340, now);
+            osc.frequency.exponentialRampToValueAtTime(640, now + 0.09);
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(now); osc.stop(now + 0.11);
+        }
+        playRackClick() {
+            if (!this.enabled || !this.ctx) return;
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(520, now);
+            osc.frequency.exponentialRampToValueAtTime(220, now + 0.07);
+            gain.gain.setValueAtTime(0.07, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(now); osc.stop(now + 0.09);
+        }
+    }
+    const sfx = new SoundEffects();
+
+    function toggleAudio() {
+        const on = sfx.toggle();
+        document.getElementById('soundIcon').textContent = on ? '🔊' : '🔇';
+        showToast(on ? '已开启画笔声效' : '🔇 已静音');
+    }
+
+    function createPresetArtwork(type) {
+        const off = document.createElement('canvas');
+        const w = 760, h = 500;
+        off.width = w; off.height = h;
+        const c = off.getContext('2d');
+
+        if (type === 'sunflower') {
+            const bg = c.createLinearGradient(0, 0, 0, h);
+            bg.addColorStop(0, '#93c5fd'); bg.addColorStop(0.66, '#3b82f6');
+            bg.addColorStop(0.66, '#fcd34d'); bg.addColorStop(1, '#d97706');
+            c.fillStyle = bg; c.fillRect(0, 0, w, h);
+
+            c.fillStyle = '#f8fafc';
+            c.beginPath(); c.ellipse(w * 0.5, h * 0.67, 88, 95, 0, 0, Math.PI * 2); c.fill();
+
+            [[w * 0.34, h * 0.45, -0.4, '#15803d'], [w * 0.66, h * 0.46, 0.4, '#166534'], [w * 0.40, h * 0.30, -0.2, '#22c55e'], [w * 0.60, h * 0.30, 0.25, '#4ade80']].forEach(([lx, ly, rot, col]) => {
+                c.save(); c.translate(lx, ly); c.rotate(rot); c.fillStyle = col;
+                c.beginPath(); c.ellipse(0, 0, 56, 26, 0, 0, Math.PI * 2); c.fill(); c.restore();
+            });
+
+            [{ x: w * 0.5, y: h * 0.25, r: 74 }, { x: w * 0.33, y: h * 0.37, r: 58 }, { x: w * 0.67, y: h * 0.38, r: 60 }].forEach(f => {
+                for (let i = 0; i < 16; i++) {
+                    const ang = (i / 16) * Math.PI * 2;
+                    c.save(); c.translate(f.x + Math.cos(ang) * f.r * 0.64, f.y + Math.sin(ang) * f.r * 0.64); c.rotate(ang);
+                    c.fillStyle = i % 2 === 0 ? '#fde047' : '#f59e0b';
+                    c.beginPath(); c.ellipse(0, 0, f.r * 0.42, f.r * 0.18, 0, 0, Math.PI * 2); c.fill(); c.restore();
+                }
+                c.fillStyle = '#ea580c'; c.beginPath(); c.arc(f.x, f.y, f.r * 0.36, 0, Math.PI * 2); c.fill();
+                c.fillStyle = '#451a03'; c.beginPath(); c.arc(f.x, f.y, f.r * 0.24, 0, Math.PI * 2); c.fill();
+            });
+
+            [[w * 0.26, h * 0.78, 36], [w * 0.73, h * 0.79, 38]].forEach(([ax, ay, ar]) => {
+                c.fillStyle = '#ef4444'; c.beginPath(); c.arc(ax, ay, ar, 0, Math.PI * 2); c.fill();
+                c.fillStyle = '#fda4af'; c.beginPath(); c.arc(ax - ar * 0.28, ay - ar * 0.28, ar * 0.32, 0, Math.PI * 2); c.fill();
+            });
+        } else if (type === 'cottage') {
+            c.fillStyle = '#7dd3fc'; c.fillRect(0, 0, w, h * 0.55);
+            c.fillStyle = '#2563eb'; c.fillRect(0, 0, w, h * 0.22);
+            c.fillStyle = '#ffffff';
+            [[190, 105, 55], [250, 95, 65], [580, 100, 60]].forEach(([cx, cy, cr]) => {
+                c.beginPath(); c.arc(cx, cy, cr, 0, Math.PI * 2); c.fill();
+            });
+            [[130, 250, 75, '#fde047'], [220, 240, 82, '#f59e0b'], [620, 245, 85, '#ea580c']].forEach(([tx, ty, tr, col]) => {
+                c.fillStyle = col; c.beginPath(); c.arc(tx, ty, tr, 0, Math.PI * 2); c.fill();
+            });
+            c.fillStyle = '#bef264'; c.fillRect(0, h * 0.52, w, h * 0.48);
+            c.fillStyle = '#22c55e'; c.fillRect(0, h * 0.65, w, h * 0.35);
+            const hx = w * 0.36, hy = h * 0.40;
+            c.fillStyle = '#fef3c7'; c.fillRect(hx, hy + 45, 150, 95);
+            c.fillStyle = '#ef4444';
+            c.beginPath(); c.moveTo(hx - 18, hy + 48); c.lineTo(hx + 75, hy - 15); c.lineTo(hx + 168, hy + 48); c.closePath(); c.fill();
+            c.fillStyle = '#451a03'; c.fillRect(hx + 35, hy + 80, 30, 60);
+        } else {
+            c.fillStyle = '#fde047'; c.fillRect(0, 0, w, h * 0.56);
+            c.fillStyle = '#f59e0b'; c.fillRect(0, 0, w, h * 0.36);
+            c.fillStyle = '#ef4444'; c.fillRect(0, 0, w, h * 0.18);
+            c.fillStyle = '#ffffff'; c.beginPath(); c.arc(w * 0.55, h * 0.38, 56, 0, Math.PI * 2); c.fill();
+            c.fillStyle = '#38bdf8'; c.fillRect(0, h * 0.56, w, h * 0.20);
+            c.fillStyle = '#1d4ed8'; c.fillRect(0, h * 0.76, w, h * 0.24);
+            const bx = w * 0.35, by = h * 0.68;
+            c.fillStyle = '#451a03';
+            c.beginPath(); c.moveTo(bx - 65, by); c.lineTo(bx + 65, by); c.lineTo(bx + 45, by + 28); c.lineTo(bx - 45, by + 28); c.closePath(); c.fill();
+            c.fillStyle = '#ffffff';
+            c.beginPath(); c.moveTo(bx, by - 145); c.lineTo(bx + 55, by - 10); c.lineTo(bx - 45, by - 10); c.closePath(); c.fill();
+        }
+        return off;
+    }
+
+    function initCanvasSize(imgW = 760, imgH = 500, preserveContent = false) {
+        // 画布区按底部时间条面板的实测高度留空：面板是 fixed 浮层，旧的固定 118px
+        // 预留不够（尤其手机上换行后），画布底部会被面板盖住。改为实测 + 舞台
+        // 内边距，让画布在面板上方的区域内居中，顶上也给抽屉把手留 34px。
+        const dock = document.getElementById('bottomVideoDock');
+        const dockH = dock ? dock.offsetHeight : 118;
+        const stage = document.getElementById('studioStage');
+        stage.style.paddingTop = '34px';
+        stage.style.paddingBottom = (dockH + 8) + 'px';
+        const availW = Math.max(260, window.innerWidth - 32);
+        const availH = Math.max(200, window.innerHeight - 34 - dockH - 8);
+        const aspect = imgW / imgH;
+
+        let w = Math.min(960, availW);
+        let h = Math.round(w / aspect);
+        if (h > availH) {
+            h = availH;
+            w = Math.round(h * aspect);
+        }
+
+        let backup = null;
+        if (preserveContent && paintCanvas.width > 0) {
+            backup = document.createElement('canvas');
+            backup.width = paintCanvas.width; backup.height = paintCanvas.height;
+            backup.getContext('2d').drawImage(paintCanvas, 0, 0);
+        }
+
+        paintCanvas.width = w; paintCanvas.height = h;
+        referenceCanvas.width = w; referenceCanvas.height = h;
+        paperGrainCanvas.width = w; paperGrainCanvas.height = h;
+
+        ctx.fillStyle = '#faf6ed';
+        ctx.fillRect(0, 0, w, h);
+
+        const imgData = grainCtx.createImageData(w, h);
+        const d = imgData.data;
+        for (let i = 0; i < d.length; i += 4) {
+            const v = 245 + (Math.random() - 0.5) * 14;
+            d[i] = v; d[i + 1] = v - 2; d[i + 2] = v - 5; d[i + 3] = 255;
+        }
+        grainCtx.putImageData(imgData, 0, 0);
+
+        if (backup) ctx.drawImage(backup, 0, 0, w, h);
+        if (state.sourceImageCanvas) refCtx.drawImage(state.sourceImageCanvas, 0, 0, w, h);
+    }
+
+    function enterFreehandBlankCanvas() {
+        state.mode = 'FREEHAND';
+        state.isAutoPlaying = false;
+        state.subPhase = 'IDLE';
+        state.sourceImageCanvas = null;
+        sfx.setBrushing(false);
+
+        initCanvasSize(760, 500, false);
+        const slots = calculateResponsivePaletteColumns();
+        state.palette = generateDefaultPaletteForSlots(slots);
+        state.activeColorIdx = 0;
+        state.activeColor = state.palette[0];
+
+        renderPaletteGrid3Rows();
+        renderBrushGrid3Rows();
+        updateBrushAndColorIndicators();
+
+        document.getElementById('videoPlayBtn').disabled = true;
+        document.getElementById('timelineScrubber').disabled = true;
+        document.getElementById('timelineFillBar').style.width = '0%';
+        document.getElementById('timelineScrubber').value = 0;
+        document.getElementById('timelineStageLabel').textContent = '自由手绘模式 · 点击上方箭头选色换笔，或选择图片开始自动手绘';
+        document.getElementById('timelineStepCounter').textContent = '00:00 / 00:00';
+        updatePlayPauseUI();
+    }
+
+    async function startAutoPaintingFromCanvas(sourceCanvas, msg = '已生成四轮单色手绘路径，开始作画') {
+        const token = ++buildToken;
+        // 先停下旧的播放，再亮起“正在计算”浮层：浮层先画出来，计算分片进行，
+        // 过程中界面不卡死、进度条会走、取消按钮能点到。
+        state.isAutoPlaying = false;
+        state.subPhase = 'IDLE';
+        sfx.setBrushing(false);
+        showComputeOverlay();
+        updateComputeProgress('正在分析图片…', 0.02);
+        await new Promise(r => setTimeout(r, 30));
+        if (token !== buildToken) return;
+        state.sourceImageCanvas = sourceCanvas;
+        initCanvasSize(sourceCanvas.width, sourceCanvas.height, false);
+        const prevStrokeCount = state.strokeFlattenList.length;
+        try {
+            const plan = await buildAutoPaintingTimeline(sourceCanvas, token);
+            if (token !== buildToken) return;
+            state.palette = plan.palette;
+            state.autoActions = plan.autoActions;
+            state.strokeFlattenList = plan.strokeFlattenList;
+            state.autoActionIdx = 0;
+
+            state.activeColorIdx = 0;
+            state.activeColor = state.palette[0];
+            state.activeBrushId = 'flat16';
+
+            renderPaletteGrid3Rows();
+            renderBrushGrid3Rows();
+            updateBrushAndColorIndicators();
+
+            // 预构建可拖动进度条的关键帧快照
+            await buildTimelineKeyframeSnapshots(token);
+            if (token !== buildToken) return;
+
+            state.mode = 'AUTO';
+            state.isAutoPlaying = true;
+            document.getElementById('videoPlayBtn').disabled = false;
+            document.getElementById('timelineScrubber').disabled = false;
+            updateVideoTimelineUI(0, state.strokeFlattenList.length);
+            updatePlayPauseUI();
+
+            showToast(msg);
+            state.lastFrameTime = performance.now();
+            dispatchNextAutoAction(performance.now());
+        } catch (e) {
+            if (e && e.cancelled) {
+                // 取消或被新任务取代：画布尺寸没变就把旧画恢复出来
+                if (prevStrokeCount > 0 && state.keyframeSnapshots.length > 0 &&
+                    state.keyframeSnapshots[0].canvas.width === paintCanvas.width) {
+                    seekToStrokeCount(state.strokeFlattenList.length);
+                }
+                if (computeCancelled) showToast('已取消计算');
+            } else {
+                console.error(e);
+                showToast('生成失败，请重试');
+            }
+        } finally {
+            if (token === buildToken) hideComputeOverlay();
+        }
+    }
+
+    // 计算浮层的取消按钮：只立 flag，正在算的分片在下一个让出点停下
+    document.getElementById('computeCancelBtn').addEventListener('click', () => {
+        computeCancelled = true;
+        const btn = document.getElementById('computeCancelBtn');
+        btn.textContent = '正在取消…';
+        btn.disabled = true;
+    });
+
+    function startAutoPaintPreset(presetName) {
+        const art = createPresetArtwork(presetName);
+        startAutoPaintingFromCanvas(art, '已拆解色系并规划四轮单色手绘路径，开始作画');
+    }
+
+    function toggleAutoPlayPause() {
+        if (state.mode !== 'AUTO') return;
+        if (state.subPhase === 'FINISHED') {
+            seekToStrokeCount(0);
+            state.isAutoPlaying = true;
+            updatePlayPauseUI();
+            state.lastFrameTime = performance.now();
+            dispatchNextAutoAction(performance.now());
+            return;
+        }
+        state.isAutoPlaying = !state.isAutoPlaying;
+        if (!state.isAutoPlaying) {
+            sfx.setBrushing(false);
+        } else {
+            state.lastFrameTime = performance.now();
+            if (state.subPhase === 'IDLE') dispatchNextAutoAction(performance.now());
+        }
+        updatePlayPauseUI();
+    }
+
+    function updatePlayPauseUI() {
+        const icon = document.getElementById('playPauseIcon');
+        const fsIcon = document.getElementById('fsCenterIcon');
+        const pausePath = '<path d="M6 5h4v14H6V5zm8 0h4v14h-4V5z"/>';
+        const playPath = '<path d="M8 5v14l11-7z"/>';
+        const html = (state.mode === 'AUTO' && state.isAutoPlaying) ? pausePath : playPath;
+        if (icon) icon.innerHTML = html;
+        if (fsIcon) fsIcon.innerHTML = html;
+    }
+
+    function updateSpeedTier(val) {
+        state.speedMultiplier = parseFloat(val) || 1.0;
+        document.querySelectorAll('.sheet-speed-row').forEach(r => r.classList.toggle('sheet-row-active', parseFloat(r.dataset.speed) === state.speedMultiplier));
+        showToast(`绘画速度已切换为 ${val}x`);
+    }
+
+    function onArtStyleChange(styleVal) {
+        state.artStyle = styleVal;
+        document.querySelectorAll('.sheet-style-row').forEach(r => r.classList.toggle('sheet-row-active', r.dataset.style === styleVal));
+        setControlSheetOpen(false);
+        const styleNames = {
+            masterpiece: '🏆 原画级别',
+            watercolor: '💧 水彩画风 (水痕通透叠色)',
+            pixel: '👾 像素化级别 (点阵方块手绘)',
+            impasto: '🌻 厚涂油画 (立体猪鬃肌理)',
+            pencil: '✏️ 彩铅手绘 (颗粒交叉排线)',
+            ink: '🏔️ 国画设色 (水墨勾骨赋彩)'
+        };
+        if (state.artStyle === 'ink') {
+            setBrushSkinStyle('chinese');
+        } else if (state.artStyle === 'impasto') {
+            setBrushSkinStyle('western_oil');
+        } else if (state.artStyle === 'watercolor') {
+            setBrushSkinStyle('western_royal');
+        }
+        if (state.sourceImageCanvas) {
+            startAutoPaintingFromCanvas(state.sourceImageCanvas, `已切换为「${styleNames[styleVal]}」，重新规划四阶段深绘路径`);
+        } else {
+            showToast(`已切换画风为「${styleNames[styleVal]}」，选择图片即可体验`);
+        }
+    }
+
+    function showReference(show) {
+        if (!state.sourceImageCanvas) {
+            if (show) showToast('当前为自由画布，选图后可按住对比原图');
+            return;
+        }
+        referenceCanvas.style.opacity = show ? '1' : '0';
+    }
+
+    document.getElementById('imageUploadInput').addEventListener('change', (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        setControlSheetOpen(false);
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const img = new Image();
+            img.onload = () => {
+                const off = document.createElement('canvas');
+                const maxDim = 860;
+                let w = img.width, h = img.height;
+                if (w > maxDim || h > maxDim) {
+                    if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+                    else { w = Math.round((w * maxDim) / h); h = maxDim; }
+                }
+                off.width = w; off.height = h;
+                off.getContext('2d').drawImage(img, 0, 0, w, h);
+                startAutoPaintingFromCanvas(off, '图片已按色系由浅入深拆解，开始手腕弧线涂抹');
+            };
+            img.src = ev.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+            const prevSlots = state.paletteSlotCount;
+            const newSlots = calculateResponsivePaletteColumns();
+            if (state.mode === 'FREEHAND' && newSlots !== prevSlots) {
+                state.palette = generateDefaultPaletteForSlots(newSlots);
+            }
+            renderPaletteGrid3Rows();
+            const w = state.sourceImageCanvas ? state.sourceImageCanvas.width : 760;
+            const h = state.sourceImageCanvas ? state.sourceImageCanvas.height : 500;
+            initCanvasSize(w, h, true);
+        }, 120);
+    });
+
+    let toastTimer = null;
+    function showToast(msg) {
+        const el = document.getElementById('toastMsg');
+        el.textContent = msg;
+        el.style.opacity = '1';
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { el.style.opacity = '0'; }, 2600);
+    }
+
+    /********************************************************************
+     * 15. 保存画布 + 键盘快捷键
+     ********************************************************************/
+    function savePaintingAsPng() {
+        // 合成一张“所见即所得”的图：画布 + 纸纹（与界面上 multiply 25% 的叠加一致）
+        const out = document.createElement('canvas');
+        out.width = paintCanvas.width;
+        out.height = paintCanvas.height;
+        const octx = out.getContext('2d');
+        octx.drawImage(paintCanvas, 0, 0);
+        octx.save();
+        octx.globalCompositeOperation = 'multiply';
+        octx.globalAlpha = 0.25;
+        octx.drawImage(paperGrainCanvas, 0, 0);
+        octx.restore();
+
+        const stamp = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const name = `沧海画板-${stamp.getFullYear()}${pad(stamp.getMonth() + 1)}${pad(stamp.getDate())}-${pad(stamp.getHours())}${pad(stamp.getMinutes())}${pad(stamp.getSeconds())}.png`;
+        const dataUrl = out.toDataURL('image/png');
+        if (window.parent && window.parent !== window) {
+            // 沧海下载接口：安卓层写到设备下载目录
+            window.parent.postMessage({ type: 'download', filename: name, dataUrl }, '*');
+        } else {
+            // 独立打开时浏览器下载兜底
+            const a = document.createElement('a');
+            a.href = dataUrl;
+            a.download = name;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+        }
+        showToast('已保存画布图片');
+    }
+
+    // E 键切换橡皮擦时记住切走前的画笔；R 键按住看原图的状态
+    let prevBrushBeforeEraser = 'flat12';
+    let refPreviewHeld = false;
+
+    function isHelpOpen() {
+        const m = document.getElementById('shortcutHelpModal');
+        return !!(m && !m.classList.contains('hidden'));
+    }
+    function isWheelOpen() {
+        const m = document.getElementById('oneTimeWheelModal');
+        return !!(m && !m.classList.contains('hidden'));
+    }
+    function toggleShortcutHelp(open) {
+        const m = document.getElementById('shortcutHelpModal');
+        if (open === undefined) open = !isHelpOpen();
+        m.classList.toggle('hidden', !open);
+        m.classList.toggle('flex', open);
+    }
+
+    // 当前播放位置（笔画数）：与进度条同一来源——滑块值 × 总笔画数
+    function currentStrokeCount() {
+        const total = state.strokeFlattenList.length;
+        if (!total) return 0;
+        const v = parseFloat(document.getElementById('timelineScrubber').value) || 0;
+        return Math.round((v / 1000) * total);
+    }
+
+    // 键盘跳转：与鼠标拖进度条同一语义（跳转后播着就续播）。
+    // 注意：不要像拖动那样全程挂 isScrubbing——跳转是同步完成的，
+    // 挂上它反而会压住 updateVideoTimelineUI 对滑块的同步，进度条看起来就没动。
+    function keyboardSeekToStroke(target) {
+        if (state.mode !== 'AUTO' || !state.strokeFlattenList.length) return;
+        const total = state.strokeFlattenList.length;
+        target = Math.max(0, Math.min(total, Math.round(target)));
+        const wasPlaying = state.isAutoPlaying;
+        seekToStrokeCount(target);
+        if (wasPlaying) {
+            state.lastFrameTime = performance.now();
+            dispatchNextAutoAction(performance.now());
+        }
+    }
+
+    const SPEED_TIERS = ['0.6', '1.0', '2.2', '5.0'];
+    function cycleSpeedTier(dir) {
+        const vals = SPEED_TIERS.map(Number);
+        let idx = vals.indexOf(state.speedMultiplier);
+        if (idx === -1) {
+            let best = 1, bd = 1e9;
+            vals.forEach((v, i) => { const d = Math.abs(v - state.speedMultiplier); if (d < bd) { bd = d; best = i; } });
+            idx = best;
+        }
+        idx = Math.max(0, Math.min(vals.length - 1, idx + dir));
+        updateSpeedTier(SPEED_TIERS[idx]);
+    }
+
+    function cycleBrush(dir) {
+        // 没上传自定义笔头时跳过“自定义”格，避免循环选中时冷不丁弹出文件选择框
+        const ids = BRUSH_PRESETS.map(b => b.id).filter(id => id !== 'custom' || state.customStampCanvas);
+        if (!ids.length) return;
+        let idx = ids.indexOf(state.activeBrushId);
+        if (idx === -1) idx = 0;
+        idx = (idx + dir + ids.length) % ids.length;
+        userSelectBrush(ids[idx]);
+    }
+
+    function cycleColor(dir) {
+        const n = Math.min(state.paletteSlotCount, state.palette.length);
+        if (!n) return;
+        let idx = state.activeColorIdx;
+        if (idx < 0 || idx >= n) idx = dir > 0 ? -1 : 0;
+        idx = (idx + dir + n) % n;
+        userSelectColorSwatch(idx);
+    }
+
+    function adjustBrushSize(delta) {
+        const slider = document.getElementById('brushSizeSlider');
+        const next = Math.max(2, Math.min(90, (parseFloat(slider.value) || 18) + delta));
+        slider.value = next;
+        onBrushSizeSliderChange(next);
+    }
+
+    function toggleEraser() {
+        if (state.activeBrushId !== 'eraser') {
+            prevBrushBeforeEraser = state.activeBrushId;
+            userSelectBrush('eraser');
+        } else {
+            userSelectBrush(BRUSH_MAP[prevBrushBeforeEraser] ? prevBrushBeforeEraser : 'flat12');
+        }
+    }
+
+    function isControlSheetOpen() {
+        return document.getElementById('bottomVideoDock').classList.contains('sheet-open');
+    }
+
+    let sheetSuppressClick = false;
+
+    function setControlSheetOpen(open) {
+        document.getElementById('bottomVideoDock').classList.toggle('sheet-open', open);
+        document.getElementById('sheetChevron').textContent = open ? '⌄' : '⌃';
+        if (!open) document.querySelectorAll('.sheet-nav-btn').forEach(b => b.classList.remove('sheet-nav-active'));
+    }
+
+    function sheetLabelClick(secId, btn) {
+        if (sheetSuppressClick) { sheetSuppressClick = false; return; }
+        document.querySelectorAll('.sheet-nav-btn').forEach(b => b.classList.toggle('sheet-nav-active', b === btn));
+        setControlSheetOpen(true);
+        setTimeout(() => {
+            const el = document.getElementById(secId);
+            if (el) el.scrollIntoView({ block: 'start' });
+        }, 60);
+    }
+
+    function setupSheetDrag() {
+        let drag = null;
+        [['sheetHandle', false], ['sheetHead', true]].forEach(([id, isHead]) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('pointerdown', (e) => {
+                if (isHead && e.target.closest('.sheet-close')) return;
+                drag = { y0: e.clientY, moved: false };
+                try { el.setPointerCapture(e.pointerId); } catch (err) {}
+            });
+            el.addEventListener('pointermove', (e) => {
+                if (!drag) return;
+                if (Math.abs(e.clientY - drag.y0) > 8) drag.moved = true;
+            });
+            const finish = (e) => {
+                if (!drag) return;
+                const dy = e.clientY - drag.y0, wasDrag = drag.moved;
+                drag = null;
+                if (wasDrag) {
+                    sheetSuppressClick = true;
+                    if (dy < -40) setControlSheetOpen(true);
+                    else if (dy > 40) setControlSheetOpen(false);
+                }
+            };
+            el.addEventListener('pointerup', finish);
+            el.addEventListener('pointercancel', () => { drag = null; });
+            el.addEventListener('click', (e) => {
+                if (sheetSuppressClick) { sheetSuppressClick = false; return; }
+                if (isHead && e.target.closest('.sheet-close')) return;
+                if (!isHead && e.target.closest('.sheet-nav-btn')) return;
+                setControlSheetOpen(!isControlSheetOpen());
+            });
+        });
+    }
+
+    function setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // 帮助浮层开着：只响应关闭键
+            if (isHelpOpen()) {
+                if (e.key === 'Escape' || e.key === 'h' || e.key === 'H' || e.key === '?') {
+                    e.preventDefault();
+                    toggleShortcutHelp(false);
+                }
+                return;
+            }
+            // 一次性色盘开着：Esc 关闭、Enter 确认，其余交还控件
+            if (isWheelOpen()) {
+                if (e.key === 'Escape') { e.preventDefault(); closeOneTimeWheelModal(); }
+                else if (e.key === 'Enter') { e.preventDefault(); confirmOneTimeColor(); }
+                return;
+            }
+
+            // Ctrl / Cmd 组合键（不论焦点在哪都接管，避免浏览器抢走 Ctrl+S / Ctrl+O）
+            if (e.ctrlKey || e.metaKey) {
+                const k = e.key.toLowerCase();
+                if (k === 's') { e.preventDefault(); savePaintingAsPng(); }
+                else if (k === 'o') { e.preventDefault(); document.getElementById('imageUploadInput').click(); }
+                return;
+            }
+            if (e.altKey) return;
+
+            // 焦点在表单控件上：方向键/空格归控件本身（滑块原生拖动、按钮原生点击）
+            const target = e.target;
+            const tag = target && target.tagName ? target.tagName.toUpperCase() : '';
+            if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || (target && target.isContentEditable)) return;
+            if (tag === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
+
+            const total = state.strokeFlattenList.length;
+            switch (e.key) {
+                case ' ':
+                    if (e.repeat) return;
+                    e.preventDefault();
+                    toggleAutoPlayPause();
+                    break;
+                case 'ArrowLeft':
+                    if (state.mode !== 'AUTO' || !total) return;
+                    e.preventDefault();
+                    keyboardSeekToStroke(currentStrokeCount() + (e.shiftKey ? -0.2 : -0.05) * total);
+                    break;
+                case 'ArrowRight':
+                    if (state.mode !== 'AUTO' || !total) return;
+                    e.preventDefault();
+                    keyboardSeekToStroke(currentStrokeCount() + (e.shiftKey ? 0.2 : 0.05) * total);
+                    break;
+                case 'Home':
+                    if (state.mode !== 'AUTO' || !total) return;
+                    e.preventDefault();
+                    keyboardSeekToStroke(0);
+                    break;
+                case 'End':
+                    if (state.mode !== 'AUTO' || !total) return;
+                    e.preventDefault();
+                    keyboardSeekToStroke(total);
+                    break;
+                case 'ArrowUp':
+                    e.preventDefault();
+                    cycleSpeedTier(1);
+                    break;
+                case 'ArrowDown':
+                    e.preventDefault();
+                    cycleSpeedTier(-1);
+                    break;
+                case 'Escape':
+                    if (isControlSheetOpen()) setControlSheetOpen(false);
+                    else if (state.drawerOpen) setTopDrawerOpen(false);
+                    break;
+                case 'f': case 'F':
+                    if (e.repeat) return;
+                    toggleSmartFullscreen();
+                    break;
+                case 'p': case 'P':
+                    if (e.repeat) return;
+                    toggleTopDrawer();
+                    break;
+                case 'h': case 'H': case '?':
+                    if (e.repeat) return;
+                    toggleShortcutHelp(true);
+                    break;
+                case 'm': case 'M':
+                    if (e.repeat) return;
+                    toggleAudio();
+                    break;
+                case 'n': case 'N':
+                    if (e.repeat) return;
+                    enterFreehandBlankCanvas();
+                    break;
+                case 'e': case 'E':
+                    if (e.repeat) return;
+                    toggleEraser();
+                    break;
+                case 'r': case 'R':
+                    if (e.repeat) return;
+                    refPreviewHeld = true;
+                    showReference(true);
+                    break;
+                case '[':
+                    cycleBrush(-1);
+                    break;
+                case ']':
+                    cycleBrush(1);
+                    break;
+                case ',':
+                    cycleColor(-1);
+                    break;
+                case '.':
+                    cycleColor(1);
+                    break;
+                case '-': case '_':
+                    e.preventDefault();
+                    adjustBrushSize(-2);
+                    break;
+                case '=': case '+':
+                    e.preventDefault();
+                    adjustBrushSize(2);
+                    break;
+                case '1': case '2': case '3': {
+                    if (e.repeat) return;
+                    const keys = ['sunflower', 'cottage', 'sailboat'];
+                    startAutoPaintPreset(keys[Number(e.key) - 1]);
+                    break;
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if ((e.key === 'r' || e.key === 'R') && refPreviewHeld) {
+                refPreviewHeld = false;
+                showReference(false);
+            }
+        });
+
+        // 窗口失焦时松开 R 键的原图预览，避免键弹丢了还一直显示原图
+        window.addEventListener('blur', () => {
+            if (refPreviewHeld) {
+                refPreviewHeld = false;
+                showReference(false);
+            }
+        });
+    }
+
+    window.onload = function () {
+        setupOneTimeSVInteraction();
+        enterFreehandBlankCanvas();
+        setupCanvasPointerInteractions();
+        setupKeyboardShortcuts();
+        setupSheetDrag();
+        const rect = paintCanvas.getBoundingClientRect();
+        updateVirtualBrushPose(rect.left + rect.width * 0.5, rect.top + rect.height * 0.5, -10, 0);
+        state.lastFrameTime = performance.now();
+        requestAnimationFrame(mainLoop);
+    };
+</script>
+</body>
+</html>

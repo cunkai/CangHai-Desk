@@ -3,21 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<!-- 无边框打样：必须声明与桌面一致的 dark，否则 iframe 视口会被刷白（实测：父页 dark + 子页无声明 = 白底） -->
 <title>计算器</title>
 <style>
 :root{--fg:#5a6b7a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--fg:#9db4c6}}
 :root[data-theme="dark"]{--fg:#9db4c6}
 html,body{height:100%;margin:0}
-body{background:linear-gradient(180deg,#eaf2f8,#d3e2ed);color:var(--fg);overflow:hidden;font-family:"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif}
-@media (prefers-color-scheme:dark){body:not([data-theme="light"]){background:linear-gradient(180deg,#0a1c2e,#12314e)}}
-body[data-theme="dark"]{background:linear-gradient(180deg,#0a1c2e,#12314e)}
+html{background:transparent} /* 根元素也要显式透明，否则 iframe 视口会刷白（实测） */
+body{background:transparent;color:var(--fg);overflow:hidden;font-family:"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif}
+/* 无边框打样：不要页面背景，桌面壁纸直接透出来，只剩计算器本身浮着 */
 canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
 .cbtn{position:fixed;z-index:2;width:44px;height:44px;border-radius:50%;border:1.5px solid rgba(201,168,92,.65);background:rgba(20,58,94,.82);color:#fff;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;box-shadow:0 4px 14px rgba(0,0,0,.25);touch-action:manipulation;-webkit-tap-highlight-color:transparent;outline:none}
 .cbtn:active{transform:scale(.92)}
 .cbtn:focus-visible{box-shadow:0 0 0 3px rgba(201,168,92,.55),0 4px 14px rgba(0,0,0,.25)}
 #timbreBtn{top:calc(12px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px))}
 #sndBtn{top:calc(64px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px))}
+#closeBtn{top:calc(116px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px))}
 #timbreTip{position:fixed;z-index:2;top:calc(18px + env(safe-area-inset-top,0px));right:calc(66px + env(safe-area-inset-right,0px));background:rgba(20,58,94,.9);border:1px solid rgba(201,168,92,.6);color:#ecd28f;font-size:13px;padding:6px 12px;border-radius:999px;opacity:0;transition:opacity .35s;pointer-events:none;white-space:nowrap}
 #timbreTip.on{opacity:1}
 </style>
@@ -25,9 +28,22 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 <body>
 <button id="timbreBtn" class="cbtn" aria-label="音色">🎹</button>
 <button id="sndBtn" class="cbtn" aria-label="声音开关">🔊</button>
+<button id="closeBtn" class="cbtn" aria-label="关闭">✕</button>
 <div id="timbreTip"></div>
 <script src="../../shared/three_runtime.js"></script>
 <script src="../../shared/synth.js"></script>
+<script>
+/* 无边框打样：向桌面声明无边框 + 自己画关闭按钮；在沧海外面打开时这两处都是空操作 */
+(function(){
+  var inShell = (window.parent !== window);
+  var btn = document.getElementById('closeBtn');
+  if(!inShell){ if(btn) btn.style.display = 'none'; return; }
+  try{ window.parent.postMessage({canghai:'frameless'}, '*'); }catch(e){}
+  if(btn) btn.addEventListener('click', function(){
+    try{ window.parent.postMessage({canghai:'closeSelf'}, '*'); }catch(e){}
+  });
+})();
+</script>
 <script>
 var THREE=window.CH_MODULES['three'];
 (function(){
@@ -231,6 +247,15 @@ function pick(e){
   var h=ray.intersectObjects(keyMeshes,false);
   return h.length?h[0].object.userData.key:null;
 }
+function chPost(m){ try{ if(window.parent!==window) window.parent.postMessage(m,'*'); }catch(e){} }
+var winDragging=false,wdx0=0,wdy0=0;
+/* 点中机身（非按键）→ 旋转；点中空白处 → 拖整个窗口 */
+function hitCalc(e){
+  var r=renderer.domElement.getBoundingClientRect();
+  mouse.set((e.clientX-r.left)/r.width*2-1,-((e.clientY-r.top)/r.height)*2+1);
+  ray.setFromCamera(mouse,camera);
+  return ray.intersectObjects(calcGroup.children,true).length>0;
+}
 var cv=renderer.domElement;
 cv.addEventListener('pointerdown',function(e){
   if(pointers.size>=2)return; // 第三指起忽略
@@ -241,11 +266,13 @@ cv.addEventListener('pointerdown',function(e){
     var pts=Array.from(pointers.values());
     pinch={d0:pdist(pts[0],pts[1]),zoom0:zoom};
     held=null;dragArmed=false;dragMoved=false;drot.x=0;drot.y=0;
+    if(winDragging){winDragging=false;chPost({canghai:'winDrag',phase:'end'});}
     kick();return;
   }
   var k=pick(e);
   if(k){held=k;input(k.userData.id);}
-  else{dragArmed=true;dragMoved=false;sx=e.clientX;sy=e.clientY;}
+  else if(hitCalc(e)){dragArmed=true;dragMoved=false;sx=e.clientX;sy=e.clientY;}
+  else{winDragging=true;wdx0=e.clientX;wdy0=e.clientY;chPost({canghai:'winDrag',phase:'start'});}
   kick();
 });
 cv.addEventListener('pointermove',function(e){
@@ -253,6 +280,10 @@ cv.addEventListener('pointermove',function(e){
   if(pinch&&pointers.size>=2){
     var pts=Array.from(pointers.values()),d=pdist(pts[0],pts[1]);
     if(d>0){zoom=Math.max(ZOOM_MIN,Math.min(ZOOM_MAX,pinch.zoom0*d/pinch.d0));applyZoom();}
+    kick();return;
+  }
+  if(winDragging&&pointers.size===1){
+    chPost({canghai:'winDrag',phase:'move',dx:e.clientX-wdx0,dy:e.clientY-wdy0});
     kick();return;
   }
   if(dragArmed&&pointers.size===1){
@@ -265,10 +296,11 @@ cv.addEventListener('pointermove',function(e){
     }
     return;
   }
-  if(e.pointerType==='mouse'&&pointers.size===0){cv.style.cursor=pick(e)?'pointer':'grab';}
+  if(e.pointerType==='mouse'&&pointers.size===0){cv.style.cursor=pick(e)?'pointer':(hitCalc(e)?'grab':'move');}
 });
 function release(e){
   if(e&&e.pointerId!=null)pointers.delete(e.pointerId);
+  if(winDragging){winDragging=false;chPost({canghai:'winDrag',phase:'end'});}
   held=null;
   if(pinch){
     if(pointers.size>=2)return;

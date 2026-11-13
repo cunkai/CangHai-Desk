@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>绘音：在空中随手画出音乐</title>
+<style>
+:root{--fg:#e8f1f8;--mut:#8fa4c0;--pn:rgba(10,30,52,.82);--ln:rgba(201,168,92,.35);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0;overflow:hidden;color:var(--fg);background:radial-gradient(120% 90% at 50% 100%,#0f3a5c 0%,#0a2a4a 55%,#04101e 100%);font-family:"Noto Serif SC","Songti SC","STSong",serif;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{position:fixed;inset:0;display:block}
+#hint{position:fixed;left:0;right:0;top:calc(18px + env(safe-area-inset-top,0px));text-align:center;color:var(--mut);font-size:15px;letter-spacing:.12em;pointer-events:none;transition:opacity 1.2s;padding:0 16px}
+#bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-wrap:wrap;justify-content:center;gap:2px;padding:6px;max-width:94vw;background:var(--pn);border:1px solid var(--ln);border-radius:22px}
+#bar button{font:inherit;font-size:13px;color:var(--fg);background:transparent;border:0;border-radius:999px;padding:8px 12px;cursor:pointer}
+#bar button:hover,#bar button:focus-visible{background:rgba(255,255,255,.12);outline:none}
+#tl{position:fixed;inset:auto auto 90px 50%;transform:translateX(-50%);background:var(--pn);border:1px solid var(--ln);border-radius:14px;cursor:pointer}
+#tl.off{display:none}
+#start{position:fixed;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;background:radial-gradient(120% 90% at 50% 100%,#0f3a5c 0%,#0a2a4a 55%,#04101e 100%);cursor:pointer;text-align:center;padding:24px;transition:opacity .9s}
+#start h1{margin:0;font-size:clamp(56px,16vw,120px);font-weight:300;letter-spacing:.3em;text-indent:.3em;background:linear-gradient(90deg,#8fe3ff,#e8f1f8,#ecd28f);-webkit-background-clip:text;background-clip:text;color:transparent}
+#start p{margin:0;color:var(--mut);letter-spacing:.14em;font-size:16px;line-height:1.9}
+#start b{font-weight:400;color:var(--fg);border:1px solid var(--ln);border-radius:999px;padding:10px 28px;letter-spacing:.3em;text-indent:.3em;margin-top:8px}
+@media(prefers-reduced-motion:reduce){#start,#hint{transition:none}}
+</style></head>
+<body>
+<div id="start"><div style="position:absolute;bottom:26px;left:0;right:0;text-align:center;font-size:12px;letter-spacing:.5em;text-indent:.5em;color:var(--mut)">沧海软件</div><h1>绘音</h1><p>在空中随手画几笔<br>每一笔都会变成会唱歌的光</p><b>开始</b></div>
+<div id="hint">按住拖动即可作画，松开后线条会循环演奏<br>电脑上按住右键拖动可转动视角</div>
+<canvas id="tl"></canvas>
+<div id="bar"><button id="bUndo">撤销</button><button id="bClear">清空</button><button id="bTl">时间轴</button><button id="bAuto">旋转：开</button><button id="bScale">音阶：明亮</button><button id="bRec">录音</button><button id="bLoop">导出一轮</button></div>
+<script src="../../shared/three_runtime.js"></script>
+<script>var THREE = window.CH_MODULES["three"];</script>
+<script>
+const $=s=>document.querySelector(s);
+const scene=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,300);
+const ren=new THREE.WebGLRenderer({antialias:true,alpha:true});
+ren.setPixelRatio(Math.min(devicePixelRatio,2));ren.setSize(innerWidth,innerHeight);
+document.body.prepend(ren.domElement);
+let th=.35,ph=1.4,R=13,auto=true;
+function placeCam(){cam.position.set(R*Math.sin(ph)*Math.sin(th),R*Math.cos(ph),R*Math.sin(ph)*Math.cos(th));cam.lookAt(0,0,0)}
+const U={k:{value:innerHeight*.96}};
+const pmat=()=>new THREE.ShaderMaterial({transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,uniforms:U,
+vertexShader:'attribute float size;attribute vec3 col;varying vec3 c;uniform float k;void main(){c=col;vec4 m=modelViewMatrix*vec4(position,1.);gl_PointSize=size*k/-m.z;gl_Position=projectionMatrix*m;}',
+fragmentShader:'varying vec3 c;void main(){float d=length(gl_PointCoord-.5)*2.;float a=smoothstep(1.,0.,d);a=a*a;gl_FragColor=vec4(c*a*1.5,a);}'});
+function mkPoints(pos,col,size){const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.BufferAttribute(pos,3));g.setAttribute('col',new THREE.BufferAttribute(col,3));g.setAttribute('size',new THREE.BufferAttribute(size,1));const p=new THREE.Points(g,pmat());p.frustumCulled=false;return p}
+
+/* 背景：星尘与淡环，用来感知空间 */
+const stars=(()=>{const n=500,p=new Float32Array(n*3),c=new Float32Array(n*3),s=new Float32Array(n).fill(.16),col=new THREE.Color();
+for(let i=0;i<n;i++){const r=22+Math.random()*40,a=Math.random()*6.283,b=Math.acos(2*Math.random()-1);p.set([r*Math.sin(b)*Math.cos(a),r*Math.cos(b),r*Math.sin(b)*Math.sin(a)],i*3);col.setHSL(Math.random()<.18?.13:.52+Math.random()*.1,.6,.7);c.set([col.r,col.g,col.b],i*3);s[i]=.08+Math.random()*.16}
+return mkPoints(p,c,s)})();scene.add(stars);
+[[0,0],[Math.PI/2,0],[0,Math.PI/2]].forEach(([x,y])=>{const pts=[];for(let i=0;i<=96;i++){const a=i/96*6.283;pts.push(new THREE.Vector3(Math.cos(a)*6.5,Math.sin(a)*6.5,0))}
+const l=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:0x8fb8d8,transparent:true,opacity:.1}));l.rotation.set(x,y,0);scene.add(l)});
+
+/* 音频 */
+let ac,master,send,out,vox=0,sc=0;
+const SCALES=[{n:'明亮',s:[0,2,4,7,9]},{n:'和风',s:[0,2,3,7,8]},{n:'忧郁',s:[0,3,5,7,10]}],N=15;
+const freq=i=>130.81*Math.pow(2,(SCALES[sc].s[i%5]+12*Math.floor(i/5))/12);
+function initAudio(ctx){
+ac=ctx||new (window.AudioContext||window.webkitAudioContext)();
+const comp=ac.createDynamicsCompressor();comp.threshold.value=-20;comp.knee.value=10;comp.ratio.value=10;comp.attack.value=.004;comp.release.value=.25;
+const sh=ac.createWaveShaper(),cr=new Float32Array(2048);for(let i=0;i<2048;i++)cr[i]=Math.tanh((i/1024-1)*1.2);sh.curve=cr;
+out=ac.createGain();out.gain.value=.85;master=ac.createGain();master.gain.value=.55;master.connect(comp);comp.connect(sh);sh.connect(out);out.connect(ac.destination);
+const cv=ac.createConvolver(),L=ac.sampleRate*3.2|0,b=ac.createBuffer(2,L,ac.sampleRate);
+for(let c=0;c<2;c++){const d=b.getChannelData(c);let z=0;for(let i=0;i<L;i++){const a=.35+.6*i/L;z=z*a+(Math.random()*2-1)*(1-a);d[i]=z*Math.pow(1-i/L,2.6)*1.8}}
+cv.buffer=b;const wet=ac.createGain();wet.gain.value=.42;cv.connect(wet);wet.connect(master);
+send=ac.createGain();const dl=ac.createDelay(1),fb=ac.createGain(),lp=ac.createBiquadFilter();
+dl.delayTime.value=.42;fb.gain.value=.34;lp.frequency.value=2200;
+send.connect(cv);send.connect(dl);dl.connect(lp);lp.connect(fb);fb.connect(dl);lp.connect(cv);
+const dg=ac.createGain();dg.gain.value=.4;lp.connect(dg);dg.connect(master);
+/* 低音铺底 */
+const lfo=ac.createOscillator();lfo.frequency.value=.07;lfo.start();
+[65.41,98,196].forEach((f,i)=>{const o=ac.createOscillator(),g=ac.createGain(),m=ac.createGain();o.frequency.value=f;g.gain.value=.03;m.gain.value=.015;lfo.connect(m);m.connect(g.gain);o.connect(g);g.connect(master);o.start()});
+}
+function pluck(f,pan,v,d=2.4,T){
+if(!ac||(T===undefined&&vox>20))return;if(T===undefined)vox++;const t=T===undefined?ac.currentTime:T,dur=d;
+const o1=ac.createOscillator(),o2=ac.createOscillator(),o3=ac.createOscillator(),g=ac.createGain(),g2=ac.createGain(),g3=ac.createGain(),p=ac.createStereoPanner(),s=ac.createGain();
+o1.type='sine';o2.type='triangle';o3.type='sine';
+o1.frequency.value=f;o2.frequency.value=f*2.003;o3.frequency.value=f*4.2;g2.gain.value=.16;
+g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(v*.5,t+.012);g.gain.exponentialRampToValueAtTime(.0001,t+dur);
+g3.gain.setValueAtTime(.12,t);g3.gain.exponentialRampToValueAtTime(.0001,t+.35);
+p.pan.value=pan;s.gain.value=.7;
+o1.connect(g);o2.connect(g2);g2.connect(g);o3.connect(g3);g3.connect(g);g.connect(p);p.connect(master);p.connect(s);s.connect(send);
+o1.onended=()=>{if(T===undefined)vox--};[o1,o2,o3].forEach(o=>{o.start(t);o.stop(t+dur+.1)});
+}
+const noteIdx=y=>Math.max(0,Math.min(N-1,Math.floor((y+4.5)/9*N)));
+const panOf=x=>Math.max(-1,Math.min(1,x/7));
+
+/* 交互与笔画 */
+const plane=new THREE.Plane(),ray=new THREE.Raycaster(),mv=new THREE.Vector2(),dir=new THREE.Vector3(),O=new THREE.Vector3();
+function hit(e){mv.set(e.clientX/innerWidth*2-1,-(e.clientY/innerHeight)*2+1);ray.setFromCamera(mv,cam);cam.getWorldDirection(dir);plane.setFromNormalAndCoplanarPoint(dir,O);return ray.ray.intersectPlane(plane,new THREE.Vector3())}
+const MAXR=800,lpos=new Float32Array(MAXR*3),lg=new THREE.BufferGeometry();
+lg.setAttribute('position',new THREE.BufferAttribute(lpos,3));lg.setDrawRange(0,0);
+const liveLine=new THREE.Line(lg,new THREE.LineBasicMaterial({transparent:true,opacity:.9,blending:THREE.AdditiveBlending}));liveLine.frustumCulled=false;scene.add(liveLine);
+const cur=mkPoints(new Float32Array(3),new Float32Array([1,1,1]),new Float32Array([.9]));cur.visible=false;scene.add(cur);
+const strokes=[];let raw=[],drawing=false,rot=false,hue=.55,lastN=null,lastT=0,px=0,py=0;
+const step=.28;
+
+function say(p,v){pluck(freq(noteIdx(p.y)),panOf(p.x),v||.5)}
+const cvs=ren.domElement;
+cvs.addEventListener('contextmenu',e=>e.preventDefault());
+cvs.addEventListener('pointerdown',e=>{
+cvs.setPointerCapture(e.pointerId);
+if(e.button===2){rot=true;px=e.clientX;py=e.clientY;return}
+const p=hit(e);if(!p)return;drawing=true;raw=[p];lastN=p.clone();lpos.set([p.x,p.y,p.z],0);lg.attributes.position.needsUpdate=true;lg.setDrawRange(0,1);
+liveLine.material.color.setHSL(hue,.85,.68);cur.visible=true;
+const a=cur.geometry.attributes;new THREE.Color().setHSL(hue,.8,.7).toArray(a.col.array);a.col.needsUpdate=true;
+cur.geometry.attributes.position.array.set([p.x,p.y,p.z]);cur.geometry.attributes.position.needsUpdate=true;
+say(p);$('#hint').style.opacity=0});
+cvs.addEventListener('pointermove',e=>{
+if(rot){th-=(e.clientX-px)*.006;ph=Math.max(.3,Math.min(2.8,ph-(e.clientY-py)*.006));px=e.clientX;py=e.clientY;return}
+if(!drawing)return;const p=hit(e);if(!p)return;
+const l=raw[raw.length-1];
+if(p.distanceTo(l)>.08&&raw.length<MAXR){raw.push(p);lpos.set([p.x,p.y,p.z],(raw.length-1)*3);lg.attributes.position.needsUpdate=true;lg.setDrawRange(0,raw.length)}
+cur.geometry.attributes.position.array.set([p.x,p.y,p.z]);cur.geometry.attributes.position.needsUpdate=true;
+const now=performance.now();
+if(p.distanceTo(lastN)>.55&&now-lastT>70){say(p,.45);lastN.copy(p);lastT=now}});
+function end(){rot=false;if(!drawing)return;drawing=false;cur.visible=false;lg.setDrawRange(0,0);if(raw.length>5)build(raw);raw=[]}
+cvs.addEventListener('pointerup',end);cvs.addEventListener('pointercancel',end);
+
+function build(r){
+let len=0;const cum=[0];for(let i=1;i<r.length;i++){len+=r[i].distanceTo(r[i-1]);cum.push(len)}
+if(len<1.2)return;
+const n=Math.max(4,Math.min(32,Math.round(len/.6/4)*4)),pts=[],pos=new Float32Array(n*3),col=new Float32Array(n*3),size=new Float32Array(n).fill(.4),idx=[],pan=[],c=new THREE.Color();
+let j=0;
+for(let i=0;i<n;i++){const s=i/n*len;while(j<r.length-2&&cum[j+1]<s)j++;
+const seg=cum[j+1]-cum[j]||1,q=r[j].clone().lerp(r[j+1],Math.min(1,Math.max(0,(s-cum[j])/seg)));
+pts.push(q);pos.set([q.x,q.y,q.z],i*3);c.setHSL((hue+i/n*.12)%1,.8,.66);col.set([c.r,c.g,c.b],i*3);idx.push(noteIdx(q.y));pan.push(panOf(q.x))}
+const mesh=mkPoints(pos,col,size);
+const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(new THREE.CatmullRomCurve3(pts).getPoints(n*6)),new THREE.LineBasicMaterial({color:new THREE.Color().setHSL(hue,.8,.62),transparent:true,opacity:.5,blending:THREE.AdditiveBlending}));
+scene.add(mesh,line);
+if(!ac)return;
+const bar=step*4,now=ac.currentTime;
+const k=strokes.length,st=Math.ceil(now/bar)*bar,on=idx.map((_,i)=>k<2||(k<5?i%2==0:i%4==0));
+strokes.push({n,idx,pan,mesh,line,size,start:st,sst:Math.round(st/step),last:-1,on,mute:false,base:.4,hue});
+hue=(hue+.13)%1;
+if(strokes.length>10)drop(strokes.shift())}
+function drop(s){scene.remove(s.mesh,s.line);s.mesh.geometry.dispose();s.line.geometry.dispose()}
+
+/* 按钮 */
+$('#bClear').onclick=()=>{while(strokes.length)drop(strokes.pop())};
+$('#bUndo').onclick=()=>{if(strokes.length)drop(strokes.pop())};
+$('#bAuto').onclick=e=>{auto=!auto;e.target.textContent='旋转：'+(auto?'开':'关')};
+$('#bScale').onclick=e=>{sc=(sc+1)%3;e.target.textContent='音阶：'+SCALES[sc].n;if(ac)pluck(freq(7),0,.5)};
+$('#bar').addEventListener('pointerdown',e=>e.stopPropagation());
+$('#start').onclick=()=>{initAudio();ac.resume();const s=$('#start');s.style.opacity=0;s.style.pointerEvents='none';setTimeout(()=>s.remove(),1000);pluck(freq(5),0,.4);setTimeout(()=>pluck(freq(8),0,.4),160);setTimeout(()=>pluck(freq(10),0,.4),320)};
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();ren.setSize(innerWidth,innerHeight);U.k.value=innerHeight*.96});
+
+/* 时间轴：每条线一行，像钢琴卷帘，点格子开关音符 */
+const tl=$('#tl'),tc=tl.getContext('2d'),RH=18,HD=16,LBL=26,CYC=32*step;let tlOn=true;
+function layoutTl(){tl.style.bottom='calc('+($('#bar').offsetHeight+26)+'px + env(safe-area-inset-bottom,0px))'}
+function tlGeom(){const w=Math.min(innerWidth*.92,680),h=HD+Math.max(1,strokes.length)*RH+6,d=Math.min(devicePixelRatio,2);
+if(tl.dataset.w!=w||tl.dataset.h!=h){tl.dataset.w=w;tl.dataset.h=h;tl.style.width=w+'px';tl.style.height=h+'px';tl.width=w*d;tl.height=h*d;tc.setTransform(d,0,0,d,0,0)}return{w,h}}
+function drawTl(){if(!tlOn||!ac)return;const{w,h}=tlGeom(),cw=(w-LBL-22)/32;tc.clearRect(0,0,w,h);
+tc.font='11px sans-serif';tc.textBaseline='middle';tc.textAlign='left';
+for(let b=0;b<8;b++){const x=LBL+b*4*cw;tc.fillStyle='rgba(143,164,192,.35)';tc.fillRect(x,HD-4,1,h-HD+2);tc.fillText(b+1,x+3,7)}
+if(!strokes.length){tc.fillStyle='rgba(143,164,192,.65)';tc.textAlign='center';tc.fillText('画几笔，这里会出现每条线的音符',w/2,HD+RH/2);tc.textAlign='left'}
+const g0=Math.floor(ac.currentTime/step),cs=g0%32,g=(ac.currentTime%CYC)/step;
+strokes.forEach((s,r)=>{const y=HD+r*RH,col='hsl('+s.hue*360+',80%,66%)';
+tc.fillStyle=col;tc.globalAlpha=s.mute?.3:1;tc.beginPath();tc.arc(12,y+RH/2,4,0,6.283);tc.fill();
+for(let j=0;j<32;j++){const k=(((g0-cs+j-s.sst)%s.n)+s.n)%s.n,x=LBL+j*cw;
+if(s.on[k]){tc.globalAlpha=s.mute?.25:(j===cs?1:.65);tc.fillRect(x+1,y+2+(1-s.idx[k]/(N-1))*(RH-8),cw-2,3.5)}else{tc.globalAlpha=.2;tc.fillRect(x+1,y+RH/2-.5,cw-2,1)}}
+tc.globalAlpha=.7;tc.fillStyle='#fff';tc.fillText('×',w-14,y+RH/2);tc.globalAlpha=1});
+tc.fillStyle='rgba(255,255,255,.85)';tc.fillRect(LBL+g*cw,HD-4,1.5,h-HD+2)}
+tl.addEventListener('pointerdown',e=>{e.stopPropagation();if(!ac)return;const r=tl.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top,row=Math.floor((y-HD)/RH),s=strokes[row];if(!s)return;
+const cw=(r.width-LBL-22)/32;
+if(x>r.width-22){drop(s);strokes.splice(row,1)}
+else if(x<LBL){s.mute=!s.mute;s.base=s.mute?.18:.4;s.line.material.opacity=s.mute?.1:.5}
+else{const j=Math.floor((x-LBL)/cw);if(j<0||j>31)return;const g0=Math.floor(ac.currentTime/step),k=(((g0-g0%32+j-s.sst)%s.n)+s.n)%s.n;s.on[k]=!s.on[k]}});
+$('#bTl').onclick=()=>{tlOn=!tlOn;tl.classList.toggle('off',!tlOn)};
+
+/* 录音与导出：走沧海下载接口（发给系统写下载目录），独立打开时浏览器下载兜底 */
+function saveFile(name, blob){
+  return new Promise(function(resolve){
+    var rd = new FileReader();
+    rd.onload = function(){
+      var dataUrl = rd.result;
+      if(window.parent && window.parent !== window){
+        window.parent.postMessage({type:'download', filename:name, dataUrl:dataUrl}, '*');
+      } else {
+        var a = document.createElement('a'); a.href = dataUrl; a.download = name;
+        document.body.appendChild(a); a.click(); a.remove();
+      }
+      resolve();
+    };
+    rd.onerror = function(){ resolve(); };
+    rd.readAsDataURL(blob);
+  });
+}
+let rec=null;
+function toast(m){const h=$('#hint');h.innerHTML=m;h.style.opacity=1;clearTimeout(h._t);h._t=setTimeout(()=>h.style.opacity=0,3800)}
+function startRec(){if(rec||!ac||!window.MediaRecorder)return;
+const d=ac.createMediaStreamDestination();out.connect(d);
+const mt=['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(t=>MediaRecorder.isTypeSupported(t));
+const mr=new MediaRecorder(d.stream,mt?{mimeType:mt}:{}),ch=[];
+mr.ondataavailable=e=>{if(e.data.size)ch.push(e.data)};
+mr.onstop=async()=>{out.disconnect(d);rec=null;const b=$('#bRec');b.textContent='录音';b.style.color='';
+const ext=(mr.mimeType||mt||'').includes('mp4')?'mp4':'webm';
+try{await saveFile('huiyin-'+Date.now()+'.'+ext,new Blob(ch,{type:mr.mimeType||'audio/webm'}));toast('已保存')}catch(e){toast('保存失败')}};
+mr.start();rec=mr;const b=$('#bRec');b.textContent='停止并保存';b.style.color='#ff6b81'}
+$('#bRec').onclick=()=>{if(!ac)return;if(!window.MediaRecorder){toast('此浏览器不支持录音');return}rec?rec.stop():startRec()};
+/* 离线导出：直接按时间轴计算，不用等待 */
+function wavBytes(buf){const ch=buf.numberOfChannels,n=buf.length,o=new DataView(new ArrayBuffer(44+n*ch*2)),w=(p,s)=>{for(let i=0;i<s.length;i++)o.setUint8(p+i,s.charCodeAt(i))};
+w(0,'RIFF');o.setUint32(4,36+n*ch*2,true);w(8,'WAVEfmt ');o.setUint32(16,16,true);o.setUint16(20,1,true);o.setUint16(22,ch,true);o.setUint32(24,buf.sampleRate,true);o.setUint32(28,buf.sampleRate*ch*2,true);o.setUint16(32,ch*2,true);o.setUint16(34,16,true);w(36,'data');o.setUint32(40,n*ch*2,true);
+const d=[];for(let c=0;c<ch;c++)d.push(buf.getChannelData(c));let p=44;for(let i=0;i<n;i++)for(let c=0;c<ch;c++){o.setInt16(p,Math.max(-1,Math.min(1,d[c][i]))*32767,true);p+=2}return new Uint8Array(o.buffer)}
+let busy=false;
+$('#bLoop').onclick=async()=>{if(!ac||busy)return;
+if(!strokes.some(s=>!s.mute&&s.on.some(Boolean))){toast('先画几笔再导出');return}
+busy=true;toast('正在渲染…');
+const OC=window.OfflineAudioContext||window.webkitOfflineAudioContext,sr=44100,oc=new OC(2,Math.ceil(sr*(CYC+3)),sr),saved=[ac,master,send,out];
+try{
+const g0=Math.floor(ac.currentTime/step),base=g0-g0%32,vg=1/Math.sqrt(1+strokes.length*.5),dur=2.4-Math.min(strokes.length,8)*.12;
+initAudio(oc);
+for(const s of strokes){if(s.mute)continue;for(let j=0;j<32;j++){const k=(((base+j-s.sst)%s.n)+s.n)%s.n;if(s.on[k])pluck(freq(s.idx[k]),s.pan[k],.38*vg,dur,j*step)}}
+}finally{[ac,master,send,out]=saved}
+try{
+const buf=await oc.startRendering();
+await saveFile('huiyin-loop.wav',new Blob([wavBytes(buf)],{type:'audio/wav'}));toast('已保存：一轮 wav')
+}catch(e){if(!e||e.code!=='declined')toast('导出失败')}finally{busy=false}};
+addEventListener('resize',layoutTl);layoutTl();
+
+/* 主循环 */
+let prev=performance.now();
+function loop(){
+requestAnimationFrame(loop);
+const now=performance.now(),dt=Math.min(.05,(now-prev)/1000);prev=now;
+if(auto&&!drawing&&!rot)th+=dt*.09;
+const vg=1/Math.sqrt(1+strokes.length*.5),dur=2.4-Math.min(strokes.length,8)*.12;
+stars.rotation.y+=dt*.01;placeCam();
+if(ac)for(const s of strokes){
+const t=(ac.currentTime-s.start)/step;
+if(t>=0){const k=Math.floor(t)%s.n;if(k!==s.last){s.last=k;if(s.on[k]&&!s.mute){pluck(freq(s.idx[k]),s.pan[k],.38*vg,dur);s.size[k]=1.6}}}
+for(let i=0;i<s.n;i++)s.size[i]=s.base+(s.size[i]-s.base)*Math.pow(.02,dt);
+s.mesh.geometry.attributes.size.needsUpdate=true}
+drawTl();ren.render(scene,cam)}
+loop();
+</script>
+</body></html>

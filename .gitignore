@@ -33,13 +33,9 @@ captures/
 .externalNativeBuild/
 .cxx/
 
-# Keystore files
+# Keystore files（签名用，绝不进版本库）
 *.jks
 *.keystore
-
-# 私钥 / 密钥对（签名用，绝不进版本库）
-*.pem
-cakey.pem
 
 # ============================================================
 # 调试/排查时的临时产物（不进版本库）
