@@ -62,9 +62,14 @@ import java.util.concurrent.ConcurrentHashMap;
  *       渲染分辨率就是所在设备的真实分辨率；</li>
  *   <li><b>旋转通知</b>：转屏后 WebView 会自动收到 resize，另外再补一个
  *       aosen:resize 事件（带像素尺寸），应用想监听就监听；</li>
- *   <li><b>返回键</b>：第一下弹一条「再按一次返回键，回到沧海」，2 秒内第二下才关
- *       窗口回到沧海；页面想自己接管（游戏内菜单）就在加载后调
- *       {@code Aosen.claimBack(true)}，原生立即让出返回键；</li>
+ *   <li><b>返回键</b>：页面接管（{@code Aosen.claimBack(true)}，游戏内菜单）优先；
+ *       其次页面自己的浏览历史（点开外链回来先退历史）；退无可退时第一下弹
+ *       一条「再按一次返回键，回到沧海」，2 秒内第二下才关窗口回到沧海；</li>
+ *   <li><b>外链</b>：http(s) 且不是应用自己的 canghai.local，一律交系统浏览器打开，
+ *       不许劫持应用窗口；</li>
+ *   <li><b>安全区域</b>：系统栏 + 挖孔/刘海 + 手势条的位置会注入给页面
+ *       （{@code window.CanghaiSafeArea}、{@code --ch-safe-*} CSS 变量、
+ *       {@code canghai:safearea} 事件），UI 避开、背景照样铺满；</li>
  *   <li><b>后台可见、可关</b>：按 Home 后仍出现在最近任务里（可划掉关闭），
  *       另有通知栏的「关闭」入口；退到后台自动静音，回来自动恢复；</li>
  *   <li><b>横竖屏锁定</b>：手机端「设置」里锁定后，这个窗口就不随设备转了
@@ -232,6 +237,35 @@ public class HtmlAppActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 deliverIncomingFileIfNeeded();
+                /* 页面重载后注入的安全区域就没了，拿当前 insets 重新注一遍。 */
+                try {
+                    WindowInsets ri = view.getRootWindowInsets();
+                    if (ri != null) injectSafeArea(ri);
+                } catch (Throwable ignored) {}
+            }
+
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                /* 外链不许劫持应用窗口：http(s) 且不是应用自己的 canghai.local，
+                   一律交系统浏览器；应用自己的 file:// 与 canghai.local 原样放行。 */
+                try {
+                    android.net.Uri uri = request != null ? request.getUrl() : null;
+                    if (uri != null) {
+                        String scheme = uri.getScheme();
+                        if (("http".equals(scheme) || "https".equals(scheme))
+                                && !"canghai.local".equals(uri.getHost())) {
+                            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+                            intent.addCategory(Intent.CATEGORY_BROWSABLE);
+                            HtmlAppActivity.this.startActivity(intent);
+                            return true;
+                        }
+                    }
+                } catch (Throwable t) {
+                    Log.w(TAG, "外链打开失败: " + t.getMessage(), t);
+                    Toast("打不开这个链接");
+                    return true;
+                }
+                return false;
             }
 
             @Override
@@ -292,6 +326,7 @@ public class HtmlAppActivity extends Activity {
         root.addView(web, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         setupBackHint(root);
+        setupSafeAreaReporting(web);
         setContentView(root);
         setTitle(title);
 
@@ -625,6 +660,94 @@ public class HtmlAppActivity extends Activity {
         }
     }
 
+    // ---------------- 安全区域：告诉页面哪里不能放 UI ----------------
+    /* 窗口是沉浸式 + ALWAYS 进挖孔区，内容铺满整块屏。页面自己决定 UI 避开哪、
+       背景照样铺满——但页面得先知道挖孔/系统栏/手势条在哪。这里把 insets 换算
+       成 CSS 像素（dp，与 window.innerWidth 同一单位）注给页面，三样东西：
+       window.CanghaiSafeArea 对象、:root 上的 --ch-safe-top/right/bottom/left
+       CSS 变量、canghai:safearea 事件（detail 就是同一个对象）。
+       约定：UI 容器用变量留边距，背景/画布不要用变量、继续铺满。 */
+
+    private void setupSafeAreaReporting(WebView w) {
+        if (w == null) return;
+        try {
+            w.setOnApplyWindowInsetsListener((v, insets) -> {
+                injectSafeArea(insets);
+                return insets;
+            });
+            w.requestApplyInsets();
+        } catch (Throwable t) {
+            Log.w(TAG, "setupSafeAreaReporting: " + t);
+        }
+    }
+
+    private void injectSafeArea(WindowInsets insets) {
+        WebView w = web;
+        if (w == null || insets == null) return;
+        try {
+            float density = getResources().getDisplayMetrics().density;
+            if (density <= 0) density = 1f;
+            int sbTop, sbRight, sbBottom, sbLeft;
+            if (Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets sb = insets.getInsets(WindowInsets.Type.systemBars());
+                sbTop = sb.top;
+                sbRight = sb.right;
+                sbBottom = sb.bottom;
+                sbLeft = sb.left;
+                android.graphics.Insets ge = insets.getInsets(WindowInsets.Type.mandatorySystemGestures());
+                sbBottom = Math.max(sbBottom, ge.bottom);
+            } else {
+                sbTop = insets.getSystemWindowInsetTop();
+                sbRight = insets.getSystemWindowInsetRight();
+                sbBottom = insets.getSystemWindowInsetBottom();
+                sbLeft = insets.getSystemWindowInsetLeft();
+            }
+            int top = sbTop, right = sbRight, bottom = sbBottom, left = sbLeft;
+            org.json.JSONArray cutouts = new org.json.JSONArray();
+            if (Build.VERSION.SDK_INT >= 28) {
+                android.view.DisplayCutout cutout = insets.getDisplayCutout();
+                if (cutout != null) {
+                    int sw = w.getWidth(), sh = w.getHeight();
+                    for (android.graphics.Rect r : cutout.getBoundingRects()) {
+                        org.json.JSONObject o = new org.json.JSONObject();
+                        o.put("left", Math.round(r.left / density));
+                        o.put("top", Math.round(r.top / density));
+                        o.put("right", Math.round(r.right / density));
+                        o.put("bottom", Math.round(r.bottom / density));
+                        cutouts.put(o);
+                        if (r.top <= 0) top = Math.max(top, r.bottom);
+                        if (r.left <= 0) left = Math.max(left, r.right);
+                        if (sw > 0 && r.right >= sw) right = Math.max(right, sw - r.left);
+                        if (sh > 0 && r.bottom >= sh) bottom = Math.max(bottom, sh - r.top);
+                    }
+                }
+            }
+            final String js = "try{"
+                    + "var sa={top:" + Math.round(top / density)
+                    + ",right:" + Math.round(right / density)
+                    + ",bottom:" + Math.round(bottom / density)
+                    + ",left:" + Math.round(left / density)
+                    + ",cutouts:" + cutouts.toString()
+                    + ",density:" + density + "};"
+                    + "window.CanghaiSafeArea=sa;"
+                    + "var st=document.documentElement.style;"
+                    + "st.setProperty('--ch-safe-top',sa.top+'px');"
+                    + "st.setProperty('--ch-safe-right',sa.right+'px');"
+                    + "st.setProperty('--ch-safe-bottom',sa.bottom+'px');"
+                    + "st.setProperty('--ch-safe-left',sa.left+'px');"
+                    + "window.dispatchEvent(new CustomEvent('canghai:safearea',{detail:sa}));"
+                    + "}catch(_){}";
+            w.post(() -> {
+                try {
+                    w.evaluateJavascript(js, null);
+                } catch (Throwable ignored) {
+                }
+            });
+        } catch (Throwable t) {
+            Log.w(TAG, "injectSafeArea: " + t);
+        }
+    }
+
     // ---------------- 返回键提示条 ----------------
 
     private int dp(float v) {
@@ -804,6 +927,14 @@ public class HtmlAppActivity extends Activity {
                页面加载后自己调 Aosen.claimBack(true) 声明接管返回键，原生立刻就知道。 */
             if (backClaimedByPage) {
                 lastBackAt = 0L;
+                return true;
+            }
+            /* 页面自己有浏览历史时先退历史（点开的页面按返回回到应用自己的页），
+               退无可退才走提示退出；退历史后清掉上一次提示的计时，免得回
+               到应用页再按一下就直接退出。 */
+            if (web != null && web.canGoBack()) {
+                lastBackAt = 0L;
+                web.goBack();
                 return true;
             }
             handleBackToExit();
