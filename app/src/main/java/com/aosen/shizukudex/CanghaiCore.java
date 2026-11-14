@@ -15,13 +15,20 @@ import android.webkit.WebView;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.ref.WeakReference;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
  * 前端 ↔ 安卓唯一通道。
@@ -134,6 +141,8 @@ public final class CanghaiCore {
                 return new JSONArray();
             case "lan":
                 return lan(method, p);
+            case "github":
+                return github(method, p);
             default:
                 throw new CoreFs.Err("UNKNOWN_NAMESPACE", "未知命名空间: " + ns);
         }
@@ -166,6 +175,270 @@ public final class CanghaiCore {
             default:
                 throw new CoreFs.Err("UNKNOWN_METHOD", "未知方法: lan." + method);
         }
+    }
+
+    /* ---------------- github（仓海应用：GitHub API + 产物下载） ----------------
+     * 只允许 github.com 与 api.github.com 两个 host；token 由调用方每次传入，
+     * Java 不保存、不记日志。request 走 JSON API；download 流式落盘到下载
+     * 目录，是 zip 就解包（防路径穿越、限条目数与总大小）。 */
+    private Object github(String method, JSONObject p) throws Exception {
+        switch (method) {
+            case "request":
+                return githubRequest(p);
+            case "download":
+                return githubDownload(p);
+            default:
+                throw new CoreFs.Err("UNKNOWN_METHOD", "未知方法: github." + method);
+        }
+    }
+
+    private static void checkGithubHost(String urlText) throws Exception {
+        String host;
+        try {
+            host = new URL(urlText).getHost();
+        } catch (Exception e) {
+            throw new CoreFs.Err("INVALID_ARGS", "URL 不合法");
+        }
+        if (!"github.com".equals(host) && !"api.github.com".equals(host)) {
+            throw new CoreFs.Err("PERMISSION_DENIED", "只允许访问 github.com 与 api.github.com");
+        }
+    }
+
+    private static String sanitizeDownloadName(String filename) {
+        if (filename == null || filename.trim().isEmpty()) return "download";
+        return filename.replaceAll("[\\\\/:*?\"<>|]", "_");
+    }
+
+    private static String mimeForName(String filename) {
+        String n = filename == null ? "" : filename.toLowerCase();
+        if (n.endsWith(".apk")) return "application/vnd.android.package-archive";
+        if (n.endsWith(".zip")) return "application/zip";
+        if (n.endsWith(".json")) return "application/json";
+        if (n.endsWith(".txt") || n.endsWith(".md")) return "text/plain";
+        return "application/octet-stream";
+    }
+
+    private static String readCapped(InputStream in, int maxBytes) throws Exception {
+        if (in == null) return "";
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        byte[] buf = new byte[8192];
+        int total = 0, n;
+        while ((n = in.read(buf)) != -1) {
+            if (total + n > maxBytes) {
+                int rest = maxBytes - total;
+                if (rest > 0) out.write(buf, 0, rest);
+                break;
+            }
+            out.write(buf, 0, n);
+            total += n;
+        }
+        return new String(out.toByteArray(), "UTF-8");
+    }
+
+    private static void copyStream(InputStream in, OutputStream out) throws Exception {
+        byte[] buf = new byte[32768];
+        int n;
+        while ((n = in.read(buf)) != -1) out.write(buf, 0, n);
+        out.flush();
+    }
+
+    private JSONObject githubRequest(JSONObject p) throws Exception {
+        String urlText = p.optString("url", "");
+        checkGithubHost(urlText);
+        String httpMethod = p.optString("httpMethod", "GET");
+        if (!"GET".equals(httpMethod) && !"POST".equals(httpMethod)) {
+            throw new CoreFs.Err("INVALID_ARGS", "只支持 GET / POST");
+        }
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(urlText).openConnection();
+            conn.setRequestMethod(httpMethod);
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(60000);
+            conn.setRequestProperty("Accept", "application/vnd.github+json");
+            conn.setRequestProperty("X-GitHub-Api-Version", "2022-11-28");
+            conn.setRequestProperty("User-Agent", "Canghai-Git");
+            String token = p.optString("token", "");
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+            String body = p.optString("body", null);
+            if ("POST".equals(httpMethod) && body != null) {
+                byte[] bytes = body.getBytes("UTF-8");
+                conn.setDoOutput(true);
+                conn.setRequestProperty("Content-Type", p.optString("contentType", "application/json"));
+                conn.setRequestProperty("Content-Length", String.valueOf(bytes.length));
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(bytes);
+                }
+            }
+            int status = conn.getResponseCode();
+            InputStream in = status >= 400 ? conn.getErrorStream() : conn.getInputStream();
+            String text = readCapped(in, 2 * 1024 * 1024);
+            return new JSONObject().put("status", status).put("text", text == null ? "" : text);
+        } catch (CoreFs.Err e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CoreFs.Err("NETWORK_ERROR", String.valueOf(e.getMessage()));
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }
+
+    private JSONObject githubDownload(JSONObject p) throws Exception {
+        String urlText = p.optString("url", "");
+        checkGithubHost(urlText);
+        String filename = sanitizeDownloadName(p.optString("filename", "download"));
+        String token = p.optString("token", "");
+        File tmp = File.createTempFile("github-dl-", ".tmp", ctx.getCacheDir());
+        HttpURLConnection conn = null;
+        try {
+            conn = (HttpURLConnection) new URL(urlText).openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(120000);
+            conn.setRequestProperty("Accept", "application/octet-stream");
+            conn.setRequestProperty("User-Agent", "Canghai-Git");
+            if (token != null && !token.isEmpty()) {
+                conn.setRequestProperty("Authorization", "Bearer " + token);
+            }
+            int status = conn.getResponseCode();
+            if (status < 200 || status >= 300) {
+                throw new CoreFs.Err("DOWNLOAD_FAILED", "HTTP " + status);
+            }
+            long total = 0;
+            try (InputStream in = conn.getInputStream();
+                 FileOutputStream fos = new FileOutputStream(tmp)) {
+                byte[] buf = new byte[32768];
+                int n;
+                while ((n = in.read(buf)) != -1) {
+                    total += n;
+                    if (total > 512L * 1024 * 1024) throw new CoreFs.Err("DOWNLOAD_FAILED", "文件过大");
+                    fos.write(buf, 0, n);
+                }
+            }
+            JSONArray saved;
+            if (isZipFile(tmp)) {
+                saved = unzipToDownloads(tmp);
+            } else {
+                saved = new JSONArray();
+                saved.put(writeToDownloads(tmp, filename, mimeForName(filename)));
+            }
+            return new JSONObject().put("saved", true).put("files", saved).put("dir", "Downloads/Canghai");
+        } catch (CoreFs.Err e) {
+            throw e;
+        } catch (Exception e) {
+            throw new CoreFs.Err("DOWNLOAD_FAILED", String.valueOf(e.getMessage()));
+        } finally {
+            tmp.delete();
+            if (conn != null) conn.disconnect();
+        }
+    }
+
+    private static boolean isZipFile(File f) throws Exception {
+        try (FileInputStream fis = new FileInputStream(f)) {
+            byte[] magic = new byte[4];
+            if (fis.read(magic) < 4) return false;
+            return magic[0] == 'P' && magic[1] == 'K' && magic[2] == 3 && magic[3] == 4;
+        }
+    }
+
+    private JSONArray unzipToDownloads(File zipFile) throws Exception {
+        JSONArray saved = new JSONArray();
+        int entries = 0;
+        long totalOut = 0;
+        try (ZipInputStream zin = new ZipInputStream(new FileInputStream(zipFile))) {
+            ZipEntry e;
+            while ((e = zin.getNextEntry()) != null) {
+                if (e.isDirectory()) continue;
+                String name = e.getName().replace('\\', '/');
+                if (name.startsWith("/") || name.contains("..")) continue;
+                String base = name.substring(name.lastIndexOf('/') + 1);
+                if (base.isEmpty()) continue;
+                if (++entries > 100) throw new CoreFs.Err("DOWNLOAD_FAILED", "压缩包条目过多");
+                File tmpEntry = File.createTempFile("github-entry-", ".tmp", ctx.getCacheDir());
+                try {
+                    long wrote = 0;
+                    try (FileOutputStream fos = new FileOutputStream(tmpEntry)) {
+                        byte[] buf = new byte[32768];
+                        int n;
+                        while ((n = zin.read(buf)) != -1) {
+                            wrote += n;
+                            totalOut += n;
+                            if (totalOut > 512L * 1024 * 1024) throw new CoreFs.Err("DOWNLOAD_FAILED", "解压后过大");
+                            fos.write(buf, 0, n);
+                        }
+                    }
+                    JSONObject one = writeToDownloads(tmpEntry, sanitizeDownloadName(base), mimeForName(base));
+                    one.put("size", wrote);
+                    saved.put(one);
+                } finally {
+                    tmpEntry.delete();
+                }
+            }
+        }
+        if (saved.length() == 0) throw new CoreFs.Err("DOWNLOAD_FAILED", "压缩包里没有文件");
+        return saved;
+    }
+
+    private JSONObject writeToDownloads(File src, String filename, String mimeType) throws Exception {
+        boolean written = false;
+        String finalName = filename;
+        long size = src.length();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            try {
+                ContentValues values = new ContentValues();
+                values.put(MediaStore.Downloads.DISPLAY_NAME, filename);
+                values.put(MediaStore.Downloads.MIME_TYPE, mimeType);
+                values.put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Canghai");
+                Uri uri = ctx.getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+                if (uri != null) {
+                    try (InputStream in = new FileInputStream(src);
+                         OutputStream os = ctx.getContentResolver().openOutputStream(uri)) {
+                        if (os != null) {
+                            copyStream(in, os);
+                            written = true;
+                        }
+                    }
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "MediaStore 写入失败，尝试文件兜底", t);
+            }
+        }
+        if (!written) {
+            File dlDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+            File targetDir = new File(dlDir, "Canghai");
+            if (!targetDir.exists()) targetDir.mkdirs();
+            File dest = new File(targetDir, filename);
+            if (dest.exists()) {
+                String base = filename;
+                String ext = "";
+                int dot = filename.lastIndexOf('.');
+                if (dot > 0) {
+                    base = filename.substring(0, dot);
+                    ext = filename.substring(dot);
+                }
+                dest = new File(targetDir, base + "_" + System.currentTimeMillis() + ext);
+            }
+            try (InputStream in = new FileInputStream(src);
+                 FileOutputStream fos = new FileOutputStream(dest)) {
+                copyStream(in, fos);
+                written = true;
+                finalName = dest.getName();
+            } catch (Throwable t) {
+                File appDl = ctx.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS);
+                if (appDl != null) {
+                    if (!appDl.exists()) appDl.mkdirs();
+                    try (InputStream in = new FileInputStream(src);
+                         FileOutputStream fos = new FileOutputStream(new File(appDl, filename))) {
+                        copyStream(in, fos);
+                        written = true;
+                    }
+                }
+                if (!written) throw t;
+            }
+        }
+        return new JSONObject().put("saved", true).put("name", finalName).put("size", size);
     }
 
     /* ---------------- device ---------------- */
