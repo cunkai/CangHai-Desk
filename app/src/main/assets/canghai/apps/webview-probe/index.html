@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark">
+<title>浏览器验证</title>
+<!--
+  浏览器最小验证版：只验证两件事——原生内容窗能不能盖在桌面之上、窗口拖动时
+  内容窗跟不跟得上。没有标签池、没有下载、没有文件选择器。
+  内容窗由 Java 侧创建（CanghaiCore 'webview' 命名空间），只用
+  TYPE_PRIVATE_PRESENTATION 挂载，挂不上就报「本机不支持」，绝不降级到悬浮窗。
+  矩形由桌面侧换算：应用发 iframe 视口坐标，桌面加 iframe 位置、乘设备像素比。
+  验证版限制：最小化/关闭窗口前请先点「隐藏」或「关闭内容窗」，否则内容窗会
+  留在屏上（正式版由桌面在窗口状态变化时自动藏窗）。
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:linear-gradient(180deg,#0d2136 0%,#0a1628 55%,#081120 100%);
+    color:rgba(255,255,255,.95);font-size:16px;line-height:1.5;display:flex;flex-direction:column;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .topbar{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid rgba(201,168,92,.25)}
+  .brand{font-size:19px;font-weight:700;letter-spacing:1px;white-space:nowrap}
+  .pill{font-size:12px;border-radius:20px;padding:2px 10px;white-space:nowrap;border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.66)}
+  .pill.ok{border-color:rgba(46,160,90,.6);color:#8fe0b0}
+  .pill.bad{border-color:rgba(200,60,60,.6);color:#f0a0a0}
+  .controls{padding:12px 14px 6px;display:flex;flex-direction:column;gap:10px}
+  .row{display:flex;gap:8px}
+  .row input{
+    flex:1;min-width:0;padding:10px 12px;font-size:16px;color:rgba(255,255,255,.95);
+    background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.22);border-radius:10px;outline:none;
+  }
+  .row input:focus{border-color:#c9a85c}
+  .btn{
+    padding:10px 14px;font-size:15px;border-radius:10px;cursor:pointer;white-space:nowrap;
+    border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:rgba(255,255,255,.95);
+  }
+  .btn:active{transform:scale(.98)}
+  .btn:disabled{opacity:.45;cursor:default;transform:none}
+  .btn.gold{background:linear-gradient(160deg,#ecd28f,#c9a85c);border:none;color:#081120;font-weight:600}
+  .btnrow{display:flex;gap:8px;flex-wrap:wrap}
+  .status{padding:0 14px 10px;font-size:13px;color:rgba(255,255,255,.66);word-break:break-all;min-height:20px}
+  #hole{
+    flex:1;margin:0 14px 14px;border:2px dashed rgba(201,168,92,.55);border-radius:12px;
+    display:flex;align-items:center;justify-content:center;text-align:center;
+    color:rgba(236,210,143,.75);font-size:15px;padding:20px;min-height:120px;
+  }
+  .note{padding:0 14px 14px;font-size:13px;color:rgba(255,255,255,.5)}
+  #toast{
+    position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);
+    background:rgba(10,22,40,.96);border:1px solid rgba(201,168,92,.55);color:rgba(255,255,255,.95);
+    font-size:15px;padding:11px 18px;border-radius:24px;opacity:0;pointer-events:none;
+    transition:opacity .2s,transform .2s;max-width:88%;text-align:center;z-index:50;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">浏览器验证</div>
+  <span id="pill" class="pill">未连接</span>
+</div>
+<div class="controls">
+  <div class="row">
+    <input id="inpUrl" value="https://m.wikipedia.org" autocomplete="off" spellcheck="false" aria-label="网址">
+    <button id="btnGo" class="btn gold">打开</button>
+  </div>
+  <div class="btnrow">
+    <button id="btnBack" class="btn" disabled>后退</button>
+    <button id="btnFwd" class="btn" disabled>前进</button>
+    <button id="btnReload" class="btn">刷新</button>
+    <button id="btnShow" class="btn">显示内容窗</button>
+    <button id="btnHide" class="btn">隐藏</button>
+    <button id="btnClose" class="btn">关闭内容窗</button>
+  </div>
+</div>
+<div id="status" class="status">验证版：只验证内容窗层级与矩形跟随。点「打开」显示内容窗，拖动窗口看它跟不跟得上。</div>
+<div id="hole">内容窗显示区<br>原生 WebView 将盖在这里</div>
+<div class="note">最小化/关闭窗口前请先点「隐藏」或「关闭内容窗」。机器挂不上内容窗时会显示「本机不支持」。</div>
+<div id="toast"></div>
+<script>
+'use strict';
+/* ---------------- 桥调用：应用 → 桌面 postMessage，等 webviewResult 回执 ---------------- */
+var _reqSeq = 0, _pending = {};
+window.addEventListener('message', function (e) {
+  var d = e && e.data;
+  if (!d || typeof d !== 'object') return;
+  if (d.canghai === 'webviewResult' && d.requestId && _pending[d.requestId]) {
+    var p = _pending[d.requestId];
+    delete _pending[d.requestId];
+    clearTimeout(p.timer);
+    if (d.ok) p.resolve(d.data); else p.reject(new Error(d.error || 'FAILED'));
+  }
+});
+function wvCall(method, extra, timeoutMs) {
+  return new Promise(function (resolve, reject) {
+    var id = 'w' + (++_reqSeq) + '_' + Date.now();
+    var msg = { canghai: 'webview', method: method, requestId: id };
+    if (extra) for (var k in extra) msg[k] = extra[k];
+    var timer = setTimeout(function () {
+      if (_pending[id]) { delete _pending[id]; reject(new Error('NO_BRIDGE')); }
+    }, timeoutMs || 10000);
+    _pending[id] = { resolve: resolve, reject: reject, timer: timer };
+    try { window.parent.postMessage(msg, '*'); }
+    catch (err) { clearTimeout(timer); delete _pending[id]; reject(err); }
+  });
+}
+
+/* ---------------- 小工具与状态 ---------------- */
+function $(id) { return document.getElementById(id); }
+var _toastTimer = null;
+function toast(msg, ms) {
+  var t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function () { t.classList.remove('show'); }, ms || 2600);
+}
+function setPill(text, cls) {
+  var p = $('pill');
+  p.textContent = text;
+  p.className = 'pill' + (cls ? ' ' + cls : '');
+}
+function setStatus(text) { $('status').textContent = text; }
+var shown = false, syncTimer = null, statusTimer = null;
+function holeRect() {
+  var r = $('hole').getBoundingClientRect();
+  return { x: r.left, y: r.top, width: r.width, height: r.height };
+}
+function normUrl(u) {
+  u = String(u || '').trim();
+  if (!u) return '';
+  if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(u)) u = 'https://' + u;
+  return u;
+}
+function showError(err) {
+  var m = err && err.message ? err.message : '未知错误';
+  if (m === 'NO_BRIDGE') {
+    setPill('无桥', 'bad');
+    setStatus('需要在沧海系统内打开，当前没有桥。');
+  } else if (m === 'UNSUPPORTED') {
+    setPill('本机不支持', 'bad');
+    setStatus('本机不支持：内容窗挂不上（本机不支持，无悬浮窗降级）。');
+    toast('本机不支持');
+  } else {
+    setStatus('出错：' + m);
+  }
+}
+
+/* ---------------- 矩形同步与状态轮询 ---------------- */
+function syncRect() {
+  if (!shown) return;
+  var r = holeRect();
+  if (r.width <= 0 || r.height <= 0) { doHide(true); return; }
+  wvCall('move', r, 5000).catch(function () { /* 同步失败静默，下一次再试 */ });
+}
+function pollStatus() {
+  if (!shown) return;
+  wvCall('status', null, 5000).then(function (s) {
+    if (!shown) return;
+    var r = holeRect();
+    setStatus('内容窗：' + (s.title || '(无标题)') + ' · ' + (s.url || '') +
+      ' · ' + (s.progress || 0) + '% · 矩形 ' +
+      Math.round(r.x) + ',' + Math.round(r.y) + ' ' + Math.round(r.width) + '×' + Math.round(r.height));
+    $('btnBack').disabled = !s.canGoBack;
+    $('btnFwd').disabled = !s.canGoForward;
+  }).catch(function () { /* 下一次再试 */ });
+}
+function startLoops() {
+  stopLoops();
+  syncTimer = setInterval(syncRect, 300);
+  statusTimer = setInterval(pollStatus, 1000);
+}
+function stopLoops() {
+  if (syncTimer) { clearInterval(syncTimer); syncTimer = null; }
+  if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
+}
+
+/* ---------------- 动作 ---------------- */
+function doShow(url) {
+  var r = holeRect();
+  if (r.width <= 0 || r.height <= 0) { toast('显示区没有位置'); return; }
+  setStatus('正在显示内容窗…');
+  wvCall('show', { x: r.x, y: r.y, width: r.width, height: r.height, url: url }, 15000).then(function () {
+    shown = true;
+    setPill('已显示', 'ok');
+    setStatus('内容窗已显示。拖动窗口，看它跟不跟得上。');
+    startLoops();
+    pollStatus();
+  }).catch(showError);
+}
+function doHide(silent) {
+  stopLoops();
+  shown = false;
+  setPill('已隐藏', '');
+  $('btnBack').disabled = true;
+  $('btnFwd').disabled = true;
+  wvCall('hide', null, 5000).then(function () {
+    if (!silent) setStatus('内容窗已隐藏。');
+  }).catch(function (err) { if (!silent) showError(err); });
+}
+$('btnGo').addEventListener('click', function () {
+  var url = normUrl($('inpUrl').value);
+  if (!url) { toast('先填网址'); return; }
+  if (!shown) { doShow(url); return; }
+  wvCall('navigate', { url: url }, 10000).then(pollStatus).catch(showError);
+});
+$('inpUrl').addEventListener('keydown', function (e) {
+  if (e.key === 'Enter') $('btnGo').click();
+});
+$('btnShow').addEventListener('click', function () { doShow(normUrl($('inpUrl').value)); });
+$('btnHide').addEventListener('click', function () { doHide(false); });
+$('btnClose').addEventListener('click', function () {
+  stopLoops();
+  shown = false;
+  setPill('已关闭', '');
+  $('btnBack').disabled = true;
+  $('btnFwd').disabled = true;
+  wvCall('close', null, 5000).then(function () {
+    setStatus('内容窗已关闭。');
+  }).catch(showError);
+});
+$('btnBack').addEventListener('click', function () {
+  wvCall('back', null, 5000).then(pollStatus).catch(showError);
+});
+$('btnFwd').addEventListener('click', function () {
+  wvCall('forward', null, 5000).then(pollStatus).catch(showError);
+});
+$('btnReload').addEventListener('click', function () {
+  wvCall('reload', null, 5000).then(pollStatus).catch(showError);
+});
+window.addEventListener('resize', function () { syncRect(); });
+</script>
+</body>
+</html>
