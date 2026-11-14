@@ -24,7 +24,7 @@
   }
   .topbar{
     position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:10px;
-    padding:12px 16px;background:rgba(8,17,32,.92);border-bottom:1px solid rgba(201,168,92,.25);
+    padding:calc(12px + var(--ch-safe-top, 0px)) 16px 12px;background:rgba(8,17,32,.92);border-bottom:1px solid rgba(201,168,92,.25);
   }
   .brand{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:700;letter-spacing:1px}
   .brand svg{flex:none}
@@ -92,7 +92,7 @@
   }
   .saved b{color:#8fe0b0}
   #toast{
-    position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);
+    position:fixed;left:50%;bottom:calc(28px + var(--ch-safe-bottom, 0px));transform:translateX(-50%) translateY(20px);
     background:rgba(10,22,40,.96);border:1px solid rgba(201,168,92,.55);color:rgba(255,255,255,.95);
     font-size:15px;padding:11px 18px;border-radius:24px;opacity:0;pointer-events:none;
     transition:opacity .2s,transform .2s;max-width:88%;text-align:center;z-index:50;
@@ -119,13 +119,14 @@
     <div class="card">
       <h2>设备码授权 <span class="tag">推荐</span></h2>
       <p class="desc">不用输密码，在手机或电脑浏览器里打开 GitHub 输入一次码就行。授权后应用能查看你名下仓库的构建记录、下载产物。</p>
-      <label>应用 Client ID
-        <input id="inpClientId" placeholder="OAuth App 的 Client ID" autocomplete="off" spellcheck="false">
-      </label>
       <button id="btnDevice" class="btn gold">开始授权</button>
       <div id="deviceBox" hidden>
         <p style="margin-top:14px">在任意浏览器打开 <a id="deviceLink" href="https://github.com/login/device" target="_blank" rel="noopener">github.com/login/device</a>，输入：</p>
         <div id="userCode" class="usercode">····-····</div>
+        <p style="text-align:center;margin-bottom:12px">
+          <button id="btnCopyCode" class="btn small">复制授权码</button>
+          <button id="btnCopyLink" class="btn small">复制链接</button>
+        </p>
         <p class="desc" id="deviceStatus">等待授权…</p>
         <button id="btnDeviceCancel" class="btn ghost">取消</button>
       </div>
@@ -165,8 +166,8 @@
 <div id="toast"></div>
 <script>
 'use strict';
-/* OAuth App 的 Client ID（公开值，不是密钥）。注册后填入，设备码授权默认用它；
-   留空时用户在界面上手动输入。 */
+/* OAuth App 的 Client ID（公开值，不是密钥；只写在代码里，不在界面上显示）。
+   留空时设备码授权不可用，改走 Token 登录。 */
 var GH_CLIENT_ID = 'Ov23liJljjKqCTNCUuge';
 var TOKEN_FILE = 'github-token.json';
 var REPO_FILE = 'github-repo.json';
@@ -330,8 +331,8 @@ function stopPolling() {
   if (_pollTimer) { clearTimeout(_pollTimer); _pollTimer = null; }
 }
 function startDeviceFlow() {
-  var clientId = $('inpClientId').value.trim();
-  if (!clientId) { toast('先填 Client ID'); return; }
+  var clientId = GH_CLIENT_ID;
+  if (!clientId) { toast('未配置 Client ID，请用 Token 登录'); return; }
   var btn = $('btnDevice');
   btn.disabled = true;
   $('deviceStatus').textContent = '正在取授权码…';
@@ -406,6 +407,39 @@ $('btnDeviceCancel').addEventListener('click', function () {
   stopPolling();
   $('deviceBox').hidden = true;
   $('btnDevice').disabled = false;
+});
+
+/* ---------------- 复制：优先 Clipboard API，WebView 里不可用时退回选区复制 ---------------- */
+function copyText(text, okMsg) {
+  function done(ok) { toast(ok ? (okMsg || '已复制') : '复制失败，请长按手动复制'); }
+  function fallback() {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      done(!!ok);
+    } catch (e) { done(false); }
+  }
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { done(true); }, function () { fallback(); });
+      return;
+    }
+  } catch (e) { /* fall through */ }
+  fallback();
+}
+$('btnCopyCode').addEventListener('click', function () {
+  var code = $('userCode').textContent.trim();
+  if (!code || code.indexOf('·') >= 0) { toast('还没有授权码'); return; }
+  copyText(code, '授权码已复制');
+});
+$('btnCopyLink').addEventListener('click', function () {
+  copyText($('deviceLink').href, '链接已复制');
 });
 
 /* ---------------- 手动 Token 登录 ---------------- */
@@ -577,7 +611,6 @@ function downloadArtifact(a, btn) {
 }
 
 /* ---------------- 启动 ---------------- */
-if (GH_CLIENT_ID) $('inpClientId').value = GH_CLIENT_ID;
 loadRepo().then(function () {
   $('inpOwner').value = state.owner;
   $('inpRepo').value = state.repo;
