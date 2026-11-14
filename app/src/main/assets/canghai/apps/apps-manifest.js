@@ -6,7 +6,7 @@
  * 加新应用：把应用文件夹（index.html + app.json + icon.svg）拖进 canghai/apps/
  *   → 重新跑一遍生成脚本（或由安卓层启动时扫描同一批文件夹生成同一份清单覆盖）。
  * 桥（Canghai.getState().htmlApps）里再报一遍这些 id 时，桌面去重，清单优先。
- * 生成日期：2026-11-13，共 13 个应用（仓海条目 2026-11-14 手加，格式同生成器）
+ * 生成日期：2026-11-13，共 14 个应用（仓海、浏览器验证条目 2026-11-14 手加，格式同生成器）
  * ========================================================================== */
 (function (w) {
   'use strict';
@@ -171,6 +171,17 @@
     "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"bg\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#12324a\"/><stop offset=\"1\" stop-color=\"#0a1a2a\"/></linearGradient></defs><rect width=\"64\" height=\"64\" rx=\"14\" fill=\"url(#bg)\"/><g fill=\"none\" stroke=\"#ecd28f\" stroke-width=\"3\" stroke-linecap=\"round\"><circle cx=\"20\" cy=\"16\" r=\"4.5\" fill=\"#0a1a2a\"/><circle cx=\"20\" cy=\"48\" r=\"4.5\" fill=\"#0a1a2a\"/><circle cx=\"45\" cy=\"24\" r=\"4.5\" fill=\"#0a1a2a\"/><path d=\"M20 20.5v23\"/><path d=\"M45 28.5c0 10-11 10-25 13.5\"/></g></svg>",
     "type": "builtin",
     "desc": "仓海"
+  },
+  {
+    "id": "webview-probe",
+    "kind": "html",
+    "name": "浏览器验证",
+    "installed": true,
+    "url": "../apps/webview-probe/index.html",
+    "grad": "linear-gradient(160deg,#1a5a8a,#0a2a4a)",
+    "icon": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"bg\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#12324a\"/><stop offset=\"1\" stop-color=\"#0a1a2a\"/></linearGradient></defs><rect width=\"64\" height=\"64\" rx=\"14\" fill=\"url(#bg)\"/><g fill=\"none\" stroke=\"#ecd28f\" stroke-width=\"3\" stroke-linecap=\"round\"><circle cx=\"32\" cy=\"32\" r=\"18\"/><ellipse cx=\"32\" cy=\"32\" rx=\"8\" ry=\"18\"/><path d=\"M14.5 32h35M18.5 21h27M18.5 43h27\"/></g></svg>",
+    "type": "builtin",
+    "desc": "浏览器验证"
   }
 ];
   APPS.forEach(function (a) { w.CHApps.registerBuiltinApp(a); });
