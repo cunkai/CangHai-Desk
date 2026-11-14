@@ -431,6 +431,7 @@ window.addEventListener('message', function(e){
      别的应用的文件夹；普通应用的 targetAppId / appId 一律丢掉。结果原样
      postMessage 回去 {canghai:'fsResult', ...}。 */
   if(d.canghai === 'fs'){ chHandleFsRequest(e, d); return; }
+  if(d.canghai === 'github'){ chHandleGithubRequest(e, d); return; }
   if(d.canghai === 'download'){
     var dlReqId = d.requestId, dlSrc = e.source, dlDone = false;
     var dlReply = function(ok, error){
@@ -553,6 +554,40 @@ function chHandleFsRequest(e, d){
   Promise.resolve(p).then(reply, function(){ reply({ok:false, error:'INTERNAL_ERROR'}); });
 }
 window.__chAppIdForSource = chAppIdForSource;
+
+
+/* ================= GitHub 转调：应用 → 桌面 → CanghaiCore github =================
+   仓海应用调 GitHub API 与下载产物：应用 postMessage
+   {canghai:'github', requestId, method, url, httpMethod?, token?, body?,
+   contentType?, filename?} 给桌面，桌面原样转给 CHCore.invoke('github', ...)，
+   结果回去 {canghai:'githubResult', requestId, ok, data?, error?}。
+   方法只认 request / download 两种；域名限制（仅 github.com 与
+   api.github.com）由安卓侧 CanghaiCore 强制执行。token 由应用自己从它的
+   沙盒里读、每次调用自带，桌面不存、不记。 */
+var CH_GITHUB_METHODS = ['request', 'download'];
+function chHandleGithubRequest(e, d){
+  var requestId = d.requestId;
+  function reply(r){
+    try{
+      var target = e.source;
+      if(!target || !target.postMessage) return;
+      target.postMessage({canghai:'githubResult', requestId:requestId, ok:!!r.ok, data:r.data, error:r.error || ''}, e.origin || '*');
+    }catch(err){}
+  }
+  var method = String(d.method || '');
+  if(CH_GITHUB_METHODS.indexOf(method) < 0){ reply({ok:false, error:'INVALID_ARGS'}); return; }
+  if(!window.CHCore || !CHCore.invoke){ reply({ok:false, error:'NO_BRIDGE'}); return; }
+  var payload = {url: String(d.url || '')};
+  if(d.httpMethod) payload.httpMethod = String(d.httpMethod);
+  if(d.token) payload.token = String(d.token);
+  if(d.body != null) payload.body = String(d.body);
+  if(d.contentType) payload.contentType = String(d.contentType);
+  if(d.filename) payload.filename = String(d.filename);
+  var p;
+  try{ p = CHCore.invoke('github', method, payload); }
+  catch(err){ reply({ok:false, error:'INTERNAL_ERROR'}); return; }
+  Promise.resolve(p).then(reply, function(){ reply({ok:false, error:'INTERNAL_ERROR'}); });
+}
 
 
 /* ================= 文件关联：按扩展名把文件递给对应的应用 =================
