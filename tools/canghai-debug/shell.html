@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>沧海调试 · 一键调试</title>
+<script src="/__ch/fake-core.js"></script>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{display:flex;flex-direction:column;background:#060d18;color:rgba(255,255,255,.92);
+    font-family:-apple-system,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:14px;overflow:hidden}
+  #toolbar{display:flex;align-items:center;gap:10px;padding:8px 12px;flex:0 0 auto;
+    background:#0a1628;border-bottom:1px solid rgba(201,168,92,.35);flex-wrap:wrap}
+  #toolbar .brand{font-weight:700;letter-spacing:1px;color:#ecd28f;white-space:nowrap}
+  #toolbar .hint{color:rgba(255,255,255,.5);font-size:12px;white-space:nowrap}
+  #toolbar button{padding:6px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.08);color:rgba(255,255,255,.92);cursor:pointer;font-size:13px;white-space:nowrap}
+  #toolbar button:hover{border-color:#c9a85c}
+  #toolbar button.gold{background:linear-gradient(160deg,#ecd28f,#c9a85c);border:none;color:#081120;font-weight:600}
+  #status{flex:1;min-width:200px;font-size:12px;color:rgba(255,255,255,.66);
+    font-family:ui-monospace,Consolas,monospace;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #status b{color:#8fe0b0;font-weight:600}
+  #main{flex:1;display:flex;min-height:0}
+  #phonePane{flex:0 0 400px;border-right:1px solid rgba(201,168,92,.35);display:flex;min-width:0}
+  #phonePane iframe{flex:1;border:0;background:#0a1628}
+  #deskPane{flex:1;position:relative;min-width:0;background:#000}
+  #deskFrame{position:absolute;inset:0;width:100%;height:100%;border:0}
+  #dockFrame{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent;pointer-events:none;z-index:10}
+  #wvOverlay{position:fixed;display:none;border:0;background:#fff;z-index:9000;
+    box-shadow:0 0 0 1px rgba(201,168,92,.6)}
+  #callLog{flex:0 0 auto;max-height:120px;overflow:auto;background:#04070d;
+    border-top:1px solid rgba(201,168,92,.25);padding:6px 12px;
+    font-family:ui-monospace,Consolas,monospace;font-size:12px;line-height:1.6;color:rgba(255,255,255,.6)}
+  #callLog .row b{color:#ecd28f;font-weight:600}
+  #callLog .row .t{color:rgba(255,255,255,.35)}
+</style>
+</head>
+<body>
+<div id="toolbar">
+  <span class="brand">沧海调试</span>
+  <span class="hint">左手机 · 右大屏 · 假原生层</span>
+  <button id="btnReloadAll" class="gold">全部刷新</button>
+  <button id="btnReset">重置假状态</button>
+  <button id="btnState">状态 JSON</button>
+  <span id="status">等待桥调用…</span>
+</div>
+<div id="main">
+  <div id="phonePane"><iframe id="phoneFrame" src="/phonehome/index.html" title="手机端"></iframe></div>
+  <div id="deskPane">
+    <iframe id="deskFrame" src="/canghai/desktop/index.html" title="桌面"></iframe>
+    <iframe id="dockFrame" src="/canghai/dock/index.html" allowtransparency="true" title="Dock 层"></iframe>
+  </div>
+</div>
+<iframe id="wvOverlay" title="内容窗（调试覆盖层）"></iframe>
+<div id="callLog"></div>
+<script>
+(function () {
+  'use strict';
+  var FAKE = window.__chFakeNative;
+  var phoneFrame = document.getElementById('phoneFrame');
+  var deskFrame = document.getElementById('deskFrame');
+  var dockFrame = document.getElementById('dockFrame');
+  var overlay = document.getElementById('wvOverlay');
+  var statusEl = document.getElementById('status');
+  var logEl = document.getElementById('callLog');
+
+  /* ---- 窗口引用：iframe 每次加载后重取 ---- */
+  function bindWins() {
+    try { FAKE._wins.phone = phoneFrame.contentWindow; } catch (e) {}
+    try { FAKE._wins.desktop = deskFrame.contentWindow; } catch (e) {}
+    try { FAKE._wins.dock = dockFrame.contentWindow; } catch (e) {}
+  }
+  phoneFrame.addEventListener('load', bindWins);
+  deskFrame.addEventListener('load', bindWins);
+  dockFrame.addEventListener('load', bindWins);
+  bindWins();
+
+  /* ---- 调用记录 → 状态行 + 日志 ---- */
+  FAKE._onCall = function (entry) {
+    statusEl.innerHTML = '<b>[' + entry.page + ']</b> ' +
+      entry.method.replace(/</g, '&lt;') + ' ' + String(entry.detail || '').replace(/</g, '&lt;');
+    var row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = '<span class="t">' + entry.t + '</span> <b>[' + entry.page + ']</b> ' +
+      entry.method.replace(/</g, '&lt;') + ' ' + String(entry.detail || '').replace(/</g, '&lt;');
+    logEl.appendChild(row);
+    while (logEl.children.length > 50) logEl.removeChild(logEl.firstChild);
+    logEl.scrollTop = logEl.scrollHeight;
+  };
+
+  /* ---- 工具栏 ---- */
+  document.getElementById('btnReloadAll').addEventListener('click', function () {
+    try { phoneFrame.contentWindow.location.reload(); } catch (e) {}
+    try { deskFrame.contentWindow.location.reload(); } catch (e) {}
+    try { dockFrame.contentWindow.location.reload(); } catch (e) {}
+  });
+  document.getElementById('btnReset').addEventListener('click', function () {
+    try { localStorage.removeItem('canghai.debug.fake.v1'); } catch (e) {}
+    location.reload();
+  });
+  document.getElementById('btnState').addEventListener('click', function () {
+    var s = JSON.stringify(FAKE.getState(1), null, 2);
+    var w = window.open('', '_blank');
+    if (w) { w.document.write('<pre>' + s.replace(/</g, '&lt;') + '</pre>'); w.document.close(); }
+  });
+
+  /* ---- Dock iframe 指针开关 ----
+     Dock 页通过 reportTouchableRegions 上报可点矩形（设备像素）；壳页按
+     指针位置开关 Dock iframe 的 pointer-events，点 Dock 之外落到桌面。
+     未上报时默认只认顶部 48px（顶栏）与底部 116px（Dock 条）。 */
+  function updateDockPointer(vx, vy) {
+    var df = deskFrame.getBoundingClientRect();
+    var x = vx - df.left, y = vy - df.top;
+    var rects = FAKE._dockRects;
+    var dpr = window.devicePixelRatio || 1;
+    var inside = false;
+    if (rects === 'ALL') inside = true;
+    else if (Array.isArray(rects)) {
+      for (var i = 0; i < rects.length; i++) {
+        var r = rects[i];
+        if (x >= r.l / dpr && x <= r.r / dpr && y >= r.t / dpr && y <= r.b / dpr) { inside = true; break; }
+      }
+    } else {
+      inside = (y < 48) || (y > df.height - 116);
+    }
+    dockFrame.style.pointerEvents = inside ? 'auto' : 'none';
+  }
+  FAKE._dockPointerHook = updateDockPointer;
+  document.getElementById('deskPane').addEventListener('mousemove', function (e) {
+    updateDockPointer(e.clientX, e.clientY);
+  });
+
+  /* ---- 内容窗覆盖层（webview 命名空间的壳侧实现） ---- */
+  var wvLoading = false, wvLastUrl = '';
+  overlay.addEventListener('load', function () { wvLoading = false; });
+  function placeOverlay(r) {
+    var df = deskFrame.getBoundingClientRect();
+    overlay.style.left = Math.round(df.left + r.x) + 'px';
+    overlay.style.top = Math.round(df.top + r.y) + 'px';
+    overlay.style.width = Math.max(0, Math.round(r.width)) + 'px';
+    overlay.style.height = Math.max(0, Math.round(r.height)) + 'px';
+  }
+  FAKE._wvHooks = {
+    show: function (r, url) {
+      placeOverlay(r);
+      if (url && url !== wvLastUrl) { wvLastUrl = url; wvLoading = true; overlay.src = url; }
+      overlay.style.display = 'block';
+    },
+    move: function (r) { placeOverlay(r); },
+    hide: function () { overlay.style.display = 'none'; },
+    close: function () { overlay.style.display = 'none'; wvLastUrl = ''; try { overlay.src = 'about:blank'; } catch (e) {} },
+    navigate: function (url) {
+      if (url && url !== wvLastUrl) { wvLastUrl = url; wvLoading = true; overlay.src = url; }
+    },
+    back: function () { try { overlay.contentWindow.history.back(); } catch (e) {} },
+    forward: function () { try { overlay.contentWindow.history.forward(); } catch (e) {} },
+    reload: function () {
+      wvLoading = true;
+      try { overlay.contentWindow.location.reload(); }
+      catch (e) { try { overlay.src = overlay.src; } catch (e2) {} }
+    },
+    stop: function () { try { overlay.contentWindow.stop(); } catch (e) {} wvLoading = false; },
+    status: function () {
+      var title = '', url = '';
+      try { title = overlay.contentDocument ? (overlay.contentDocument.title || '') : ''; } catch (e) {}
+      try { url = overlay.contentWindow ? overlay.contentWindow.location.href : ''; } catch (e) {}
+      if (!url || url === 'about:blank') url = wvLastUrl;
+      return { title: title, url: url, progress: wvLoading ? 50 : 100 };
+    }
+  };
+
+  window.__chShell = { FAKE: FAKE, phoneFrame: phoneFrame, deskFrame: deskFrame, dockFrame: dockFrame, overlay: overlay };
+})();
+</script>
+</body>
+</html>
