@@ -2,14 +2,14 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>图片编辑器 · 裁剪 / 调色 / 扫描 / 压缩</title>
 <style>
 :root{--bg:#07111c;--panel:#0d1f30;--p2:#12293d;--line:#24405a;--text:#e9eff6;--mut:#8ba3b8;--acc:#c9a85c;--acc2:#ecd28f;--good:#6fd3a7;--bad:#ff9a9a}
 *{box-sizing:border-box}[hidden]{display:none!important}
 html,body{height:100%}
 body{margin:0;height:100vh;display:flex;flex-direction:column;overflow:hidden;background:linear-gradient(180deg,#0a1a2a,#060e18);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
-.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 22px;flex-shrink:0}
+.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:calc(14px + var(--ch-safe-top, env(safe-area-inset-top, 0px))) 22px 14px;flex-shrink:0}
 .brand{display:flex;align-items:center;gap:12px}
 .logo{width:36px;height:36px;border-radius:10px;background:#0a1826;border:1px solid var(--line);display:grid;place-items:center}
 .logo svg{display:block}
@@ -19,7 +19,7 @@ body{margin:0;height:100vh;display:flex;flex-direction:column;overflow:hidden;ba
 .btn:focus-visible,.ib:focus-visible,#sp:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .btn.pri{background:linear-gradient(180deg,#d9bc72,#c9a85c);border-color:transparent;color:#1a1408;font-weight:600}.btn.pri:hover{filter:brightness(1.07)}
 .btn.lg{padding:11px 22px;font-size:14px}.btn.sm{padding:6px 10px;font-size:12px;border-radius:8px}
-.layout{flex:1;min-height:0;display:flex;justify-content:center;padding:0 22px 20px}
+.layout{flex:1;min-height:0;display:flex;justify-content:center;padding:0 22px calc(20px + var(--ch-safe-bottom, env(safe-area-inset-bottom, 0px)))}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;width:100%;max-width:1180px;overflow-y:auto;display:flex;flex-direction:column;box-shadow:0 18px 50px rgba(0,0,0,.35)}
 .empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;color:var(--mut);padding:40px 24px;text-align:center}
 .empty h2{margin:0;font-size:17px;color:#dbe6f0}.empty p{margin:0 0 8px;font-size:13px;max-width:340px}
@@ -81,13 +81,13 @@ select:focus,input[type=number]:focus{border-color:var(--acc)}
 #applyQuad:active{transform:scale(.96)}
 .lb{position:fixed;inset:0;z-index:70;display:flex;align-items:center;justify-content:center;background:rgba(3,7,12,.94);overflow:hidden;touch-action:none}
 #lbc{max-width:92vw;max-height:84vh;border-radius:8px;cursor:grab;transform-origin:center;box-shadow:0 24px 70px rgba(0,0,0,.65)}
-.lbx{position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(14,26,40,.85);color:#dfe3ee;cursor:pointer}
-.lbt{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);font-size:12px;color:#8fa3b8;white-space:nowrap;pointer-events:none}
-.toast{position:fixed;left:50%;bottom:26px;transform:translate(-50%,20px);opacity:0;pointer-events:none;background:#12293d;border:1px solid #2a435c;padding:10px 16px;border-radius:10px;transition:.25s;z-index:80}
+.lbx{position:absolute;top:calc(16px + var(--ch-safe-top, env(safe-area-inset-top, 0px)));right:16px;width:38px;height:38px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(14,26,40,.85);color:#dfe3ee;cursor:pointer}
+.lbt{position:absolute;bottom:calc(16px + var(--ch-safe-bottom, env(safe-area-inset-bottom, 0px)));left:50%;transform:translateX(-50%);font-size:12px;color:#8fa3b8;white-space:nowrap;pointer-events:none}
+.toast{position:fixed;left:50%;bottom:calc(26px + var(--ch-safe-bottom, env(safe-area-inset-bottom, 0px)));transform:translate(-50%,20px);opacity:0;pointer-events:none;background:#12293d;border:1px solid #2a435c;padding:10px 16px;border-radius:10px;transition:.25s;z-index:80}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 body.drag::after{content:"松开以载入图片";position:fixed;inset:12px;border:2px dashed var(--acc);border-radius:18px;background:rgba(6,12,20,.82);display:grid;place-items:center;font-size:16px;z-index:90;pointer-events:none}
 @media(min-width:720px){.grid{grid-template-columns:1fr 1fr}.sg{grid-template-columns:1fr 1fr}.sg .wide{grid-column:1/-1}.estr{flex-direction:row;align-items:center}.estr .est{flex:1}}
-@media(max-width:719px){body{height:auto;min-height:100vh;overflow:auto}.brand p{display:none}.layout{padding:0 12px 18px}.panel{overflow:visible}#sp{width:96px}#pv{max-height:58px}body.adjusting #sp{width:140px}body.adjusting #pv{max-height:86px}.pre{display:none}}
+@media(max-width:719px){body{height:auto;min-height:100vh;overflow:auto}.brand p{display:none}.layout{padding:0 12px calc(18px + var(--ch-safe-bottom, env(safe-area-inset-bottom, 0px)))}.panel{overflow:visible}#sp{width:96px}#pv{max-height:58px}body.adjusting #sp{width:140px}body.adjusting #pv{max-height:86px}.pre{display:none}}
 </style>
 </head>
 <body>
