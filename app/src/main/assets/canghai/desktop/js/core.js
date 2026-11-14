@@ -432,6 +432,7 @@ window.addEventListener('message', function(e){
      postMessage 回去 {canghai:'fsResult', ...}。 */
   if(d.canghai === 'fs'){ chHandleFsRequest(e, d); return; }
   if(d.canghai === 'github'){ chHandleGithubRequest(e, d); return; }
+  if(d.canghai === 'webview'){ chHandleWebviewRequest(e, d); return; }
   if(d.canghai === 'download'){
     var dlReqId = d.requestId, dlSrc = e.source, dlDone = false;
     var dlReply = function(ok, error){
@@ -585,6 +586,46 @@ function chHandleGithubRequest(e, d){
   if(d.filename) payload.filename = String(d.filename);
   var p;
   try{ p = CHCore.invoke('github', method, payload); }
+  catch(err){ reply({ok:false, error:'INTERNAL_ERROR'}); return; }
+  Promise.resolve(p).then(reply, function(){ reply({ok:false, error:'INTERNAL_ERROR'}); });
+}
+
+/* ================= 内容窗转调：应用 → 桌面 → CanghaiCore webview =================
+   浏览器验证应用调原生内容 WebView：应用 postMessage
+   {canghai:'webview', requestId, method, x?, y?, width?, height?, url?} 给桌面，
+   结果回去 {canghai:'webviewResult', requestId, ok, data?, error?}。
+   show / move 的矩形是应用 iframe 视口坐标，桌面加上 iframe 在桌面页里的位置
+   再乘设备像素比，换算成物理像素给安卓。方法只认白名单里的 10 种。 */
+var CH_WEBVIEW_METHODS = ['show', 'move', 'hide', 'navigate', 'back', 'forward', 'reload', 'stop', 'close', 'status'];
+function chHandleWebviewRequest(e, d){
+  var requestId = d.requestId;
+  function reply(r){
+    try{
+      var target = e.source;
+      if(!target || !target.postMessage) return;
+      target.postMessage({canghai:'webviewResult', requestId:requestId, ok:!!r.ok, data:r.data, error:r.error || ''}, e.origin || '*');
+    }catch(err){}
+  }
+  var method = String(d.method || '');
+  if(CH_WEBVIEW_METHODS.indexOf(method) < 0){ reply({ok:false, error:'INVALID_ARGS'}); return; }
+  if(!window.CHCore || !CHCore.invoke){ reply({ok:false, error:'NO_BRIDGE'}); return; }
+  var senderId = chAppIdForSource(e.source);
+  if(!senderId){ reply({ok:false, error:'PERMISSION_DENIED'}); return; }
+  var payload = {};
+  if(d.url != null) payload.url = String(d.url);
+  if(method === 'show' || method === 'move'){
+    var win = (typeof openWins !== 'undefined') && openWins[senderId];
+    var fr = win && win.querySelector && win.querySelector('iframe.appFrame');
+    if(!fr){ reply({ok:false, error:'NO_WINDOW'}); return; }
+    var frRect = fr.getBoundingClientRect();
+    var dpr = window.devicePixelRatio || 1;
+    payload.x = Math.round((frRect.left + (Number(d.x) || 0)) * dpr);
+    payload.y = Math.round((frRect.top + (Number(d.y) || 0)) * dpr);
+    payload.width = Math.round((Number(d.width) || 0) * dpr);
+    payload.height = Math.round((Number(d.height) || 0) * dpr);
+  }
+  var p;
+  try{ p = CHCore.invoke('webview', method, payload); }
   catch(err){ reply({ok:false, error:'INTERNAL_ERROR'}); return; }
   Promise.resolve(p).then(reply, function(){ reply({ok:false, error:'INTERNAL_ERROR'}); });
 }
