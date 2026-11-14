@@ -7,7 +7,7 @@
 <!-- 无边框打样：必须声明与桌面一致的 dark，否则 iframe 视口会被刷白（实测：父页 dark + 子页无声明 = 白底） -->
 <title>计算器</title>
 <style>
-:root{--fg:#5a6b7a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root{--fg:#5a6b7a;box-sizing:border-box;padding-top:var(--ch-safe-top, env(safe-area-inset-top, 0px));padding-bottom:var(--ch-safe-bottom, env(safe-area-inset-bottom, 0px))}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--fg:#9db4c6}}
 :root[data-theme="dark"]{--fg:#9db4c6}
 html,body{height:100%;margin:0}
@@ -18,10 +18,10 @@ canvas{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:
 .cbtn{position:fixed;z-index:2;width:44px;height:44px;border-radius:50%;border:1.5px solid rgba(201,168,92,.65);background:rgba(20,58,94,.82);color:#fff;font-size:20px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;box-shadow:0 4px 14px rgba(0,0,0,.25);touch-action:manipulation;-webkit-tap-highlight-color:transparent;outline:none}
 .cbtn:active{transform:scale(.92)}
 .cbtn:focus-visible{box-shadow:0 0 0 3px rgba(201,168,92,.55),0 4px 14px rgba(0,0,0,.25)}
-#timbreBtn{top:calc(12px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px))}
-#sndBtn{top:calc(64px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px))}
-#closeBtn{top:calc(116px + env(safe-area-inset-top,0px));right:calc(12px + env(safe-area-inset-right,0px))}
-#timbreTip{position:fixed;z-index:2;top:calc(18px + env(safe-area-inset-top,0px));right:calc(66px + env(safe-area-inset-right,0px));background:rgba(20,58,94,.9);border:1px solid rgba(201,168,92,.6);color:#ecd28f;font-size:13px;padding:6px 12px;border-radius:999px;opacity:0;transition:opacity .35s;pointer-events:none;white-space:nowrap}
+#timbreBtn{top:calc(12px + var(--ch-safe-top, env(safe-area-inset-top, 0px)));right:calc(12px + var(--ch-safe-right, env(safe-area-inset-right, 0px)))}
+#sndBtn{top:calc(64px + var(--ch-safe-top, env(safe-area-inset-top, 0px)));right:calc(12px + var(--ch-safe-right, env(safe-area-inset-right, 0px)))}
+#closeBtn{top:calc(116px + var(--ch-safe-top, env(safe-area-inset-top, 0px)));right:calc(12px + var(--ch-safe-right, env(safe-area-inset-right, 0px)))}
+#timbreTip{position:fixed;z-index:2;top:calc(18px + var(--ch-safe-top, env(safe-area-inset-top, 0px)));right:calc(66px + var(--ch-safe-right, env(safe-area-inset-right, 0px)));background:rgba(20,58,94,.9);border:1px solid rgba(201,168,92,.6);color:#ecd28f;font-size:13px;padding:6px 12px;border-radius:999px;opacity:0;transition:opacity .35s;pointer-events:none;white-space:nowrap}
 #timbreTip.on{opacity:1}
 </style>
 </head>
