@@ -32,7 +32,12 @@ android {
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']
             } else {
-                signingConfig signingConfigs.debug
+                // 没有发布签名配置时，复用 debug 签名兜底。SigningConfig 上没有
+                // signingConfig() 方法，不能直接把 debug 配置赋过来，逐字段复制。
+                storeFile signingConfigs.debug.storeFile
+                storePassword signingConfigs.debug.storePassword
+                keyAlias signingConfigs.debug.keyAlias
+                keyPassword signingConfigs.debug.keyPassword
             }
         }
     }
