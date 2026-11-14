@@ -63,6 +63,12 @@ The phone shows the control page: pick the native or Canghai desktop per display
 - The app does **not** request IME permissions; typing goes through the system keyboard. It does not request accessibility permissions either.
 - App data lives in a single folder owned by Canghai, and each app can only touch its own share.
 
+### More apps
+
+<img src="docs/works/aosen-auth.png" width="32" height="32" alt="Aosen Authenticator"> **奥森验证** · Native HarmonyOS TOTP / 2FA authenticator · [Huawei AppGallery](https://appgallery.huawei.com/app/detail?id=com.cunkai.fas)
+
+<img src="docs/works/aosen-piano.png" width="32" height="32" alt="Aosen Piano"> **奥森钢琴** · Numbered-notation piano, no staff reading needed · [Huawei AppGallery](https://appgallery.huawei.com/app/detail?id=com.cunkai.piano)
+
 ---
 
 ## Architecture

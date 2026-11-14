@@ -63,6 +63,12 @@
 - 应用**不**申请输入法权限，键盘输入走系统原生键盘；也**不**申请无障碍权限。
 - 应用数据只放在沧海自己的一个文件夹里，每个应用只能碰自己的那一份。
 
+### 更多作品
+
+<img src="docs/works/aosen-auth.png" width="32" height="32" alt="奥森验证"> **奥森验证** · 鸿蒙原生 TOTP、2FA 工具 · [华为应用市场](https://appgallery.huawei.com/app/detail?id=com.cunkai.fas)
+
+<img src="docs/works/aosen-piano.png" width="32" height="32" alt="奥森钢琴"> **奥森钢琴** · 不用看五线谱，数字简谱钢琴 · [华为应用市场](https://appgallery.huawei.com/app/detail?id=com.cunkai.piano)
+
 ---
 
 ## 技术架构
