@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>画板</title>
     <style>
         :root {
@@ -259,6 +259,10 @@
             #paletteGrid3Rows { height: 94px; gap: 4px; }
             #brushGrid3Rows { height: 94px; gap: 4px; }
         }
+    /* 安全区：沉浸式/挖孔屏下，顶部抽屉、品牌角标与底部控制条避开刘海与手势条；背景与画布继续全屏铺满 */
+    #topFloatingDrawer{padding-top:var(--ch-safe-top, env(safe-area-inset-top, 0px))}
+    .brand-chip{top:calc(10px + var(--ch-safe-top, env(safe-area-inset-top, 0px)))}
+    #bottomVideoDock{padding-bottom:calc(8px + var(--ch-safe-bottom, env(safe-area-inset-bottom, 0px)))}
     /* Tailwind subset: static utilities covering every class used in this file (offline, no CDN) */
 *,::before,::after{box-sizing:border-box;border-width:0;border-style:solid;border-color:currentColor}
 html{line-height:1.5;-webkit-text-size-adjust:100%}
@@ -605,7 +609,7 @@ img,svg,video,canvas{display:block;vertical-align:middle}
 <!-- ======================= 1. 顶部悬浮式折叠抽屉 (不挤压画布，点击箭头展开/收起，落笔自动收起) ======================= -->
 <div id="topFloatingDrawer" 
      class="fixed top-0 left-0 right-0 z-40 transition-transform duration-300 ease-out"
-     style="transform: translateY(calc(-100% + 30px));">
+     style="transform: translateY(calc(-100% + 30px + var(--ch-safe-top, env(safe-area-inset-top, 0px))));">
     
     <!-- 抽屉主体内容 -->
     <div class="floating-drawer-surface w-full border-b border-[#c9a85c]/25 px-3 sm:px-5 py-2.5">
@@ -1097,7 +1101,7 @@ img,svg,video,canvas{display:block;vertical-align:middle}
                 }, autoCloseMs);
             }
         } else {
-            drawer.style.transform = 'translateY(calc(-100% + 30px))';
+            drawer.style.transform = 'translateY(calc(-100% + 30px + var(--ch-safe-top, env(safe-area-inset-top, 0px))))';
             arrowIcon.style.transform = 'rotate(0deg)';
         }
     }
