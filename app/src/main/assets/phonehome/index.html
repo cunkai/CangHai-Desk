@@ -2685,6 +2685,19 @@
                   </div>
                 </div>
               </div>
+              <!-- 桌面与 Dock：整份桌面快照导出/导入 -->
+              <div class="set-group">
+                <div class="set-row keep-row">
+                  <div class="st"><b>桌面与 Dock</b></div>
+                </div>
+                <div class="row-note">把当前桌面布局、Dock 固定项、便签、壁纸和网格打成一个文件，换机器或分享给别人都能导进来用。</div>
+                <div style="display:flex;gap:10px;padding:0 2px 12px;">
+                  <button type="button" class="perm-btn" id="btnDeskExport" style="flex:1;">导出桌面</button>
+                  <button type="button" class="perm-btn" id="btnDeskImport" style="flex:1;">导入桌面</button>
+                </div>
+                <input type="file" id="deskImportFileInput" accept=".canghai-desktop,application/json,.json" hidden />
+                <div class="row-note" id="deskExportNote" style="margin-top:-6px;">导出后文件存在下载目录/Canghai 里。</div>
+              </div>
 <div class="set-group" id="groupErrorReport" style="display:none; border:1px solid rgba(239,68,68,.35); background:rgba(239,68,68,.04);">
                 <div class="set-row keep-row">
                   <div class="st">
