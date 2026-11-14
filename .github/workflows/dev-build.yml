@@ -1,0 +1,45 @@
+name: Dev Build (debug APK)
+
+# 开发分支构建：每次推送到 dev-muse 就编一个 debug 包，挂到本次运行的 Artifacts 里，
+# 供真机下载测试。绝不发布到 Releases，正式版只走 v* 标签的 Build & Release APK。
+
+on:
+  push:
+    branches: [dev-muse]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        run: |
+          SDKMANAGER=$(ls $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager | head -1)
+          echo "sdkmanager=$SDKMANAGER"
+          echo "y" | $SDKMANAGER --licenses
+          $SDKMANAGER "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: canghai-debug-${{ github.sha }}
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
