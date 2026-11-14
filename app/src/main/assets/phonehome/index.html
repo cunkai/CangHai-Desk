@@ -1481,8 +1481,14 @@
       /* ---------- screens page: portrait stacks, landscape/wide splits ----------
          Portrait (narrow): mascot (小星) on top, screens below.
          Landscape or wide: one row, two columns — mascot on the left,
-         screens on the right — with their tops aligned. */
-      @media (min-width: 1024px), (orientation: landscape) {
+         screens on the right — with their tops aligned.
+         The landscape split needs real room: on a tiny square screen the
+         viewport can be a few px wider than tall, which used to trigger the
+         split and crush the screens column into a ~170px sliver (the mascot
+         column alone takes 250px), leaving blank space under the mascot.
+         Gate it on width: below 700px the page always stacks, however the
+         viewport is oriented. */
+      @media (min-width: 1024px), ((orientation: landscape) and (min-width: 700px)) {
         #tabDevices .tabpage {display:grid;grid-template-columns:30vw min0;grid-template-columns:clamp(250px, 30vw, 336px) minmax(0, 1fr);column-gap:28px;align-items:start}
         #tabDevices .side-col { display: contents; }
         #tabDevices .mascot-zone {
