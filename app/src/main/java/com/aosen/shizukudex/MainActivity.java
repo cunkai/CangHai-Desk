@@ -1186,12 +1186,7 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
         if (dot >= 0) ext = name.substring(dot + 1).toLowerCase();
         if (ext.isEmpty()) return;
 
-        class AppTarget {
-            String id;
-            String name;
-            AppTarget(String i, String n) { id = i; name = n; }
-        }
-        List<AppTarget> matched = new ArrayList<>();
+        List<String[]> matched = new java.util.ArrayList<>();
         String[] builtins = new String[]{"markdown", "document", "photo-editor", "office", "music"};
         for (String bId : builtins) {
             org.json.JSONObject meta = CanghaiStore.builtinAppMeta(this, bId);
@@ -1201,7 +1196,7 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
                     for (int j = 0; j < h.length(); j++) {
                         if (ext.equalsIgnoreCase(h.optString(j))) {
                             String appName = meta.optString("name", bId);
-                            matched.add(new AppTarget(bId, appName));
+                            matched.add(new String[]{bId, appName});
                             break;
                         }
                     }
@@ -1216,21 +1211,21 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
 
         final String finalName = name;
         if (matched.size() == 1) {
-            AppTarget target = matched.get(0);
-            openHtmlAppWithFile(target.id, target.name, uriStr, finalName);
+            String[] target = matched.get(0);
+            openHtmlAppWithFile(target[0], target[1], uriStr, finalName);
             return;
         }
 
         // 多个匹配：弹出选择对话框让用户选
         String[] titles = new String[matched.size()];
         for (int i = 0; i < matched.size(); i++) {
-            titles[i] = matched.get(i).name;
+            titles[i] = matched.get(i)[1];
         }
         new AlertDialog.Builder(this)
                 .setTitle("选择打开方式（" + finalName + "）")
                 .setItems(titles, (dialog, which) -> {
-                    AppTarget target = matched.get(which);
-                    openHtmlAppWithFile(target.id, target.name, uriStr, finalName);
+                    String[] target = matched.get(which);
+                    openHtmlAppWithFile(target[0], target[1], uriStr, finalName);
                 })
                 .setNegativeButton("取消", null)
                 .show();
@@ -1248,7 +1243,6 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
         } catch (Throwable t) {
             Log.w(TAG, "openHtmlAppWithFile failed", t);
         }
-    }
     }
 
     private String getDisplayName(Uri uri) {
