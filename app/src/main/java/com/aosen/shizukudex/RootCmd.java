@@ -283,8 +283,7 @@ public final class RootCmd {
             execute("appops set " + pkg + " ACCESS_RESTRICTED_SETTINGS allow");
             execute("settings put secure show_ime_with_hard_keyboard 1");
             execute("settings put global force_resizable_activities 1");
-            // 不读写任何无障碍设置：外屏鼠标/点击由 Root 通道直接驱动，与该服务无关；
-            // 实测开启后 TYPE_ACCESSIBILITY_OVERLAY 会参与输入分发并吞掉外屏点击。
+            // 不读写任何无障碍设置：外屏鼠标/点击由 Root 通道直接驱动。
             Log.i(TAG, "Root 特权配置完成");
         }).start();
     }

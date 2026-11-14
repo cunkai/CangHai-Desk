@@ -20,9 +20,6 @@ import android.view.WindowManager
  *   SYSTEM_ALERT_WINDOW 由 Root / Shizuku 授权），不需要任何无障碍授权。
  *   注意：Shizuku UserService 裸进程无法添加任何窗口（WMS 报 Unknown pid），
  *   因此必须由主进程绘制。
- *   仅当用户自己在系统设置里开启了可选的置顶指针服务时，才升级到
- *   TYPE_ACCESSIBILITY_OVERLAY（layer 31，可压过三星 DeX 底栏）；
- *   应用不检测、不引导、不自动开启该服务。
  *
  * 事件坐标即目标屏像素坐标；虚拟屏按客户端请求分辨率创建，直接可用。
  */
@@ -49,10 +46,6 @@ object RemoteCursorOverlay {
         appContext = context.applicationContext
         lastX = x; lastY = y; lastDisplayId = displayId
         if (userBlocked) return
-        if (com.alkaidlab.sunshine.controller.ControllerNavigationService.connected.value) {
-            com.alkaidlab.sunshine.controller.ControllerNavigationService.showMouseCursor(displayId, x, y)
-            return
-        }
         val app = context.applicationContext
         main.post { place(app, displayId, x, y) }
     }
@@ -62,7 +55,6 @@ object RemoteCursorOverlay {
         userBlocked = value
         main.post {
             if (value) {
-                com.alkaidlab.sunshine.controller.ControllerNavigationService.hideMouseCursor()
                 removeAll()
             } else if (lastDisplayId > 0) {
                 appContext?.let { show(it, lastDisplayId, lastX, lastY) }
@@ -78,7 +70,6 @@ object RemoteCursorOverlay {
         suppressed = value
         main.post {
             if (value) {
-                com.alkaidlab.sunshine.controller.ControllerNavigationService.hideMouseCursor()
                 removeAll()
             } else if (lastDisplayId > 0) {
                 appContext?.let { show(it, lastDisplayId, lastX, lastY) }
@@ -87,7 +78,6 @@ object RemoteCursorOverlay {
     }
 
     fun hide() {
-        com.alkaidlab.sunshine.controller.ControllerNavigationService.hideMouseCursor()
         main.post {
             for (e in entries.values) e.view.visibility = View.GONE
             removeAll()
@@ -102,7 +92,6 @@ object RemoteCursorOverlay {
 
     /** 彻底销毁 Overlay 窗口，释放 WindowManager 占用的系统图层 */
     fun destroy() {
-        com.alkaidlab.sunshine.controller.ControllerNavigationService.hideMouseCursor()
         main.post { removeAll() }
     }
 
@@ -135,7 +124,6 @@ object RemoteCursorOverlay {
         // 层级参考（AOSP getWindowLayerFromTypeLw）：
         //   TYPE_PRIVATE_PRESENTATION=3 < 应用窗口=2 同层 < TYPE_APPLICATION_OVERLAY=11
         //   < NAVIGATION_BAR=24 < NAVIGATION_BAR_PANEL=25(三星 DeX 底栏)
-        //   < TYPE_ACCESSIBILITY_OVERLAY=31（无障碍服务通道，见 show()）
         // 因此优先 APPLICATION_OVERLAY（需 SYSTEM_ALERT_WINDOW appop），PRIVATE_PRESENTATION 兜底。
         ensureAppop()
         val types = intArrayOf(

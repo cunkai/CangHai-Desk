@@ -141,7 +141,7 @@ object ControllerAdapter {
         handler.post {
             if (wanted) return@post
             wanted = true; overrides = bindings()
-            _status.value = _status.value.copy(running = true, systemNavigation = ControllerNavigationService.connected.value)
+            _status.value = _status.value.copy(running = true, systemNavigation = false)
             connect(); handler.post(tick)
         }
     }
@@ -258,7 +258,6 @@ object ControllerAdapter {
         ++epoch; cancelGesture(); cancelWheel()
         remoteKeys.clear()
         heldMouse.keys.toList().forEach(::releaseMouse)
-        ControllerNavigationService.hideMouseCursor()
         // destroy() performs stop/ownership cleanup before exiting. Calling
         // both would run all secure-settings commands twice on this handler.
         try { service?.destroy() } catch (_: Exception) {}
@@ -387,7 +386,7 @@ object ControllerAdapter {
     private fun setMode(device: String, mode: ControllerMode) {
         val reducer = reducers[device] ?: return
         if (reducer.mode == mode && device !in virtualIds && device !in heldMouse) return
-        cancelGesture(); cancelWheel(); ControllerNavigationService.hideFocus()
+        cancelGesture(); cancelWheel()
         releaseMouse(device)
         if (_status.value.devices.any { it.id == device && it.kind == "remote" } && mode == ControllerMode.NATIVE) return
         if (mode != ControllerMode.NATIVE) virtualIds.remove(device)?.let { id -> callService(Unit) { it.releaseGamepad(id) } }
@@ -446,27 +445,12 @@ object ControllerAdapter {
             if (state.active && state.mode == "desktop" && !state.systemDexMirror && action in listOf(ControllerAction.HOME, ControllerAction.RECENTS)) {
                 scope.launch { runtime.virtualDesktopAction(if (action == ControllerAction.HOME) "home" else "tasks") }
             } else {
-                val fallback = { runtime.handleKeyboardEvent(code, true, 0); runtime.handleKeyboardEvent(code, false, 0) }
-                val navigation = when (action) {
-                    ControllerAction.CONFIRM -> "confirm"; ControllerAction.UP -> "up"; ControllerAction.DOWN -> "down"
-                    ControllerAction.LEFT -> "left"; ControllerAction.RIGHT -> "right"
-                    ControllerAction.PREVIOUS_MENU -> "previous_menu"; ControllerAction.NEXT_MENU -> "next_menu"; else -> null
-                }
-                val global = when (action) {
-                    ControllerAction.BACK -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK
-                    ControllerAction.HOME -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME
-                    ControllerAction.RECENTS -> android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS; else -> null
-                }
-                if (navigation != null) ControllerNavigationService.navigate(navigation, runtime.sourceDisplayId, fallback)
-                else if (global != null) ControllerNavigationService.global(global, runtime.sourceDisplayId, fallback)
-                else fallback()
+                runtime.handleKeyboardEvent(code, true, 0)
+                runtime.handleKeyboardEvent(code, false, 0)
             }
         } else if (action == ControllerAction.POWER) {
-            ControllerNavigationService.global(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_POWER_DIALOG,
-                runtime.sourceDisplayId) {
-                report(if (runtime.sourceDisplayId != 0) "请退出第二屏桌面，在主屏打开系统电源菜单"
-                    else "系统电源菜单在当前设备上不可用")
-            }
+            report(if (runtime.sourceDisplayId != 0) "请退出第二屏桌面，在主屏打开系统电源菜单"
+                else "系统电源菜单在当前设备上不可用")
         } else if (action == ControllerAction.NOTIFICATIONS) {
             val applied = try { service?.systemAction("notifications", runtime.sourceDisplayId) == true } catch (_: Exception) { false }
             if (!applied && state.active && !state.systemDexMirror) scope.launch { runtime.virtualDesktopAction("quick") }
@@ -501,11 +485,9 @@ object ControllerAdapter {
         send(MotionEvent.obtain(if (mouseDownAt == 0L) now else mouseDownAt, now, action, 1, arrayOf(properties), arrayOf(coords), 0, buttons, 1f, 1f, 0, 0, InputDevice.SOURCE_MOUSE, 0), actionButton)
         refreshMouseCursor()
     }
-    private fun refreshMouseCursor() {
-        if (wheelOwner == null && reducers.values.any { it.mode == ControllerMode.MOUSE } && currentDisplay >= 0)
-            ControllerNavigationService.showMouseCursor(currentDisplay, mouseX, mouseY)
-        else ControllerNavigationService.hideMouseCursor()
-    }
+    // 手柄鼠标模式的自定义光标曾由无障碍服务绘制，服务移除后这里不再画光标；
+    // 鼠标事件注入本身不受影响。保留空函数，调用点不用动。
+    private fun refreshMouseCursor() { }
     private fun mouseButtons(device: String, buttons: Int) {
         val before = heldMouse.values.fold(0) { total, value -> total or value }
         if (buttons == 0) heldMouse.remove(device) else heldMouse[device] = buttons
@@ -550,7 +532,6 @@ object ControllerAdapter {
         val wasOpen = wheelOwner != null
         ++wheelRevision
         radial.values.forEach { it.cancel() }
-        if (wheelOwner != null) ControllerNavigationService.hideWheel()
         wheelOwner = null; wheelVisible = false; wheelItems = emptyList()
         if (wasOpen) refreshMouseCursor()
     }
@@ -561,20 +542,18 @@ object ControllerAdapter {
             is RadialEvent.Open -> {
                 cancelGesture(); heldMouse.keys.toList().forEach(::releaseMouse)
                 wheelOwner = device; wheelKind = event.kind; wheelVisible = false
-                ControllerNavigationService.hideMouseCursor()
                 wheelItems = if (event.kind == RadialKind.APPS) frequentItems else listOf(
                     ControllerAction.HOME, ControllerAction.RECENTS, ControllerAction.NOTIFICATIONS, ControllerAction.MOUSE,
                     ControllerAction.NATIVE, ControllerAction.MENU, ControllerAction.POWER, ControllerAction.BACK).map {
                     RadialItem(it.name, when (it) { ControllerAction.NATIVE -> "游戏原生"; ControllerAction.MOUSE -> "鼠标 / 导航"; else -> it.title }) }
                 val revision = ++wheelRevision
                 trace(device, if (event.kind == RadialKind.APPS) "RT 按下" else "LT 按下", "打开快捷圆环")
-                ControllerNavigationService.showWheel(SunshineRuntimeManager.getInstance().sourceDisplayId,
-                    if (event.kind == RadialKind.APPS) "常用应用" else "快捷操作", wheelItems,
-                    if (event.kind == RadialKind.APPS) _status.value.frequentAppsSource else "左 / 右摇杆选择 · 松开扳机触发") { shown -> handler.post {
-                        if (revision == wheelRevision) { wheelVisible = shown; if (!shown) { report("快捷圆环在当前屏幕上不可用"); cancelWheel() } }
-                    } }
+                // 快捷圆环随无障碍服务一并移除：直接走不可用分支。
+                handler.post {
+                    if (revision == wheelRevision) { wheelVisible = false; report("快捷圆环在当前屏幕上不可用"); cancelWheel() }
+                }
             }
-            is RadialEvent.Select -> { ControllerNavigationService.selectWheel(event.index); wheelItems.getOrNull(event.index)?.let { trace(device, "圆环选择", it.label) } }
+            is RadialEvent.Select -> { wheelItems.getOrNull(event.index)?.let { trace(device, "圆环选择", it.label) } }
             is RadialEvent.Release -> {
                 val selected = wheelItems.getOrNull(event.index).takeIf { wheelVisible }
                 cancelWheel(); reducer.suspendSticks()
@@ -612,7 +591,7 @@ object ControllerAdapter {
                 val display = SunshineRuntimeManager.getInstance().sourceDisplayId
                 if (currentDisplay != display || now >= nextMetrics) {
                     val changedDisplay = currentDisplay != display
-                    if (changedDisplay) { cancelGesture(); cancelWheel(); heldMouse.keys.toList().forEach(::releaseMouse); ControllerNavigationService.hideMouseCursor() }
+                    if (changedDisplay) { cancelGesture(); cancelWheel(); heldMouse.keys.toList().forEach(::releaseMouse) }
                     currentDisplay = display; nextMetrics = now + 1000
                     @Suppress("DEPRECATION")
                     (context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager).getDisplay(display)?.getRealSize(size)

@@ -5403,26 +5403,6 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
     }
 
 
-    /** 无障碍服务（键鼠注入 / 触控透传）是否已开启。 */
-    public boolean isAccessibilityServiceEnabled() {
-        try {
-            android.content.ComponentName mine = new android.content.ComponentName(this,
-                    com.alkaidlab.sunshine.controller.ControllerNavigationService.class);
-            String flat = mine.flattenToString();
-            String flatShort = mine.flattenToShortString();
-            String enabled = android.provider.Settings.Secure.getString(
-                    getContentResolver(),
-                    android.provider.Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
-            if (enabled == null) return false;
-            for (String s : enabled.split(":")) {
-                if (s.equalsIgnoreCase(flat) || s.equalsIgnoreCase(flatShort)) return true;
-            }
-            return false;
-        } catch (Throwable t) {
-            return false;
-        }
-    }
-
     /** 本地网络发现（Moonlight 找设备）所需的运行时权限是否已给。 */
     public boolean isLocalNetworkPermissionGranted() {
         try {
@@ -6090,7 +6070,7 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
             }
         }
 
-        /** 权限与运行环境（Root / Shizuku / 悬浮窗 / 无障碍 / 读应用列表）。 */
+        /** 权限与运行环境（Root / Shizuku / 悬浮窗 / 读应用列表）。 */
         @android.webkit.JavascriptInterface
         public String getPerms() {
             try {
@@ -6100,7 +6080,6 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
                 o.put("shizukuGranted", isShizukuGranted());
                 o.put("privilegeMode", PrivilegeRoute.mode().name());
                 o.put("overlay", isOverlayPermissionGranted());
-                o.put("a11y", isAccessibilityServiceEnabled());
                 o.put("network", isLocalNetworkPermissionGranted());
                 o.put("battery", isIgnoringBatteryOptimizations());
                 o.put("shortcut", hasShortcutPermission());

@@ -31,7 +31,6 @@
     <string name="apply_and_refresh">Apply</string>
     <string name="touchpad_title">Trackpad</string>
     <string name="touchpad_hint">Touch Area</string>
-    <string name="accessibility_cursor_desc">沧海置顶指针：让鼠标指针始终浮在外屏最上层，可自定义样式与大小。</string>
     <string name="btn_click">Click</string>
     <string name="btn_scroll_up">Scroll Up</string>
     <string name="btn_scroll_down">Scroll Down</string>

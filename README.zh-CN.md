@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"></a>
-  <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84.svg" alt="Android 8.0+">
+  <img src="https://img.shields.io/badge/Platform-Android%20%7C%20HarmonyOS-3DDC84.svg" alt="Android / HarmonyOS">
   <a href="https://github.com/cunkai/CangHai-Desk/actions/workflows/build.yml"><img src="https://github.com/cunkai/CangHai-Desk/actions/workflows/build.yml/badge.svg" alt="Build & Release APK"></a>
 </p>
 
@@ -46,21 +46,21 @@
 ### 三步上手
 
 1. 在 [Releases](https://github.com/cunkai/CangHai-Desk/releases) 页面下载 APK 并安装。
-2. 打开应用，按提示完成授权（二选一：Root，或免 Root 的 Shizuku）。
-3. 连上显示器（插线或串流），外屏亮起桌面，开始用。
+2. 连上显示器（插线或串流），外屏亮起桌面，开始用。
+3. （可选）想要运行安卓软件、把物理外设绑定到指定屏幕等完整能力，再按提示完成授权（二选一：Root，或免 Root 的 Shizuku）。
 
 ### 需要什么
 
-- Android 8.0 以上的手机或平板，或鸿蒙卓易通（HarmonyOS 的安卓兼容环境）。
-- Root 或 Shizuku 授权（二选一，能力最全的是 Root）。
+- 一部较新版本的安卓手机或平板，近几年的主流机型都可以；鸿蒙系统可以通过卓易通运行。
+- （可选）Root 或 Shizuku 授权（二选一，能力最全的是 Root），用于运行安卓软件等完整能力。
 - 显示器、电视，或一台能跑 Moonlight 客户端的设备。
 
 > 已在骁龙 8 Gen 2 与麒麟 8020 平台测试通过。
 
 ### 关于权限
 
-- 应用**不**申请输入法权限，键盘输入走系统原生键盘。
-- 无障碍方面只有一个**可选**的「指针置顶服务」：不开启完全不影响使用；开启后可以在系统栏之上显示统一的软件指针、让手柄导航更好用。应用不会检测、引导或自动开启它，外屏的键鼠点击全部走 Root / Shizuku 通道。
+- 不用授权也能用：桌面和 HTML 应用不需要任何特权，装上就能跑；授权只影响能不能运行安卓软件、绑定外设等完整能力。
+- 应用**不**申请输入法权限，键盘输入走系统原生键盘；也**不**申请无障碍权限。
 - 应用数据只放在沧海自己的一个文件夹里，每个应用只能碰自己的那一份。
 
 ---
@@ -103,6 +103,8 @@ flowchart TB
     B3 --> N1
     N5 --> S1
 ```
+
+> 桌面与 HTML 应用不需要特权就能运行；特权通道（Root / Shizuku）只负责运行安卓软件、绑定外设等能力。
 
 ### 桥接层
 
@@ -169,8 +171,6 @@ flowchart TB
 
 - 需要 JDK 17 与 Android SDK 34（`platforms;android-34`、`build-tools;34.0.0`）。
 - 原生 `.so` 已预编译提交，构建不需要 NDK。
-- 发布签名：根目录放 `key.properties`（`storeFile` / `storePassword` / `keyAlias` / `keyPassword`）；没有签名配置时，发布包用 debug 签名兜底。
-- 推送 `v*` 标签会触发 CI（`.github/workflows/build.yml`）自动构建并发布到 [Releases](https://github.com/cunkai/CangHai-Desk/releases)。
 
 ---
 

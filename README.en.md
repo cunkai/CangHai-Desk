@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="./LICENSE"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"></a>
-  <img src="https://img.shields.io/badge/Android-8.0%2B-3DDC84.svg" alt="Android 8.0+">
+  <img src="https://img.shields.io/badge/Platform-Android%20%7C%20HarmonyOS-3DDC84.svg" alt="Android / HarmonyOS">
   <a href="https://github.com/cunkai/CangHai-Desk/actions/workflows/build.yml"><img src="https://github.com/cunkai/CangHai-Desk/actions/workflows/build.yml/badge.svg" alt="Build & Release APK"></a>
 </p>
 
@@ -46,21 +46,21 @@ The phone shows the control page: pick the native or Canghai desktop per display
 ### Three steps to start
 
 1. Download the APK from [Releases](https://github.com/cunkai/CangHai-Desk/releases) and install it.
-2. Open the app and finish authorization (either Root, or root-free Shizuku).
-3. Connect a display (cable or streaming) — the desktop lights up on the external screen.
+2. Connect a display (cable or streaming) — the desktop lights up on the external screen.
+3. (Optional) For the full feature set — running Android apps, binding physical peripherals to a specific display, and more — finish authorization as prompted (either Root, or root-free Shizuku).
 
 ### What you need
 
-- A phone or tablet on Android 8.0+, or HarmonyOS Zhuoyitong (HarmonyOS's Android compatibility environment).
-- Root or Shizuku authorization (either one; Root unlocks the most).
+- A phone or tablet on a fairly recent Android version — mainstream models from recent years all work; HarmonyOS can run it through Zhuoyitong.
+- (Optional) Root or Shizuku authorization (either one; Root unlocks the most), for the full feature set including Android apps.
 - A monitor, TV, or a device that runs a Moonlight client.
 
 > Tested on Snapdragon 8 Gen 2 and Kirin 8020.
 
 ### About permissions
 
-- The app does **not** request IME permissions; typing goes through the system keyboard.
-- The only accessibility item is an **optional** "pointer overlay service": everything works without it; enabling it shows a unified software pointer above the system bars and improves gamepad navigation. The app never detects, prompts for, or auto-enables it — external keyboard and mouse clicks all go through the Root / Shizuku channel.
+- No authorization needed to start: the desktop and HTML apps need no privileges — install and go. Authorization only gates the full feature set, such as running Android apps and binding peripherals.
+- The app does **not** request IME permissions; typing goes through the system keyboard. It does not request accessibility permissions either.
 - App data lives in a single folder owned by Canghai, and each app can only touch its own share.
 
 ---
@@ -103,6 +103,8 @@ flowchart TB
     B3 --> N1
     N5 --> S1
 ```
+
+> The desktop and HTML apps run without any privileges; the privileged channel (Root / Shizuku) only covers running Android apps, binding peripherals, and similar capabilities.
 
 ### Bridge layer
 
@@ -169,8 +171,6 @@ Apps and the desktop also talk through two descriptive interfaces — descriptio
 
 - Requires JDK 17 and Android SDK 34 (`platforms;android-34`, `build-tools;34.0.0`).
 - Native `.so` files are prebuilt and committed, so no NDK is needed to build.
-- Release signing: place a `key.properties` file at the repo root (`storeFile` / `storePassword` / `keyAlias` / `keyPassword`); without signing config, the release build falls back to the debug signature.
-- Pushing a `v*` tag triggers CI (`.github/workflows/build.yml`) to build automatically and publish to [Releases](https://github.com/cunkai/CangHai-Desk/releases).
 
 ---
 

@@ -293,22 +293,6 @@
             android:exported="true"
             android:multiprocess="false" />
 
-        <!-- 纯可选增强：TYPE_ACCESSIBILITY_OVERLAY(z=31) 置顶指针与手柄导航。
-             应用不检测、不引导、不自动开启；只有用户自己在系统设置里启用时才生效。
-             外屏键鼠与点击完全由 Root / Shizuku 通道驱动，不依赖本服务。 -->
-        <service
-            android:name="com.alkaidlab.sunshine.controller.ControllerNavigationService"
-            android:exported="true"
-            android:label="沧海指针置顶服务"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/accessibility_service_config" />
-        </service>
-
         <receiver
             android:name=".BootReceiver"
             android:exported="true">
