@@ -950,7 +950,6 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
         applyEdgeToEdge();
 
         setContentView(R.layout.activity_main);
-        setupDebugErrorOverlay();
 
         // 手机屏幕自绘光标层与系统黑箭头隐藏，并开启无边界硬件 PointerCapture 监听
         rootBox = findViewById(R.id.rootContainer);
@@ -5325,7 +5324,6 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
                     if (m.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR
                             || (msg != null && (msg.toLowerCase().contains("uncaught") || msg.toLowerCase().contains("error")))) {
                         CanghaiErrorCollector.getInstance().log("手机端", "ERROR", msg, loc);
-                        updateDebugFloatingBadge(CanghaiErrorCollector.getInstance().getErrorCount());
                     } else if (BuildConfig.DEBUG && m.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.WARNING) {
                         CanghaiErrorCollector.getInstance().log("手机端", "WARN", msg, loc);
                     }
@@ -5630,160 +5628,6 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
     }
 
     
-    /* ==================== Debug 模式悬浮调试日志窗口 ==================== */
-    private android.widget.TextView tvDebugFloatingBadge;
-
-    private void setupDebugErrorOverlay() {
-        if (!BuildConfig.DEBUG) return;
-        android.widget.FrameLayout root = findViewById(R.id.rootContainer);
-        if (root == null) return;
-
-        tvDebugFloatingBadge = new android.widget.TextView(this);
-        tvDebugFloatingBadge.setText("🐞 0");
-        tvDebugFloatingBadge.setTextColor(Color.WHITE);
-        tvDebugFloatingBadge.setTextSize(12);
-        tvDebugFloatingBadge.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-        tvDebugFloatingBadge.setGravity(Gravity.CENTER);
-        tvDebugFloatingBadge.setPadding(dp(10), dp(5), dp(10), dp(5));
-
-        android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-        gd.setColor(Color.parseColor("#CC1E293B"));
-        gd.setCornerRadius(dp(16));
-        gd.setStroke(dp(1), Color.parseColor("#475569"));
-        tvDebugFloatingBadge.setBackground(gd);
-        tvDebugFloatingBadge.setElevation(dp(8));
-
-        android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(
-                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT,
-                android.widget.FrameLayout.LayoutParams.WRAP_CONTENT
-        );
-        lp.gravity = Gravity.BOTTOM | Gravity.END;
-        lp.bottomMargin = dp(88);
-        lp.rightMargin = dp(16);
-        tvDebugFloatingBadge.setLayoutParams(lp);
-
-        tvDebugFloatingBadge.setOnClickListener(v -> showDebugErrorDialog());
-
-        tvDebugFloatingBadge.setOnTouchListener(new View.OnTouchListener() {
-            private float dX, dY;
-            private float startX, startY;
-            private boolean isClick = true;
-
-            @Override
-            public boolean onTouch(View view, MotionEvent event) {
-                switch (event.getAction()) {
-                    case MotionEvent.ACTION_DOWN:
-                        dX = view.getX() - event.getRawX();
-                        dY = view.getY() - event.getRawY();
-                        startX = event.getRawX();
-                        startY = event.getRawY();
-                        isClick = true;
-                        return true;
-                    case MotionEvent.ACTION_MOVE:
-                        float diffX = Math.abs(event.getRawX() - startX);
-                        float diffY = Math.abs(event.getRawY() - startY);
-                        if (diffX > 10 || diffY > 10) isClick = false;
-                        view.animate().x(event.getRawX() + dX).y(event.getRawY() + dY).setDuration(0).start();
-                        return true;
-                    case MotionEvent.ACTION_UP:
-                        if (isClick) {
-                            view.performClick();
-                        }
-                        return true;
-                }
-                return false;
-            }
-        });
-
-        root.addView(tvDebugFloatingBadge);
-        updateDebugFloatingBadge(CanghaiErrorCollector.getInstance().getErrorCount());
-    }
-
-    public void updateDebugFloatingBadge(final int count) {
-        if (!BuildConfig.DEBUG || tvDebugFloatingBadge == null) return;
-        runOnUiThread(() -> {
-            try {
-                if (count > 0) {
-                    tvDebugFloatingBadge.setText("🐞 " + count + "报错");
-                    android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-                    gd.setColor(Color.parseColor("#E6DC2626"));
-                    gd.setCornerRadius(dp(16));
-                    gd.setStroke(dp(1), Color.parseColor("#FCA5A5"));
-                    tvDebugFloatingBadge.setBackground(gd);
-                } else {
-                    tvDebugFloatingBadge.setText("🐞 0");
-                    android.graphics.drawable.GradientDrawable gd = new android.graphics.drawable.GradientDrawable();
-                    gd.setColor(Color.parseColor("#CC1E293B"));
-                    gd.setCornerRadius(dp(16));
-                    gd.setStroke(dp(1), Color.parseColor("#475569"));
-                    tvDebugFloatingBadge.setBackground(gd);
-                }
-            } catch (Throwable ignored) {}
-        });
-    }
-
-    private void showDebugErrorDialog() {
-        String json = CanghaiErrorCollector.getInstance().getRecentErrorsJson(100);
-        StringBuilder sb = new StringBuilder();
-        int errCount = 0;
-        try {
-            org.json.JSONArray arr = new org.json.JSONArray(json);
-            errCount = arr.length();
-            if (arr.length() == 0) {
-                sb.append("🎉 目前暂无报错/警告日志，网页与系统运行良好！\n\n- 控制台信息会自动捕获网页 uncaught exception、console.error、资源加载失败等。\n- 发布版本 (Release) 此悬浮入口会自动隐藏。");
-            } else {
-                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault());
-                for (int i = 0; i < arr.length(); i++) {
-                    org.json.JSONObject obj = arr.getJSONObject(i);
-                    String timeStr = obj.optString("time", "");
-                    if (timeStr.isEmpty()) {
-                        long ts = obj.optLong("ts", System.currentTimeMillis());
-                        timeStr = sdf.format(new java.util.Date(ts));
-                    }
-                    String src = obj.optString("source", obj.optString("src", "系统"));
-                    String lvl = obj.optString("level", obj.optString("lvl", "INFO"));
-                    String msg = obj.optString("message", obj.optString("msg", "（无详细内容）"));
-                    String loc = obj.optString("location", obj.optString("loc", ""));
-                    sb.append("[").append(timeStr).append("][").append(src).append("][").append(lvl).append("]\n");
-                    sb.append(msg).append("\n");
-                    if (!loc.isEmpty()) {
-                        sb.append("  📍 ").append(loc).append("\n");
-                    }
-                    sb.append("------------------------------------\n");
-                }
-            }
-        } catch (Throwable t) {
-            sb.append("解析日志失败: ").append(t.getMessage());
-        }
-
-        android.widget.ScrollView sv = new android.widget.ScrollView(this);
-        sv.setPadding(dp(16), dp(12), dp(16), dp(12));
-        android.widget.TextView tv = new android.widget.TextView(this);
-        tv.setText(sb.toString());
-        tv.setTextSize(13);
-        tv.setTextColor(Color.parseColor("#E2E8F0"));
-        tv.setTypeface(android.graphics.Typeface.MONOSPACE);
-        tv.setTextIsSelectable(true);
-        sv.addView(tv);
-
-        new androidx.appcompat.app.AlertDialog.Builder(this)
-                .setTitle("🛠️ 网页与系统调试日志 (Debug · " + errCount + "条)")
-                .setView(sv)
-                .setPositiveButton("复制全部", (d, w) -> {
-                    android.content.ClipboardManager cm = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-                    if (cm != null) {
-                        cm.setPrimaryClip(android.content.ClipData.newPlainText("debug_logs", sb.toString()));
-                        Toast.makeText(MainActivity.this, "已复制所有日志到剪贴板", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .setNeutralButton("清空日志", (d, w) -> {
-                    CanghaiErrorCollector.getInstance().clear();
-                    updateDebugFloatingBadge(0);
-                    Toast.makeText(MainActivity.this, "已清空日志", Toast.LENGTH_SHORT).show();
-                })
-                .setNegativeButton("关闭", null)
-                .show();
-    }
 
     public class PhoneHomeBridge {
         @android.webkit.JavascriptInterface

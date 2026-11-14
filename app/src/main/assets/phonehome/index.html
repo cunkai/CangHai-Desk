@@ -1554,7 +1554,11 @@
   font-weight: 600;
   cursor: pointer;
   user-select: none;
-  transition: all 0.2s ease;
+  white-space: nowrap;
+  /* 可拖拽：touch-action 关掉触摸滚动接管；transition 只动 transform/background，
+     left/top 拖动时必须立即跟手，不能被过渡拖出残影。 */
+  touch-action: none;
+  transition: transform .2s ease, background .2s ease;
 }
 .floating-debug-btn:active {
   transform: scale(0.94);
@@ -1569,6 +1573,12 @@
   margin-left: 2px;
 }
 .fdb-badge.hidden { display: none; }
+
+/* 窄屏上底栏是底部悬浮的，按钮默认抬到底栏上方，免得盖住「设置」；
+   拖过一次后以拖放位置为准，不再受这条约束。 */
+@media (max-width: 1023px) {
+  .floating-debug-btn { bottom: 104px; }
+}
 
 .debug-log-sheet {
   max-width: 640px !important;
@@ -8442,7 +8452,7 @@
 <script src="../canghai/shared/phone_adapter.js"></script>
 
 <!-- 右下角悬浮调试日志入口 -->
-<div id="floatingDebugBtn" class="floating-debug-btn" onclick="openDebugLogModal()" title="查看调试与系统日志">
+<div id="floatingDebugBtn" class="floating-debug-btn" title="查看调试与系统日志（可拖动换位置，点按打开）">
     <span class="fdb-icon">🐞</span>
     <span class="fdb-text">调试日志</span>
     <span id="fdbBadge" class="fdb-badge hidden">0</span>
@@ -8517,6 +8527,60 @@ function checkDebugMode() {
         btn.style.display = "flex";
     }
 }
+/* 调试日志按钮：悬浮拖拽。点按（按下后没拖动）打开日志弹窗；拖动后松手不打开。
+   位置记在 localStorage，下次打开还在原地；窗口尺寸变化时夹回视口内。 */
+(function initDebugBtnDrag() {
+    const btn = document.getElementById("floatingDebugBtn");
+    if (!btn) return;
+    const KEY = "chDebugBtnPos";
+    let drag = null;
+    function clampPos(x, y) {
+        const m = 8;
+        return {
+            x: Math.max(m, Math.min(x, window.innerWidth - btn.offsetWidth - m)),
+            y: Math.max(m, Math.min(y, window.innerHeight - btn.offsetHeight - m))
+        };
+    }
+    function place(x, y) {
+        const p = clampPos(x, y);
+        btn.style.left = p.x + "px";
+        btn.style.top = p.y + "px";
+        btn.style.right = "auto";
+        btn.style.bottom = "auto";
+    }
+    try {
+        const saved = JSON.parse(localStorage.getItem(KEY) || "null");
+        if (saved && typeof saved.x === "number" && typeof saved.y === "number") place(saved.x, saved.y);
+    } catch (e) {}
+    window.addEventListener("resize", () => {
+        if (btn.style.left) {
+            const r = btn.getBoundingClientRect();
+            place(r.left, r.top);
+        }
+    });
+    btn.addEventListener("pointerdown", (e) => {
+        const r = btn.getBoundingClientRect();
+        drag = { id: e.pointerId, dx: e.clientX - r.left, dy: e.clientY - r.top, sx: e.clientX, sy: e.clientY, moved: false };
+        try { btn.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    btn.addEventListener("pointermove", (e) => {
+        if (!drag || e.pointerId !== drag.id) return;
+        if (Math.abs(e.clientX - drag.sx) > 8 || Math.abs(e.clientY - drag.sy) > 8) drag.moved = true;
+        if (drag.moved) place(e.clientX - drag.dx, e.clientY - drag.dy);
+    });
+    function endDrag(e) {
+        if (!drag || e.pointerId !== drag.id) return;
+        if (drag.moved) {
+            const r = btn.getBoundingClientRect();
+            try { localStorage.setItem(KEY, JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top) })); } catch (err) {}
+        } else if (e.type === "pointerup") {
+            openDebugLogModal();
+        }
+        drag = null;
+    }
+    btn.addEventListener("pointerup", endDrag);
+    btn.addEventListener("pointercancel", endDrag);
+})();
 function openDebugLogModal() {
     const modal = document.getElementById("debugLogModal");
     if (modal) {
