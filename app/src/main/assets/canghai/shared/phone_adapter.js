@@ -1443,3 +1443,53 @@ function chInitUserProfile(initName, initAvatar) {
     boot();
   }
 })();
+
+/* ---------------- 桌面与 Dock：导出 / 导入 ----------------
+   只调宿主桥 CanghaiPhone.exportDesktopState / importDesktopState；
+   校验、写回、通知各屏都在 Java 侧，页面只负责选文件和报结果。 */
+(function () {
+  function wire() {
+    var btnEx = document.getElementById('btnDeskExport');
+    var btnIm = document.getElementById('btnDeskImport');
+    var fileInput = document.getElementById('deskImportFileInput');
+    if (btnEx) btnEx.addEventListener('click', function () {
+      var r = chJson(chCall('exportDesktopState'), null);
+      if (r && r.ok) {
+        toast('已导出：' + (r.name || '沧海桌面文件') + '，在下载目录/Canghai 里');
+        var note = document.getElementById('deskExportNote');
+        if (note) note.textContent = '上次导出：' + (r.name || '') + '，在下载目录/Canghai 里。';
+      } else if (r && r.error) {
+        toast(r.error);
+      } else {
+        toast('当前环境不支持导出');
+      }
+    });
+    if (btnIm && fileInput) {
+      btnIm.addEventListener('click', function () { fileInput.click(); });
+      fileInput.addEventListener('change', function () {
+        var f = fileInput.files && fileInput.files[0];
+        fileInput.value = '';
+        if (!f) return;
+        if (f.size > 2 * 1024 * 1024) { toast('文件太大了'); return; }
+        var fr = new FileReader();
+        fr.onload = function () {
+          var r = chJson(chCall('importDesktopState', String(fr.result || '')), null);
+          if (r && r.ok) {
+            toast('已导入桌面，各屏正在应用');
+          } else if (r && r.error) {
+            toast(r.error);
+          } else {
+            toast('当前环境不支持导入');
+          }
+        };
+        fr.onerror = function () { toast('这个文件读不出来'); };
+        fr.readAsText(f);
+      });
+    }
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    wire();
+  }
+})();
