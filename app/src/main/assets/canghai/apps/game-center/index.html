@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>游戏中心</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
@@ -10,7 +10,7 @@
   body{
     font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
     background:linear-gradient(180deg,#0a1a2a 0%,#060e18 100%);
-    color:#dbe7f0;padding:20px 16px 40px;
+    color:#dbe7f0;padding:calc(20px + var(--ch-safe-top, env(safe-area-inset-top, 0px))) 16px calc(40px + var(--ch-safe-bottom, env(safe-area-inset-bottom, 0px)));
   }
   .wrap{max-width:720px;margin:0 auto}
   header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
