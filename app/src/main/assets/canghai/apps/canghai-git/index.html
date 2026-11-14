@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="color-scheme" content="dark">
+<title>仓海 · GitHub 构建</title>
+<!--
+  仓海：GitHub 构建产物查看与下载。
+  单文件零依赖。授权（设备码 / 手动 Token）与 API 请求、文件下载走沧海桥：
+  应用 → 桌面 postMessage {canghai:'github'} → CanghaiCore 'github' 命名空间
+  （Java 只允许 github.com 与 api.github.com，token 由应用自带、不落 Java 侧）。
+  Token 存在应用自己的沙盒文件 github-token.json 里，只有本应用能读。
+  在普通浏览器里打开时桥不可用，界面正常显示、操作会如实报不可用。
+-->
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:-apple-system,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    background:linear-gradient(180deg,#0d2136 0%,#0a1628 55%,#081120 100%);
+    color:rgba(255,255,255,.95);font-size:16px;line-height:1.5;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .topbar{
+    position:sticky;top:0;z-index:10;display:flex;align-items:center;gap:10px;
+    padding:12px 16px;background:rgba(8,17,32,.92);border-bottom:1px solid rgba(201,168,92,.25);
+  }
+  .brand{display:flex;align-items:center;gap:8px;font-size:20px;font-weight:700;letter-spacing:1px}
+  .brand svg{flex:none}
+  .brand .sub{font-size:13px;font-weight:400;color:rgba(255,255,255,.66);letter-spacing:0}
+  .spacer{flex:1}
+  .userchip{display:flex;align-items:center;gap:6px;font-size:14px;color:rgba(255,255,255,.8)}
+  .userchip img{width:26px;height:26px;border-radius:50%;border:1px solid rgba(201,168,92,.5)}
+  main{max-width:600px;margin:0 auto;padding:16px 16px 40px}
+  .card{
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+    border-radius:14px;padding:18px;margin-bottom:16px;
+  }
+  .card h2{font-size:18px;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  .tag{font-size:12px;font-weight:400;color:#081120;background:#ecd28f;border-radius:20px;padding:1px 8px}
+  .desc{font-size:14px;color:rgba(255,255,255,.66);margin-bottom:12px}
+  .hint{
+    font-size:14px;color:#ecd28f;background:rgba(201,168,92,.12);
+    border:1px solid rgba(201,168,92,.4);border-radius:10px;padding:10px 12px;margin-bottom:16px;
+  }
+  label{display:block;font-size:14px;color:rgba(255,255,255,.8);margin-bottom:12px}
+  input{
+    display:block;width:100%;margin-top:6px;padding:11px 12px;font-size:16px;color:rgba(255,255,255,.95);
+    background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.22);border-radius:10px;outline:none;
+  }
+  input:focus{border-color:#c9a85c}
+  .btn{
+    display:inline-block;padding:11px 20px;font-size:16px;border-radius:10px;cursor:pointer;
+    border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:rgba(255,255,255,.95);
+  }
+  .btn:active{transform:scale(.98)}
+  .btn:disabled{opacity:.45;cursor:default;transform:none}
+  .btn.gold{background:linear-gradient(160deg,#ecd28f,#c9a85c);border:none;color:#081120;font-weight:600}
+  .btn.ghost{background:transparent}
+  .btn.small{padding:8px 14px;font-size:14px}
+  .usercode{
+    font-size:34px;font-weight:700;letter-spacing:6px;text-align:center;color:#ecd28f;
+    background:rgba(0,0,0,.35);border:1px dashed rgba(201,168,92,.6);border-radius:12px;
+    padding:14px 10px;margin:12px 0;font-family:ui-monospace,Menlo,Consolas,monospace;
+  }
+  .usercode + .desc{text-align:center}
+  a{color:#ecd28f}
+  .repobar{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+  .repobar input{margin-top:0}
+  .repobar span{color:rgba(255,255,255,.66)}
+  .list{display:flex;flex-direction:column;gap:10px}
+  .item{
+    width:100%;text-align:left;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);
+    border-radius:12px;padding:14px;color:rgba(255,255,255,.95);cursor:pointer;font-size:16px;
+  }
+  .item:active{background:rgba(255,255,255,.09)}
+  .item .row1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .item .name{font-weight:600;font-size:17px}
+  .item .title{font-size:14px;color:rgba(255,255,255,.8);margin-top:4px;word-break:break-all}
+  .item .meta{font-size:13px;color:rgba(255,255,255,.66);margin-top:6px}
+  .badge{font-size:12px;border-radius:20px;padding:2px 9px;white-space:nowrap}
+  .badge.branch{background:rgba(20,121,184,.3);border:1px solid rgba(20,121,184,.6);color:#bfe0f7}
+  .badge.branch.dev{background:rgba(201,168,92,.16);border:1px solid rgba(201,168,92,.6);color:#ecd28f}
+  .badge.ok{background:rgba(46,160,90,.18);border:1px solid rgba(46,160,90,.6);color:#8fe0b0}
+  .badge.bad{background:rgba(200,60,60,.18);border:1px solid rgba(200,60,60,.6);color:#f0a0a0}
+  .badge.run{background:rgba(220,160,40,.16);border:1px solid rgba(220,160,40,.6);color:#f0d090}
+  .badge.grey{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);color:rgba(255,255,255,.66)}
+  .saved{
+    background:rgba(46,160,90,.12);border:1px solid rgba(46,160,90,.5);border-radius:10px;
+    padding:12px 14px;margin-bottom:16px;font-size:14px;
+  }
+  .saved b{color:#8fe0b0}
+  #toast{
+    position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(20px);
+    background:rgba(10,22,40,.96);border:1px solid rgba(201,168,92,.55);color:rgba(255,255,255,.95);
+    font-size:15px;padding:11px 18px;border-radius:24px;opacity:0;pointer-events:none;
+    transition:opacity .2s,transform .2s;max-width:88%;text-align:center;z-index:50;
+  }
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#ecd28f" stroke-width="2" stroke-linecap="round">
+      <circle cx="6" cy="5" r="2.2" fill="#0a1628"/><circle cx="6" cy="19" r="2.2" fill="#0a1628"/><circle cx="18" cy="8" r="2.2" fill="#0a1628"/>
+      <path d="M6 7.2v9.6M18 10.2c0 4-4 4.5-8.5 5.4"/>
+    </svg>
+    仓海 <span class="sub">GitHub 构建</span>
+  </div>
+  <div class="spacer"></div>
+  <div id="userChip" class="userchip" hidden><img id="userAvatar" alt=""><span id="userLogin"></span></div>
+  <button id="btnLogout" class="btn ghost small" hidden>退出登录</button>
+</header>
+<main>
+  <section id="view-auth">
+    <p class="hint" id="bridgeNote" hidden>当前不在沧海系统内，授权与下载需要系统里的桥支持。请在沧海系统里打开本应用。</p>
+    <div class="card">
+      <h2>设备码授权 <span class="tag">推荐</span></h2>
+      <p class="desc">不用输密码，在手机或电脑浏览器里打开 GitHub 输入一次码就行。授权后应用能查看你名下仓库的构建记录、下载产物。</p>
+      <label>应用 Client ID
+        <input id="inpClientId" placeholder="OAuth App 的 Client ID" autocomplete="off" spellcheck="false">
+      </label>
+      <button id="btnDevice" class="btn gold">开始授权</button>
+      <div id="deviceBox" hidden>
+        <p style="margin-top:14px">在任意浏览器打开 <a id="deviceLink" href="https://github.com/login/device" target="_blank" rel="noopener">github.com/login/device</a>，输入：</p>
+        <div id="userCode" class="usercode">····-····</div>
+        <p class="desc" id="deviceStatus">等待授权…</p>
+        <button id="btnDeviceCancel" class="btn ghost">取消</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>手动输入 Token</h2>
+      <p class="desc">在 GitHub 设置 → Developer settings → Personal access tokens 里建一个 Token（需要 repo 权限），粘贴到这里。</p>
+      <label>Token
+        <input id="inpPat" type="password" placeholder="ghp_… 或 github_pat_…" autocomplete="off" spellcheck="false">
+      </label>
+      <button id="btnPat" class="btn">保存并登录</button>
+    </div>
+  </section>
+
+  <section id="view-main" hidden>
+    <div class="repobar">
+      <input id="inpOwner" value="cunkai" aria-label="仓库所有者" autocomplete="off" spellcheck="false">
+      <span>/</span>
+      <input id="inpRepo" value="CangHai-Desk" aria-label="仓库名" autocomplete="off" spellcheck="false">
+      <button id="btnRefresh" class="btn small">刷新</button>
+    </div>
+    <div id="runsList" class="list"></div>
+    <p id="runsEmpty" class="desc" hidden>这个仓库还没有构建记录。</p>
+    <p id="runsLoading" class="desc">加载中…</p>
+  </section>
+
+  <section id="view-run" hidden>
+    <button id="btnBack" class="btn ghost small">← 构建列表</button>
+    <h2 id="runTitle" style="margin:14px 0 4px;font-size:19px"></h2>
+    <p id="runMeta" class="desc"></p>
+    <div id="savedBox" class="saved" hidden></div>
+    <div id="artifactsList" class="list"></div>
+    <p id="artEmpty" class="desc" hidden>这次构建没有产物。</p>
+    <p id="artLoading" class="desc">加载中…</p>
+  </section>
+</main>
+<div id="toast"></div>
+<script>
+'use strict';
+/* OAuth App 的 Client ID（公开值，不是密钥）。注册后填入，设备码授权默认用它；
+   留空时用户在界面上手动输入。 */
+var GH_CLIENT_ID = 'Ov23liJljjKqCTNCUuge';
+var TOKEN_FILE = 'github-token.json';
+var REPO_FILE = 'github-repo.json';
+var API = 'https://api.github.com';
+
+/* ---------------- 桥调用：应用 → 桌面 postMessage，等带 requestId 的回执 ---------------- */
+var _reqSeq = 0, _pending = {};
+window.addEventListener('message', function (e) {
+  var d = e && e.data;
+  if (!d || typeof d !== 'object') return;
+  if ((d.canghai === 'fsResult' || d.canghai === 'githubResult') && d.requestId && _pending[d.requestId]) {
+    var p = _pending[d.requestId];
+    delete _pending[d.requestId];
+    clearTimeout(p.timer);
+    if (d.ok) p.resolve(d.data); else p.reject(new Error(d.error || 'FAILED'));
+  }
+});
+function bridgeCall(msg, timeoutMs) {
+  return new Promise(function (resolve, reject) {
+    var id = 'r' + (++_reqSeq) + '_' + Date.now();
+    msg.requestId = id;
+    var timer = setTimeout(function () {
+      if (_pending[id]) { delete _pending[id]; reject(new Error('NO_BRIDGE')); }
+    }, timeoutMs || 15000);
+    _pending[id] = { resolve: resolve, reject: reject, timer: timer };
+    try { window.parent.postMessage(msg, '*'); }
+    catch (err) { clearTimeout(timer); delete _pending[id]; reject(err); }
+  });
+}
+function fsCall(method, extra) {
+  var m = { canghai: 'fs', method: method };
+  if (extra) for (var k in extra) m[k] = extra[k];
+  return bridgeCall(m, 15000);
+}
+function ghCall(method, extra, timeoutMs) {
+  var m = { canghai: 'github', method: method };
+  if (extra) for (var k in extra) m[k] = extra[k];
+  return bridgeCall(m, timeoutMs || 30000);
+}
+
+/* ---------------- 小工具 ---------------- */
+function $(id) { return document.getElementById(id); }
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+var _toastTimer = null;
+function toast(msg, ms) {
+  var t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(function () { t.classList.remove('show'); }, ms || 2600);
+}
+function fmtSize(bytes) {
+  var n = Number(bytes) || 0;
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' KB';
+  return (n / 1024 / 1024).toFixed(1) + ' MB';
+}
+function relTime(iso) {
+  var t = new Date(iso).getTime();
+  if (!t) return '';
+  var diff = Date.now() - t;
+  if (diff < 60000) return '刚刚';
+  if (diff < 3600000) return Math.floor(diff / 60000) + ' 分钟前';
+  if (diff < 86400000) return Math.floor(diff / 3600000) + ' 小时前';
+  return Math.floor(diff / 86400000) + ' 天前';
+}
+function parseMaybeForm(text) {
+  text = String(text || '');
+  try { return JSON.parse(text); } catch (e) { /* fall through */ }
+  var out = {};
+  text.split('&').forEach(function (pair) {
+    var i = pair.indexOf('=');
+    if (i > 0) {
+      try { out[decodeURIComponent(pair.slice(0, i))] = decodeURIComponent(pair.slice(i + 1)); }
+      catch (e) { /* ignore */ }
+    }
+  });
+  return out;
+}
+
+/* ---------------- Token 存取（应用自己的沙盒文件） ---------------- */
+var state = { token: '', login: '', avatar: '', owner: 'cunkai', repo: 'CangHai-Desk', bridgeDown: false };
+function loadToken() {
+  return fsCall('readText', { path: TOKEN_FILE }).then(function (text) {
+    var o = JSON.parse(text || '{}');
+    if (!o.token) throw new Error('NO_TOKEN');
+    return o;
+  });
+}
+function saveToken(token, kind, login, avatar) {
+  var o = { token: token, kind: kind, login: login || '', avatar: avatar || '', createdAt: Date.now() };
+  return fsCall('writeText', { path: TOKEN_FILE, text: JSON.stringify(o) }).then(function () { return o; });
+}
+function clearToken() {
+  return fsCall('delete', { path: TOKEN_FILE }).catch(function () { /* 文件不存在也算清掉了 */ });
+}
+function loadRepo() {
+  return fsCall('readText', { path: REPO_FILE }).then(function (text) {
+    var o = JSON.parse(text || '{}');
+    if (o.owner) state.owner = o.owner;
+    if (o.repo) state.repo = o.repo;
+  }).catch(function () { /* 用默认值 */ });
+}
+function saveRepo() {
+  fsCall('writeText', { path: REPO_FILE, text: JSON.stringify({ owner: state.owner, repo: state.repo }) })
+    .catch(function () { /* 存不住不影响用 */ });
+}
+
+/* ---------------- GitHub API（经 Java 桥，不走浏览器 CORS） ---------------- */
+function ghRequest(url, opts) {
+  opts = opts || {};
+  return ghCall('request', {
+    url: url,
+    httpMethod: opts.method || 'GET',
+    token: state.token,
+    body: opts.body != null ? opts.body : undefined,
+    contentType: opts.contentType || undefined
+  }, opts.timeout || 30000).then(function (res) {
+    var status = res && res.status;
+    var data = parseMaybeForm(res && res.text);
+    if (status >= 400) {
+      var msg = (data && data.message) || ('请求失败（HTTP ' + status + '）');
+      var err = new Error(msg);
+      err.status = status;
+      throw err;
+    }
+    return data;
+  });
+}
+function api(path) { return ghRequest(API + path); }
+function ghUser() { return api('/user'); }
+
+/* ---------------- 界面切换 ---------------- */
+function showView(name) {
+  $('view-auth').hidden = name !== 'auth';
+  $('view-main').hidden = name !== 'main';
+  $('view-run').hidden = name !== 'run';
+}
+function setAuthed(login, avatar) {
+  state.login = login || '';
+  state.avatar = avatar || '';
+  $('userChip').hidden = false;
+  $('btnLogout').hidden = false;
+  $('userLogin').textContent = login || '';
+  if (avatar) $('userAvatar').src = avatar;
+}
+function setLoggedOut() {
+  state.token = '';
+  $('userChip').hidden = true;
+  $('btnLogout').hidden = true;
+}
+
+/* ---------------- 设备码授权 ---------------- */
+var _pollTimer = null, _pollStop = false;
+function stopPolling() {
+  _pollStop = true;
+  if (_pollTimer) { clearTimeout(_pollTimer); _pollTimer = null; }
+}
+function startDeviceFlow() {
+  var clientId = $('inpClientId').value.trim();
+  if (!clientId) { toast('先填 Client ID'); return; }
+  var btn = $('btnDevice');
+  btn.disabled = true;
+  $('deviceStatus').textContent = '正在取授权码…';
+  $('deviceBox').hidden = false;
+  ghCall('request', {
+    url: 'https://github.com/login/device/code',
+    httpMethod: 'POST',
+    body: JSON.stringify({ client_id: clientId, scope: 'repo' }),
+    contentType: 'application/json'
+  }, 30000).then(function (res) {
+    var data = parseMaybeForm(res && res.text);
+    if (!data.device_code || !data.user_code) throw new Error((data && data.error_description) || '取授权码失败');
+    $('userCode').textContent = data.user_code;
+    var link = data.verification_uri_complete || data.verification_uri || 'https://github.com/login/device';
+    $('deviceLink').href = link;
+    $('deviceLink').textContent = link.replace(/^https?:\/\//, '');
+    var deadline = Date.now() + (Number(data.expires_in) || 900) * 1000;
+    var interval = Math.max(5, Number(data.interval) || 5) * 1000;
+    _pollStop = false;
+    $('deviceStatus').textContent = '等待在 GitHub 上输入码授权…';
+    var poll = function () {
+      if (_pollStop) return;
+      if (Date.now() > deadline) {
+        $('deviceStatus').textContent = '授权码已过期，请重新开始。';
+        btn.disabled = false;
+        return;
+      }
+      ghCall('request', {
+        url: 'https://github.com/login/oauth/access_token',
+        httpMethod: 'POST',
+        body: JSON.stringify({ client_id: clientId, device_code: data.device_code, grant_type: 'urn:ietf:params:oauth:grant-type:device_code' }),
+        contentType: 'application/json'
+      }, 30000).then(function (res2) {
+        if (_pollStop) return;
+        var d2 = parseMaybeForm(res2 && res2.text);
+        if (d2.access_token) {
+          finishLogin(d2.access_token, 'oauth');
+          return;
+        }
+        if (d2.error === 'authorization_pending') {
+          _pollTimer = setTimeout(poll, interval);
+        } else if (d2.error === 'slow_down') {
+          _pollTimer = setTimeout(poll, interval + 5000);
+        } else if (d2.error === 'expired_token') {
+          $('deviceStatus').textContent = '授权码已过期，请重新开始。';
+          btn.disabled = false;
+        } else if (d2.error === 'access_denied') {
+          $('deviceStatus').textContent = '已拒绝授权。';
+          btn.disabled = false;
+        } else {
+          $('deviceStatus').textContent = '授权失败：' + (d2.error_description || d2.error || '未知错误');
+          btn.disabled = false;
+        }
+      }).catch(function (err) {
+        if (_pollStop) return;
+        if (err && err.message === 'NO_BRIDGE') {
+          $('deviceStatus').textContent = '桥不可用，请在沧海系统内打开。';
+          btn.disabled = false;
+          return;
+        }
+        _pollTimer = setTimeout(poll, interval);
+      });
+    };
+    _pollTimer = setTimeout(poll, interval);
+  }).catch(function (err) {
+    btn.disabled = false;
+    $('deviceStatus').textContent = '取授权码失败：' + (err && err.message ? err.message : '未知错误');
+  });
+}
+$('btnDevice').addEventListener('click', startDeviceFlow);
+$('btnDeviceCancel').addEventListener('click', function () {
+  stopPolling();
+  $('deviceBox').hidden = true;
+  $('btnDevice').disabled = false;
+});
+
+/* ---------------- 手动 Token 登录 ---------------- */
+$('btnPat').addEventListener('click', function () {
+  var token = $('inpPat').value.trim();
+  if (!token) { toast('先粘贴 Token'); return; }
+  var btn = $('btnPat');
+  btn.disabled = true;
+  var old = state.token;
+  state.token = token;
+  ghUser().then(function (me) {
+    return saveToken(token, 'pat', me.login, me.avatar_url).then(function () {
+      finishMain(me.login, me.avatar_url);
+    });
+  }).catch(function (err) {
+    state.token = old;
+    if (err && err.status === 401) toast('Token 无效，请检查后重试');
+    else if (err && err.message === 'NO_BRIDGE') toast('桥不可用，请在沧海系统内打开');
+    else toast('登录失败：' + (err && err.message ? err.message : '未知错误'));
+  }).then(function () { btn.disabled = false; });
+});
+
+/* ---------------- 登录完成：取用户信息 → 存 Token → 进主界面 ---------------- */
+function finishLogin(token, kind) {
+  state.token = token;
+  $('deviceStatus').textContent = '授权成功，正在登录…';
+  ghUser().then(function (me) {
+    return saveToken(token, kind, me.login, me.avatar_url).then(function () {
+      stopPolling();
+      $('deviceBox').hidden = true;
+      $('btnDevice').disabled = false;
+      finishMain(me.login, me.avatar_url);
+    });
+  }).catch(function (err) {
+    $('deviceStatus').textContent = '登录失败：' + (err && err.message ? err.message : '未知错误');
+    $('btnDevice').disabled = false;
+  });
+}
+function finishMain(login, avatar) {
+  setAuthed(login, avatar);
+  showView('main');
+  loadRuns();
+}
+
+/* ---------------- 退出登录 ---------------- */
+$('btnLogout').addEventListener('click', function () {
+  stopPolling();
+  clearToken().then(function () {
+    setLoggedOut();
+    $('inpPat').value = '';
+    showView('auth');
+    toast('已退出登录');
+  });
+});
+
+/* ---------------- 构建列表 ---------------- */
+function conclusionBadge(run) {
+  if (run.status !== 'completed') return '<span class="badge run">进行中</span>';
+  if (run.conclusion === 'success') return '<span class="badge ok">成功</span>';
+  if (run.conclusion === 'failure') return '<span class="badge bad">失败</span>';
+  if (run.conclusion === 'cancelled') return '<span class="badge grey">已取消</span>';
+  return '<span class="badge grey">' + esc(run.conclusion || '完成') + '</span>';
+}
+function loadRuns() {
+  state.owner = $('inpOwner').value.trim() || state.owner;
+  state.repo = $('inpRepo').value.trim() || state.repo;
+  saveRepo();
+  $('runsList').innerHTML = '';
+  $('runsEmpty').hidden = true;
+  $('runsLoading').hidden = false;
+  api('/repos/' + encodeURIComponent(state.owner) + '/' + encodeURIComponent(state.repo) + '/actions/runs?per_page=20')
+    .then(function (data) {
+      $('runsLoading').hidden = true;
+      var runs = (data && data.workflow_runs) || [];
+      if (!runs.length) { $('runsEmpty').hidden = false; return; }
+      runs.forEach(function (run) {
+        var b = document.createElement('button');
+        b.className = 'item';
+        var isDev = run.head_branch === 'dev-muse';
+        b.innerHTML =
+          '<span class="row1"><span class="name">' + esc(run.name || '构建') + '</span>' +
+          '<span class="badge branch' + (isDev ? ' dev' : '') + '">' + esc(run.head_branch || '') + '</span>' +
+          conclusionBadge(run) + '</span>' +
+          '<span class="title">' + esc(run.display_title || '') + '</span>' +
+          '<span class="meta">' + esc(String(run.head_sha || '').slice(0, 7)) + ' · ' + relTime(run.created_at) + '</span>';
+        b.addEventListener('click', function () { openRun(run); });
+        $('runsList').appendChild(b);
+      });
+    })
+    .catch(function (err) {
+      $('runsLoading').hidden = true;
+      if (err && err.status === 401) {
+        toast('登录已失效，请重新授权');
+        setLoggedOut();
+        showView('auth');
+      } else if (err && err.status === 404) {
+        toast('仓库不存在或无权访问');
+      } else {
+        toast('加载失败：' + (err && err.message ? err.message : '未知错误'));
+      }
+    });
+}
+$('btnRefresh').addEventListener('click', loadRuns);
+
+/* ---------------- 产物列表与下载 ---------------- */
+var _currentRun = null;
+function openRun(run) {
+  _currentRun = run;
+  $('runTitle').textContent = (run.name || '构建') + ' · ' + String(run.head_sha || '').slice(0, 7);
+  $('runMeta').textContent = (run.display_title || '') + ' · ' + relTime(run.created_at);
+  $('savedBox').hidden = true;
+  $('artifactsList').innerHTML = '';
+  $('artEmpty').hidden = true;
+  $('artLoading').hidden = false;
+  showView('run');
+  api('/repos/' + encodeURIComponent(state.owner) + '/' + encodeURIComponent(state.repo) + '/actions/runs/' + run.id + '/artifacts')
+    .then(function (data) {
+      $('artLoading').hidden = true;
+      var arts = (data && data.artifacts) || [];
+      if (!arts.length) { $('artEmpty').hidden = false; return; }
+      arts.forEach(function (a) {
+        var b = document.createElement('button');
+        b.className = 'item';
+        b.innerHTML =
+          '<span class="row1"><span class="name">' + esc(a.name) + '</span>' +
+          (a.expired ? '<span class="badge grey">已过期</span>' : '<span class="badge ok">可下载</span>') + '</span>' +
+          '<span class="meta">' + fmtSize(a.size_in_bytes) + ' · ' + relTime(a.created_at) + '</span>';
+        if (a.expired) {
+          b.disabled = true;
+          b.style.opacity = '.55';
+          b.style.cursor = 'default';
+        } else {
+          b.addEventListener('click', function () { downloadArtifact(a, b); });
+        }
+        $('artifactsList').appendChild(b);
+      });
+    })
+    .catch(function (err) {
+      $('artLoading').hidden = true;
+      toast('加载失败：' + (err && err.message ? err.message : '未知错误'));
+    });
+}
+$('btnBack').addEventListener('click', function () { showView('main'); });
+function downloadArtifact(a, btn) {
+  btn.disabled = true;
+  var oldHtml = btn.innerHTML;
+  btn.innerHTML = '<span class="name">下载中，请稍候…</span>';
+  ghCall('download', {
+    url: a.archive_download_url,
+    token: state.token,
+    filename: a.name + '.zip'
+  }, 300000).then(function (res) {
+    btn.disabled = false;
+    btn.innerHTML = oldHtml;
+    var files = (res && res.files) || [];
+    var box = $('savedBox');
+    if (files.length) {
+      box.innerHTML = '<b>已保存到下载目录 / Canghai：</b><br>' + files.map(function (f) {
+        return esc(f.name) + '（' + fmtSize(f.size) + '）';
+      }).join('<br>');
+      box.hidden = false;
+    }
+    toast('下载完成');
+  }).catch(function (err) {
+    btn.disabled = false;
+    btn.innerHTML = oldHtml;
+    toast('下载失败：' + (err && err.message ? err.message : '未知错误'));
+  });
+}
+
+/* ---------------- 启动 ---------------- */
+if (GH_CLIENT_ID) $('inpClientId').value = GH_CLIENT_ID;
+loadRepo().then(function () {
+  $('inpOwner').value = state.owner;
+  $('inpRepo').value = state.repo;
+});
+loadToken().then(function (o) {
+  state.token = o.token;
+  return ghUser().then(function (me) {
+    finishMain(me.login || o.login, me.avatar_url || o.avatar);
+  });
+}).catch(function (err) {
+  if (err && err.message === 'NO_BRIDGE') {
+    state.bridgeDown = true;
+    $('bridgeNote').hidden = false;
+  } else if (err && err.status === 401) {
+    clearToken();
+    toast('登录已失效，请重新授权');
+  }
+  showView('auth');
+});
+</script>
+</body>
+</html>
