@@ -9,6 +9,7 @@ import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
 import android.util.Log;
+import android.view.Display;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebView;
 
@@ -143,6 +144,8 @@ public final class CanghaiCore {
                 return lan(method, p);
             case "github":
                 return github(method, p);
+            case "webview":
+                return webview(method, p);
             default:
                 throw new CoreFs.Err("UNKNOWN_NAMESPACE", "未知命名空间: " + ns);
         }
@@ -439,6 +442,44 @@ public final class CanghaiCore {
             }
         }
         return new JSONObject().put("saved", true).put("name", finalName).put("size", size);
+    }
+
+    /* ---------------- webview（浏览器验证：原生内容窗） ----------------
+     * 内容窗挂在宿主 WebView 所在的屏上；挂载只用 TYPE_PRIVATE_PRESENTATION，
+     * 挂不上就报 UNSUPPORTED，绝不降级到悬浮窗（用户铁律）。矩形是物理像素，
+     * 由桌面侧换算好再传进来。 */
+    private Object webview(String method, JSONObject p) throws Exception {
+        WebView host = webRef != null ? webRef.get() : null;
+        Display display = host != null ? host.getDisplay() : null;
+        switch (method) {
+            case "show":
+                return CanghaiContentWebView.show(ctx, display,
+                        p.optInt("x", 0), p.optInt("y", 0),
+                        p.optInt("width", 0), p.optInt("height", 0),
+                        p.optString("url", ""));
+            case "move":
+                return CanghaiContentWebView.move(
+                        p.optInt("x", 0), p.optInt("y", 0),
+                        p.optInt("width", 0), p.optInt("height", 0));
+            case "hide":
+                return CanghaiContentWebView.hide();
+            case "navigate":
+                return CanghaiContentWebView.navigate(p.optString("url", ""));
+            case "back":
+                return CanghaiContentWebView.back();
+            case "forward":
+                return CanghaiContentWebView.forward();
+            case "reload":
+                return CanghaiContentWebView.reload();
+            case "stop":
+                return CanghaiContentWebView.stop();
+            case "close":
+                return CanghaiContentWebView.close();
+            case "status":
+                return CanghaiContentWebView.status();
+            default:
+                throw new CoreFs.Err("UNKNOWN_METHOD", "未知方法: webview." + method);
+        }
     }
 
     /* ---------------- device ---------------- */
