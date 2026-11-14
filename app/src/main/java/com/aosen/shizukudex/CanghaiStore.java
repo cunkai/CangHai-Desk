@@ -937,6 +937,117 @@ public final class CanghaiStore {
     }
 
     // ==================================================================
+    // 桌面导出 / 导入：整份桌面快照（布局 / Dock / 便签 / 壁纸 / 网格）打成一个文件
+    //
+    // 身份口径：这两个方法只给宿主桥（手机端设置页）调，应用够不着——应用只能
+    // 走 CanghaiCore 的命名空间，桌面代理里没有状态方法，Java 侧也不认应用自报
+    // 的身份。导进来的文件是不可信输入，这里先校验格式标记、版本、白名单键与
+    // 大小上限，清洗后再写回；写回后走与跨屏同步同一条路实时应用到各屏。
+    // ==================================================================
+
+    /** 桌面导出文件格式标记：导入时只认这个标记，不认扩展名。 */
+    public static final String DESKTOP_EXPORT_FORMAT = "canghai-desktop";
+    public static final int DESKTOP_EXPORT_VERSION = 1;
+    private static final int MAX_DESKTOP_IMPORT_BYTES = 2 * 1024 * 1024;
+    private static final int MAX_DESKTOP_ITEMS = 500;
+
+    /** 导出：把当前桌面快照包成 bundle JSON。还没有保存过的桌面返回 null。 */
+    public static String exportDesktopBundle(Context c) {
+        try {
+            String snap = desktopItems(c);
+            if (snap == null || snap.trim().isEmpty()) return null;
+            JSONObject bundle = new JSONObject();
+            bundle.put("format", DESKTOP_EXPORT_FORMAT);
+            bundle.put("version", DESKTOP_EXPORT_VERSION);
+            bundle.put("exportedAt", System.currentTimeMillis());
+            bundle.put("snapshot", new JSONObject(snap));
+            return bundle.toString();
+        } catch (Throwable t) {
+            Log.w(TAG, "exportDesktopBundle: " + t.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 导入：校验 + 清洗 bundle，写回快照与各分项 prefs，通知各屏实时应用。
+     * 成功返回 null，失败返回给用户看的错误信息。
+     */
+    public static String importDesktopBundle(Context c, String bundleJson) {
+        try {
+            if (bundleJson == null || bundleJson.isEmpty()) return "文件是空的";
+            if (bundleJson.length() > MAX_DESKTOP_IMPORT_BYTES) return "文件太大了";
+            JSONObject bundle = new JSONObject(bundleJson);
+            if (!DESKTOP_EXPORT_FORMAT.equals(bundle.optString("format", ""))) {
+                return "不是沧海桌面文件";
+            }
+            if (bundle.optInt("version", -1) != DESKTOP_EXPORT_VERSION) {
+                return "这个桌面文件版本不支持";
+            }
+            JSONObject snap = bundle.optJSONObject("snapshot");
+            if (snap == null) return "文件里没有桌面快照";
+            if (snap.optInt("v", -1) != 1) return "快照版本不支持";
+            JSONArray items = snap.optJSONArray("items");
+            if (items == null) return "快照里没有桌面条目";
+            if (items.length() > MAX_DESKTOP_ITEMS) return "桌面条目太多了";
+            for (int i = 0; i < items.length(); i++) {
+                if (!(items.opt(i) instanceof JSONObject)) return "桌面条目损坏";
+            }
+            /* 清洗：只留桌面认识的键，其余一律丢掉。 */
+            JSONObject clean = new JSONObject();
+            clean.put("v", 1);
+            clean.put("items", items);
+            JSONArray pins = snap.optJSONArray("dockPins");
+            if (pins != null) {
+                if (pins.length() > 100) return "Dock 固定项太多了";
+                clean.put("dockPins", pins);
+            }
+            JSONArray stickies = snap.optJSONArray("stickies");
+            if (stickies != null) {
+                if (stickies.length() > 200) return "便签太多了";
+                clean.put("stickies", stickies);
+            }
+            JSONObject state = snap.optJSONObject("state");
+            if (state != null) {
+                JSONObject cs = new JSONObject();
+                if (state.has("light")) cs.put("light", state.optBoolean("light"));
+                if (state.has("iconSize")) cs.put("iconSize", String.valueOf(state.optString("iconSize", "")));
+                if (state.has("dockSide")) cs.put("dockSide", String.valueOf(state.optString("dockSide", "")));
+                if (state.has("dockAutoHide")) cs.put("dockAutoHide", state.optBoolean("dockAutoHide"));
+                if (state.has("showBrandLogo")) cs.put("showBrandLogo", state.optBoolean("showBrandLogo"));
+                clean.put("state", cs);
+            }
+            String wallpaper = snap.optString("wallpaper", "");
+            if (wallpaper.length() > 200) return "壁纸名字太长了";
+            if (!wallpaper.isEmpty()) clean.put("wallpaper", wallpaper);
+            int cols = -1, rows = -1;
+            JSONArray grid = snap.optJSONArray("grid");
+            if (grid != null && grid.length() >= 2) {
+                cols = Math.max(4, Math.min(24, grid.optInt(0, 15)));
+                rows = Math.max(3, Math.min(12, grid.optInt(1, 7)));
+                clean.put("grid", new JSONArray().put(cols).put(rows));
+            }
+            /* 写回：快照是桌面读的，分项 prefs 是 Dock 层与 stateJson 读的，两边保持一致。 */
+            String cleanStr = clean.toString();
+            setDesktopItems(c, cleanStr);
+            if (!wallpaper.isEmpty()) setWallpaper(c, wallpaper);
+            if (cols > 0 && rows > 0) setGrid(c, cols, rows);
+            if (pins != null) setDockPinsJson(c, pins.toString());
+            if (state != null && state.has("dockAutoHide")) setDockAutoHide(c, state.optBoolean("dockAutoHide"));
+            /* 通知：应用数据变化（Dock 层重推）+ 桌面快照变化（各屏实时应用，
+               sender 取 -1 表示没有发送屏、全部屏幕都应用）。 */
+            notifyDataChanged(c);
+            try {
+                DexHomeActivity.notifyDesktopStateChanged(-1, cleanStr);
+            } catch (Throwable ignored) {
+            }
+            return null;
+        } catch (Throwable t) {
+            Log.w(TAG, "importDesktopBundle: " + t.getMessage());
+            return "这个文件读不出来";
+        }
+    }
+
+    // ==================================================================
     // 一次性状态（外屏 / 手机首屏都靠它）
     // ==================================================================
 

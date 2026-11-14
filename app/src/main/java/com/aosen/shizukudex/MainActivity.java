@@ -6070,6 +6070,48 @@ public class MainActivity extends AppCompatActivity implements DeXPresentation.O
             }
         }
 
+        /** 桌面导出：整份桌面快照打成一个 .canghai-desktop 文件，存到下载目录/Canghai。
+            只存在于宿主桥（手机端设置页），应用够不着。 */
+        @android.webkit.JavascriptInterface
+        public String exportDesktopState() {
+            try {
+                String bundle = CanghaiStore.exportDesktopBundle(MainActivity.this);
+                if (bundle == null) return "{\"ok\":false,\"error\":\"桌面还没有保存过布局\"}";
+                String stamp = new java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.US)
+                        .format(new java.util.Date());
+                String name = "沧海桌面-" + stamp + ".canghai-desktop";
+                String dataUrl = "data:application/json;base64,"
+                        + android.util.Base64.encodeToString(bundle.getBytes("UTF-8"), android.util.Base64.NO_WRAP);
+                org.json.JSONObject res = CanghaiCore.saveDownloadDirect(MainActivity.this, name, dataUrl);
+                if (res != null && res.optBoolean("saved")) {
+                    org.json.JSONObject o = new org.json.JSONObject();
+                    o.put("ok", true);
+                    o.put("name", res.optString("name", name));
+                    return o.toString();
+                }
+                return "{\"ok\":false,\"error\":\"保存失败\"}";
+            } catch (Throwable t) {
+                Log.w(TAG, "exportDesktopState: " + t.getMessage());
+                return "{\"ok\":false,\"error\":\"保存失败\"}";
+            }
+        }
+
+        /** 桌面导入：文件内容先经 CanghaiStore 校验清洗再写回，各屏实时应用。 */
+        @android.webkit.JavascriptInterface
+        public String importDesktopState(final String bundleJson) {
+            try {
+                String err = CanghaiStore.importDesktopBundle(MainActivity.this, bundleJson);
+                if (err == null) return "{\"ok\":true}";
+                org.json.JSONObject o = new org.json.JSONObject();
+                o.put("ok", false);
+                o.put("error", err);
+                return o.toString();
+            } catch (Throwable t) {
+                Log.w(TAG, "importDesktopState: " + t.getMessage());
+                return "{\"ok\":false,\"error\":\"文件读不出来\"}";
+            }
+        }
+
         /** 权限与运行环境（Root / Shizuku / 悬浮窗 / 读应用列表）。 */
         @android.webkit.JavascriptInterface
         public String getPerms() {
