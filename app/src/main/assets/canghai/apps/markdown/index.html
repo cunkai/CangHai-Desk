@@ -8,7 +8,7 @@
 :root{
   --gap:.45em;--lh:1.8;--bg:#f0f3f8;--panel:rgba(255,255,255,.8);--pop:rgba(255,255,255,.97);--ink:#1b2236;--mute:#6a7491;--line:rgba(27,34,54,.14);
   --accent:#b18e46;--code:rgba(177,142,70,.10);--wire:#b18e46;color-scheme:light;
-  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  box-sizing:border-box;padding-top:var(--ch-safe-top, env(safe-area-inset-top, 0px));padding-bottom:var(--ch-safe-bottom, env(safe-area-inset-bottom, 0px));
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#071526;--panel:rgba(9,25,44,.8);--pop:rgba(13,30,52,.97);--ink:#e6ebf7;--mute:#8d98b8;--line:rgba(190,205,255,.16);
@@ -17,7 +17,7 @@
   --bg:#071526;--panel:rgba(9,25,44,.8);--pop:rgba(13,30,52,.97);--ink:#e6ebf7;--mute:#8d98b8;--line:rgba(190,205,255,.16);
   --accent:#c9a85c;--code:rgba(201,168,92,.12);--wire:#c9a85c;color-scheme:dark;}
 *{box-sizing:border-box}
-html{height:100%;scroll-padding-top:env(safe-area-inset-top,0px)}
+html{height:100%;scroll-padding-top:var(--ch-safe-top, env(safe-area-inset-top, 0px))}
 body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;overflow:hidden}
 #cv{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block}
 .app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:12px;gap:10px}
@@ -70,7 +70,7 @@ ul.task>li[data-done]{color:var(--mute)}
 .gl{width:30px;height:30px;display:grid;place-items:center;border:1px solid var(--line);border-radius:7px;font:600 12px ui-monospace,monospace;flex:none;background:var(--panel)}
 .nm{flex:1}.nm small{display:block;color:var(--mute);font-size:12px}
 .sc{color:var(--mute);font:12px ui-monospace,monospace}
-#toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--accent);color:var(--bg);padding:7px 14px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30}
+#toast{position:fixed;left:50%;bottom:calc(24px + var(--ch-safe-bottom, env(safe-area-inset-bottom, 0px)));transform:translateX(-50%);background:var(--accent);color:var(--bg);padding:7px 14px;border-radius:8px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:30}
 #toast.on{opacity:1}
 @media (max-width:760px){#ed{padding:24px 18px 45vh;font-size:16px}}
 </style>
