@@ -4,12 +4,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>绘音：在空中随手画出音乐</title>
 <style>
-:root{--fg:#e8f1f8;--mut:#8fa4c0;--pn:rgba(10,30,52,.82);--ln:rgba(201,168,92,.35);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-html{scroll-padding-top:env(safe-area-inset-top,0px)}
+:root{--fg:#e8f1f8;--mut:#8fa4c0;--pn:rgba(10,30,52,.82);--ln:rgba(201,168,92,.35);box-sizing:border-box;padding-top:var(--ch-safe-top, env(safe-area-inset-top, 0px));padding-bottom:var(--ch-safe-bottom, env(safe-area-inset-bottom, 0px))}
+html{scroll-padding-top:var(--ch-safe-top, env(safe-area-inset-top, 0px))}
 html,body{height:100%;margin:0;overflow:hidden;color:var(--fg);background:radial-gradient(120% 90% at 50% 100%,#0f3a5c 0%,#0a2a4a 55%,#04101e 100%);font-family:"Noto Serif SC","Songti SC","STSong",serif;touch-action:none;user-select:none;-webkit-user-select:none}
 canvas{position:fixed;inset:0;display:block}
-#hint{position:fixed;left:0;right:0;top:calc(18px + env(safe-area-inset-top,0px));text-align:center;color:var(--mut);font-size:15px;letter-spacing:.12em;pointer-events:none;transition:opacity 1.2s;padding:0 16px}
-#bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));display:flex;flex-wrap:wrap;justify-content:center;gap:2px;padding:6px;max-width:94vw;background:var(--pn);border:1px solid var(--ln);border-radius:22px}
+#hint{position:fixed;left:0;right:0;top:calc(18px + var(--ch-safe-top, env(safe-area-inset-top, 0px)));text-align:center;color:var(--mut);font-size:15px;letter-spacing:.12em;pointer-events:none;transition:opacity 1.2s;padding:0 16px}
+#bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + var(--ch-safe-bottom, env(safe-area-inset-bottom, 0px)));display:flex;flex-wrap:wrap;justify-content:center;gap:2px;padding:6px;max-width:94vw;background:var(--pn);border:1px solid var(--ln);border-radius:22px}
 #bar button{font:inherit;font-size:13px;color:var(--fg);background:transparent;border:0;border-radius:999px;padding:8px 12px;cursor:pointer}
 #bar button:hover,#bar button:focus-visible{background:rgba(255,255,255,.12);outline:none}
 #tl{position:fixed;inset:auto auto 90px 50%;transform:translateX(-50%);background:var(--pn);border:1px solid var(--ln);border-radius:14px;cursor:pointer}
@@ -145,7 +145,7 @@ addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProje
 
 /* 时间轴：每条线一行，像钢琴卷帘，点格子开关音符 */
 const tl=$('#tl'),tc=tl.getContext('2d'),RH=18,HD=16,LBL=26,CYC=32*step;let tlOn=true;
-function layoutTl(){tl.style.bottom='calc('+($('#bar').offsetHeight+26)+'px + env(safe-area-inset-bottom,0px))'}
+function layoutTl(){tl.style.bottom='calc('+($('#bar').offsetHeight+26)+'px + var(--ch-safe-bottom, env(safe-area-inset-bottom, 0px)))'}
 function tlGeom(){const w=Math.min(innerWidth*.92,680),h=HD+Math.max(1,strokes.length)*RH+6,d=Math.min(devicePixelRatio,2);
 if(tl.dataset.w!=w||tl.dataset.h!=h){tl.dataset.w=w;tl.dataset.h=h;tl.style.width=w+'px';tl.style.height=h+'px';tl.width=w*d;tl.height=h*d;tc.setTransform(d,0,0,d,0,0)}return{w,h}}
 function drawTl(){if(!tlOn||!ac)return;const{w,h}=tlGeom(),cw=(w-LBL-22)/32;tc.clearRect(0,0,w,h);
