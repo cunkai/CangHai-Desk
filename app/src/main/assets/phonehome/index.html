@@ -2610,6 +2610,18 @@
               </div>
 
               <div class="set-group">
+                <div class="set-row">
+                  <div class="st"><b>打开时显示</b></div>
+                </div>
+                <div style="padding:0 0 14px;">
+                  <div class="seg" id="segStartTab">
+                    <button type="button" data-v="Apps" class="sel">软件页</button>
+                    <button type="button" data-v="Devices">首页</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="set-group">
                 <div class="set-row keep-row">
                   <div class="st"><b data-i18n="cursor_style">鼠标样式</b></div>
                   <button type="button" class="perm-btn" id="btnCursorManage" data-i18n="cursor_manage">管理</button>
@@ -3954,6 +3966,17 @@
         if (targetBtn) targetBtn.click();
       };
 
+      /* 打开时显示：默认软件页（Apps），设置里可改回首页（Devices）。
+         localStorage 持久化；键不存在（新装）或值非法时一律是软件页，
+         用户不改设置就永远打开软件页。 */
+      const START_TAB_KEY = "canghai_start_tab";
+      function getStartTab() {
+        try {
+          const v = localStorage.getItem(START_TAB_KEY);
+          return (v === "Devices" || v === "Apps") ? v : "Apps";
+        } catch (e) { return "Apps"; }
+      }
+
       /* 整页左右滑切换 Devices / Apps / Settings 已关闭：它会吃掉外设卡片区的
          横向滑动和跨行拖拽手势。切换页面只用底部 tab 按钮。 */
 
@@ -3972,6 +3995,12 @@
           if (b.getAttribute("data-tab") === "Settings") checkErrorReportUI();
         });
       });
+
+      /* 启动页只在页面初次加载时应用一次：默认软件页；设了首页就留在默认的首页。 */
+      (function applyStartTab() {
+        const t = getStartTab();
+        if (t !== "Devices") window.switchTab(t);
+      })();
 
       /* ---------------- devices ---------------- */
       const CURSORS = {
@@ -6632,6 +6661,20 @@
         $$("#segDefaultDesk button").forEach(x => x.classList.toggle("sel", x === b));
         toast("新屏幕默认使用" + (state.defaultDesk === "native" ? "原生桌面" : "沧海桌面"));
       });
+
+      /* 打开时显示：只记偏好，不立即切页（用户正在设置里，别把人拽走）。 */
+      function syncStartTabUI() {
+        const v = getStartTab();
+        $$("#segStartTab button").forEach(x => x.classList.toggle("sel", x.getAttribute("data-v") === v));
+      }
+      $("#segStartTab").addEventListener("click", e => {
+        const b = e.target.closest("button"); if (!b) return;
+        const v = b.getAttribute("data-v");
+        try { localStorage.setItem(START_TAB_KEY, v); } catch (err) {}
+        $$("#segStartTab button").forEach(x => x.classList.toggle("sel", x === b));
+        toast("下次打开时显示" + (v === "Apps" ? "软件页" : "首页"));
+      });
+      syncStartTabUI();
 
       function syncLangUI(lang) {
         if (!lang && window.CHI18n) lang = CHI18n.getLang();
