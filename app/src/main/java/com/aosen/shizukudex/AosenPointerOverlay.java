@@ -99,6 +99,22 @@ public final class AosenPointerOverlay {
         });
     }
 
+    /** 沿 ContextWrapper 链找 Activity：Presentation.show 只要 Activity token，
+     *  拿 ContextThemeWrapper 这类包过一层的 base 必抛 BadToken。链上没有 Activity
+     *  就返回 null，调用方只记日志不挂载，绝不把异常抛到外层。 */
+    private static android.app.Activity resolveActivityBase(Context ctx) {
+        Context c = ctx;
+        while (c != null) {
+            if (c instanceof android.app.Activity) return (android.app.Activity) c;
+            if (c instanceof android.content.ContextWrapper) {
+                c = ((android.content.ContextWrapper) c).getBaseContext();
+            } else {
+                break;
+            }
+        }
+        return null;
+    }
+
     /** 在这块虚拟屏的最高层用 Presentation 挂载唯一那一层指针。重复调用只换屏，不会挂出第二层。 */
     public static void show(Context base, int displayId, int width, int height) {
         if (base == null || displayId <= 0) return;
@@ -118,6 +134,14 @@ public final class AosenPointerOverlay {
                     Log.w(TAG, "取不到 display " + displayId + "，指针层无法挂载");
                     return;
                 }
+                /* Presentation 的 token 必须来自 Activity：先沿 base 链解包，找不到
+                 * Activity 就只记日志、不尝试挂载（否则必抛 BadToken）。 */
+                android.app.Activity actBase = resolveActivityBase(base);
+                if (actBase == null) {
+                    Log.w(TAG, "指针层 base 链上没有 Activity（base=" + base.getClass().getName() + "），不挂载");
+                    CanghaiErrorCollector.logExt("[指针层辨识] AosenPointerOverlay 未挂载：base 链上没有 Activity token");
+                    return;
+                }
                 StringBuilder ds = new StringBuilder();
                 try {
                     for (android.view.Display d : dm.getDisplays()) {
@@ -127,6 +151,7 @@ public final class AosenPointerOverlay {
                 CanghaiErrorCollector.pointerAudit("E-绿色A层",
                         "base=" + base.getClass().getName()
                                 + " isActivity=" + (base instanceof android.app.Activity)
+                                + " actBase=" + actBase.getClass().getName()
                                 + " 目标display=" + displayId
                                 + " 取到display=true 全部display=[" + ds.toString().trim() + "]"
                                 + " ｜Presentation.show 需要 Activity token，非 Activity base 必抛 BadToken",
@@ -162,7 +187,8 @@ public final class AosenPointerOverlay {
 
                 // 用 Presentation 把指针画到这块虚拟屏上：窗口类型 TYPE_APPLICATION_ATTACHED_DIALOG，
                 // 同一应用的普通窗口，不进「不可信触摸」拦截名单，从根上消除遮挡丢点击。
-                Presentation pres = new Presentation(base, display) {};
+                // base 必须是解包出来的 Activity（actBase），传包过的 Context 必抛 BadToken。
+                Presentation pres = new Presentation(actBase, display) {};
                 Window w = pres.getWindow();
                 w.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
                 w.requestFeature(Window.FEATURE_NO_TITLE);

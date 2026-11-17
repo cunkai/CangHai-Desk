@@ -2511,7 +2511,7 @@ public class DexHomeActivity extends Activity {
                         } catch (Throwable ignored) {}
                         String diff = (vm == null) ? "VirtualMouse未就绪"
                                 : ("自算=(" + vm[0] + "," + vm[1] + ") Δ=("
-                                        + (event.getX() - vm[0]) + "," + (event.getY() - vm[1]) + ")");
+                                        + (event.getRawX() - vm[0]) + "," + (event.getRawY() - vm[1]) + ")");
                         CanghaiErrorCollector.pointerAudit("C-系统落点",
                                 "event=(" + event.getX() + "," + event.getY() + ")"
                                         + " raw=(" + event.getRawX() + "," + event.getRawY() + ")"
@@ -2519,7 +2519,11 @@ public class DexHomeActivity extends Activity {
                                         + " ｜这是系统真正要点击的位置；Δ 就是双指针漂移量。"
                                         + " 进原生应用/DeX桌面后本回调断供，漂移会累积", false);
                         DeXPresentation pres = DeXPresentation.getActiveInstance();
-                        if (pres != null) pres.onNativePointerAt(event.getX(), event.getY());
+                        /* 必须用 getRawX/getRawY（显示空间绝对坐标）：VirtualMouse 的累加器
+                         * 与 resync 都在显示空间里，getX/getY 是窗口内坐标，窗口在虚拟屏里
+                         * 并不贴左上角（实测偏移 640,53），喂窗口坐标等于每次 resync 都
+                         * 埋进一个窗口偏移量的系统性偏差。 */
+                        if (pres != null) pres.onNativePointerAt(event.getRawX(), event.getRawY());
                     }
                 }
             } catch (Throwable ignored) {}

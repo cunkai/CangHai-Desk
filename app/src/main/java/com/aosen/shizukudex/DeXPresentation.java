@@ -541,7 +541,15 @@ public class DeXPresentation extends Presentation {
                     @Override
                     public void run() {
                         if (VirtualMouse.isActive()) {
-                            AosenPointerOverlay.show(getContext(), dId, screenWidth, screenHeight);
+                            /* Presentation.show 只要 Activity token：本类的 getContext() 是
+                             * Presentation 构造时包出来的 ContextThemeWrapper，永远不是
+                             * Activity，传它必抛 BadToken。优先取这块屏上的 DexHomeActivity，
+                             * 没有再退回 mainActivity，两者都没有才回落 getContext()
+                             *（由 show() 内的兜底处理，绝不抛到外层）。 */
+                            android.app.Activity actBase = DexHomeActivity.findForDisplay(dId);
+                            if (actBase == null) actBase = mainActivity;
+                            AosenPointerOverlay.show(actBase != null ? actBase : getContext(),
+                                    dId, screenWidth, screenHeight);
                             return;
                         }
                         if (++tries < 30) cursorHandler.postDelayed(this, 100);
