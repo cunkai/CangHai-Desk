@@ -566,6 +566,7 @@ public class DeXPresentation extends Presentation {
                     int bindId = StreamTarget.get().getDisplayId();
                     if (bindId <= 0) bindId = dId;
                     VirtualMouse.onDisplayReady(getContext(), bindId, Math.round(ax), Math.round(ay));
+                    PeripheralBrain.rebindExternalTouchscreens(getContext(), bindId);
                 } catch (Throwable ignored) {}
                 com.alkaidlab.sunshine.service.MouseCursorTargets.register(dId);
                 ShizukuCmd.bindAllExternalInputToDisplay(dId, true);
@@ -1204,7 +1205,13 @@ public class DeXPresentation extends Presentation {
         if (fromOwnVirtualMouse(event)) {
             return super.dispatchTouchEvent(event);
         }
-        if (virtualDeviceOwnsInput(event, "dispatchTouchEvent")) {
+        // 外接触摸屏的事件绕开虚拟鼠标门：VirtualMouse 活跃时这道门恒真，触摸
+        // 会被交给本层 View 树、落在 SurfaceView 上吞掉，注不进虚拟屏。
+        // 绕开后触摸继续往下走：直显模式直派 WebView，特权模式走注入兜底。
+        // 内置面板与合成事件不绕开（isExternalTouchEvent 只认外接数字化仪），
+        // 黑屏触控等既有链路不受影响。
+        if (!ShizukuCmd.isExternalTouchEvent(event)
+                && virtualDeviceOwnsInput(event, "dispatchTouchEvent")) {
             return super.dispatchTouchEvent(event);
         }
         if (isFromGameController(event)) {

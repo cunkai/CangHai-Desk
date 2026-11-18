@@ -524,6 +524,64 @@ public final class PeripheralBrain {
     }
 
     /**
+     * 外接触摸屏绑屏：把数字化仪的 descriptor 关联到目标显示。
+     * 用户在设置里给这台设备指定过目标屏（routeDisplayFor）一律尊重；指定回
+     * 手机则摘掉关联。后台线程跑，binder 往返不占调用线程。
+     */
+    private static void bindTouchscreenToDisplay(final Context ctx, final InputDevice dev, final int targetDisplayId) {
+        if (ctx == null || dev == null || targetDisplayId <= 0) return;
+        final String desc = dev.getDescriptor();
+        final String devName = dev.getName();
+        if (desc == null || desc.isEmpty()) return;
+        new Thread(() -> {
+            try {
+                int route = ShizukuCmd.routeDisplayFor(dev, targetDisplayId);
+                if (route <= 0) {
+                    try { ShizukuCmd.releaseDescriptor(desc); } catch (Throwable ignored) {}
+                    return;
+                }
+                boolean bound = false;
+                for (int i = 0; i < 3 && !bound; i++) {
+                    try { bound = ShizukuCmd.bindDescriptorToDisplay(desc, route); } catch (Throwable ignored) {}
+                    if (!bound) SystemClock.sleep(150);
+                }
+                if (bound) {
+                    Log.i(TAG, "外接触摸屏已绑定: [" + devName + "] -> display " + route);
+                    CanghaiErrorCollector.logExt("[大脑后] 外接触摸屏已绑定 display " + route + " [" + devName + "]");
+                } else {
+                    Log.w(TAG, "外接触摸屏绑定失败: [" + devName + "] display " + route);
+                }
+            } catch (Throwable t) {
+                Log.w(TAG, "外接触摸屏绑定异常: " + t.getMessage());
+            }
+        }, "touchscreen-bind").start();
+    }
+
+    /**
+     * 屏就绪钩子：建屏方（DeXPresentation / ScreenRegistry）在虚拟屏/串流屏
+     * 就绪、真实 displayId 已知时调用，把启动时已插着的外接触摸屏补绑到这块屏。
+     * 热插拔的由 handleInputDeviceAdded 认领，这里只补「屏比设备晚到」的那一半。
+     */
+    public static void rebindExternalTouchscreens(final Context ctx, final int displayId) {
+        if (ctx == null || displayId <= 0) return;
+        new Thread(() -> {
+            try {
+                InputManager im = (InputManager) ctx.getApplicationContext().getSystemService(Context.INPUT_SERVICE);
+                if (im == null) return;
+                for (int id : im.getInputDeviceIds()) {
+                    try {
+                        InputDevice dev = im.getInputDevice(id);
+                        if (dev == null || dev.isVirtual()) continue;
+                        if (!dev.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)) continue;
+                        if (!ShizukuCmd.isExternalSafe(dev)) continue;
+                        bindTouchscreenToDisplay(ctx, dev, displayId);
+                    } catch (Throwable ignored) {}
+                }
+            } catch (Throwable ignored) {}
+        }, "touchscreen-rebind").start();
+    }
+
+    /**
      * 把鼠标的一帧翻成 SOURCE_TOUCHSCREEN 事件注入串流屏。
      *
      * Root 走常驻守护进程的定长帧（RootInputDaemon.tryInject 已经支持
@@ -1668,6 +1726,15 @@ public final class PeripheralBrain {
         if (dev.supportsSource(InputDevice.SOURCE_GAMEPAD) || dev.supportsSource(InputDevice.SOURCE_JOYSTICK)
                 || lowerName.contains("gamepad") || lowerName.contains("controller") || lowerName.contains("joystick")) {
             return "gamepad";
+        } else if (dev.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)
+                && !dev.supportsSource(InputDevice.SOURCE_MOUSE)
+                && !dev.supportsSource(InputDevice.SOURCE_TOUCHPAD)
+                && !dev.supportsSource(InputDevice.SOURCE_TRACKBALL)
+                && !lowerName.contains("mouse")) {
+            // 纯外接触摸屏（到这里的已由调用方滤掉内置面板）：以前会被下面
+            // SOURCE_CLASS_POINTER 那条兜底误认成鼠标，槽位与路由全错。
+            // 键鼠触摸一体设备仍归鼠标，触摸部分由绑屏逻辑另行认领。
+            return "touch";
         } else if (dev.supportsSource(InputDevice.SOURCE_MOUSE) || dev.supportsSource(InputDevice.SOURCE_TOUCHPAD)
                 || dev.supportsSource(InputDevice.SOURCE_TRACKBALL)
                 || (dev.getSources() & InputDevice.SOURCE_CLASS_POINTER) != 0
@@ -1748,6 +1815,16 @@ public final class PeripheralBrain {
                 if (mainActivity != null) {
                     mainActivity.runOnUiThread(() -> mainActivity.ensurePointerCapture());
                 }
+            }
+
+            // 外接触摸屏：把它的 descriptor 绑到内容所在的那块屏，系统直接派发
+            // 触摸（多指、手势、原生应用全通）。不分类型认领：一体设备归了鼠标
+            // 也要绑，鼠标部分反正已被大脑独占，绑了不影响。
+            // 屏还没建好时 target<=0，先跳过，屏就绪钩子会补绑。
+            if (dev.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)) {
+                int target = fingerDisplayId();
+                if (target <= 0) target = defaultTarget;
+                if (target > 0) bindTouchscreenToDisplay(appContext, dev, target);
             }
 
             if (!alreadyExisted) {

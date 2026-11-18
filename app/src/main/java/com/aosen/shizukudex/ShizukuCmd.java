@@ -1489,7 +1489,7 @@ public class ShizukuCmd {
      * 低版本按 vendorId / 设备名兜底判断：内置设备 vendorId 为 0，且名字里带
      * 常见内置字样（触摸屏 / 传感器 / gpio）。
      */
-    private static boolean isExternalSafe(InputDevice dev) {
+    static boolean isExternalSafe(InputDevice dev) {
         if (dev == null) return false;
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
@@ -1511,11 +1511,21 @@ public class ShizukuCmd {
         if (dev == null || dev.isVirtual()) return false;
         String name = dev.getName() != null ? dev.getName().toLowerCase(Locale.ROOT) : "";
 
-        // 手机内置触摸屏、触控芯片、触控笔绝不视为外设绑定至外屏
-        if (dev.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)
+        // 手机内置触摸屏、触控芯片、触控笔绝不视为外设绑定至外屏。
+        // 但外接触摸屏（USB/蓝牙触摸显示器的数字化仪）是正经外设：isExternalSafe
+        // 能区分内置面板与外接设备，只有内置的才排除，外接的继续往下走、由后
+        // 面的触摸屏分支认领绑定。以前这里一刀切，所有触摸屏都绑不上外屏。
+        if (!isExternalSafe(dev)
+                && (dev.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)
                 || name.contains("touchscreen") || name.contains("tsp") || name.contains("sec_e-pen")
-                || name.contains("goodix") || name.contains("synaptics")) {
+                || name.contains("goodix") || name.contains("synaptics"))) {
             return false;
+        }
+
+        // 外接触摸屏：数字化仪本身就是一块指向设备，绑到外屏后系统直接把触摸
+        // 派给那块屏上的窗口，多指、手势、原生应用全通，不用再走注入兜底。
+        if (dev.supportsSource(InputDevice.SOURCE_TOUCHSCREEN)) {
+            return true;
         }
 
         // 蓝牙/USB 手柄与摇杆
@@ -1535,6 +1545,23 @@ public class ShizukuCmd {
         }
 
         return false;
+    }
+
+    /**
+     * 这次触摸是不是外接触摸屏（USB/蓝牙触摸显示器的数字化仪）发来的。
+     * 手机内置面板的触摸、注入的合成事件（无设备）一律返回 false —— 分发门
+     * 只给真外接触摸屏让路，黑屏触控等既有链路不受影响。
+     */
+    public static boolean isExternalTouchEvent(MotionEvent event) {
+        if (event == null) return false;
+        try {
+            if ((event.getSource() & InputDevice.SOURCE_TOUCHSCREEN) != InputDevice.SOURCE_TOUCHSCREEN) return false;
+            InputDevice dev = event.getDevice();
+            if (dev == null || dev.isVirtual()) return false;
+            return isExternalSafe(dev);
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     public static void bindAllExternalInputToDisplay(int displayId) {

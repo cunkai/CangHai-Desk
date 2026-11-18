@@ -259,6 +259,7 @@ public final class ScreenRegistry {
             try {
                 VirtualMouse.onDisplayReady(ShizukuCmd.appContext(), realDisplayId,
                         w > 0 ? w / 2 : 960, h > 0 ? h / 2 : 540);
+                PeripheralBrain.rebindExternalTouchscreens(ShizukuCmd.appContext(), realDisplayId);
             } catch (Throwable t) {
                 Log.w(TAG, "串流屏绑定虚拟鼠标失败: " + t.getMessage());
             }
