@@ -125,7 +125,12 @@ object InputBroker {
     }
     @JvmStatic @Synchronized fun nativeTouch(type: Int, id: Long, x: Float, y: Float, pressure: Float, width: Int, height: Int) {
         if (!x.isFinite() || !y.isFinite() || !pressure.isFinite() || width < 1 || height < 1) return
-        val (px, py) = position(x * width, y * height, width, height)
+        /* 原生侧传来的坐标有两种约定：归一化值（0..1）或客户端像素。按归一化
+         * 接、像素进来会乘爆（点落到屏外、等于没点）；按像素接、归一化进来
+         * 会缩到左上角。超出 0..1 一律按像素除回归一化，两种约定都接得住。 */
+        val ux = if (x < 0f || x > 1f) x / width.toFloat() else x
+        val uy = if (y < 0f || y > 1f) y / height.toFloat() else y
+        val (px, py) = position(ux * width, uy * height, width, height)
         /* 真·多点触控是支持的（最多 32 指、SOURCE_TOUCHSCREEN、带 displayId 送到虚拟屏），
            但 One UI / Android 会把 3 指、4 指解释成系统手势——用户实测会唤出输入法。
            从第 3 指落下开始进入保护：先补一帧 CANCEL 把已经注入的 1~2 指状态清掉，
@@ -146,6 +151,9 @@ object InputBroker {
             3 -> { fingers[id]?.let { it.x = px; it.y = py; it.pressure = pressure; emit(MotionEvent.ACTION_MOVE) } }
             4 -> { if (id in fingers) { emit(if (fingers.size == 1) MotionEvent.ACTION_UP else MotionEvent.ACTION_POINTER_UP, id); fingers.remove(id) } }
             7 -> clearClient(id ushr 32)
+            /* 未知类型以前静默丢掉，查问题时一点痕迹没有。只记日志、不猜语义：
+             * 万一原生侧约定变了，调试日志里能直接看到它发来的 type 值。 */
+            else -> android.util.Log.w("InputBroker", "未知触摸类型 type=$type id=$id x=$x y=$y")
         }
         if (fingers.isEmpty()) gestureGuard = false
     }
