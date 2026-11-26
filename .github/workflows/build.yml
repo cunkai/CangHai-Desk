@@ -47,9 +47,6 @@ jobs:
       - name: Build release APK
         run: ./gradlew assembleRelease --no-daemon
 
-      - name: Upload APK to Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: app/build/outputs/apk/release/app-release.apk
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # 注意：自 V2.0.0 起闭源发布，Release 安装包改为手动上传，CI 不再自动上传 APK。
+      # 公开仓库里的代码是 V1.x（1.0.0），CI 打出来的 app-release.apk 是旧版，
+      # 自动上传会污染 V2 的 Release，故去掉上传步骤，只保留编译验证。
