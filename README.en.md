@@ -18,9 +18,15 @@
 
 ---
 
+> ## Open-source status
+>
+> - Versions up to V1.x are open source under GPL-3.0. This repository keeps the full V1.x source code and commit history, still licensed under GPL-3.0.
+> - Starting with V2.0.0, CangHai Desk is closed source: only the install package (APK) is released, and the source code of new versions is no longer published. The main reasons are that V2 involves Root and system-level privileges, which could be misused if the source were public, and that the V2 codebase has been completely rewritten without third-party open-source engines.
+> - The V2.0.0 APK is available under [Releases](https://github.com/cunkai/CangHai-Desk/releases).
+
 ## What is this?
 
-CangHai Desk (Canghai System) is an open-source Android app. It turns a phone or tablet connected to a display into a computer you can actually work on: the external screen shows a full desktop with windows, a taskbar, a start menu and apps, while the phone screen becomes the remote control for switching displays, installing apps and changing settings. The phone stays a phone; the computer is the bonus.
+CangHai Desk (Canghai System) is an Android app (V1.x was open source; see the open-source status note above). It turns a phone or tablet connected to a display into a computer you can actually work on: the external screen shows a full desktop with windows, a taskbar, a start menu and apps, while the phone screen becomes the remote control for switching displays, installing apps and changing settings. The phone stays a phone; the computer is the bonus.
 
 ### Three ways to connect
 
