@@ -402,9 +402,28 @@ function showInstallResult(ok, app, reason){
   installResultModal.classList.add('open');
 }
 function failInstall(reason){ showInstallResult(false, null, reason); }
+/* 通用输入层：导入时把 input-shim 内联进游戏 HTML（只做一次）。
+   注入点在 registerInstalledApp：HTML 文件、粘贴代码、软件包三条路
+   都经过这里。已带 shim 的不重复注；对话框里取消勾选的不注；
+   读不到 shim 源码（input-shim-src.js 没加载）时直接装、不报错。 */
+function injectInputShim(html){
+  try{
+    html = String(html || '');
+    if(html.indexOf('__CH_INPUT_SHIM__') >= 0) return html;
+    var box = document.getElementById('instInputShim');
+    if(box && !box.checked) return html;
+    var src = (typeof window.__CH_INPUT_SHIM_SRC === 'string') ? window.__CH_INPUT_SHIM_SRC : '';
+    if(!src) return html;
+    var tag = '<script>\n/* Canghai input layer (injected at install) */\n' + src + '\n</script>';
+    var m = /<\/body\s*>/i.exec(html);
+    if(m) return html.slice(0, m.index) + tag + '\n' + html.slice(m.index);
+    return html + '\n' + tag + '\n';
+  }catch(e){ return html; }
+}
 function registerInstalledApp(name, html, iconMarkup){
   /* 软件名来自文件标题 / 软件包 app.json，是不可信文本：先剥掉尖括号引号再入库（纵深防御） */
   name = String(name || '未命名软件').replace(/[<>&"']/g, '').trim().slice(0, 24) || '未命名软件';
+  html = injectInputShim(html);
   /* 落进 CanghaiStore：手机端和这块外屏读同一份，刷新 / 重连都不会丢 */
   var nativeId = '';
   try{
