@@ -790,6 +790,25 @@ function chBuildSourcePackage(pkg) {
   }
 }
 
+/* 通用输入层：导入时把 input-shim 内联进游戏 HTML（只做一次）。
+   注入点在 finishInstall 的包装里：单文件、整包、源码工程三条路
+   在这里都已拼成单文件 full。已带 shim 的不重复注；HTML 安装弹窗
+   里取消勾选的不注；读不到 shim 源码时直接装、不报错。 */
+function chInjectInputShim(html) {
+  try {
+    html = String(html || '');
+    if (html.indexOf('__CH_INPUT_SHIM__') >= 0) return html;
+    var box = document.getElementById('htmlInputShim');
+    if (box && !box.checked) return html;
+    var src = (typeof window.__CH_INPUT_SHIM_SRC === 'string') ? window.__CH_INPUT_SHIM_SRC : '';
+    if (!src) return html;
+    var tag = '<script>\n/* Canghai input layer (injected at install) */\n' + src + '\n</script>';
+    var m = /<\/body\s*>/i.exec(html);
+    if (m) return html.slice(0, m.index) + tag + '\n' + html.slice(m.index);
+    return html + '\n' + tag + '\n';
+  } catch (e) { return html; }
+}
+
 /* ---- 4. 装完一个新软件，立刻进 Native 库（外屏马上就能看到） ---- */
 (function () {
   var base = finishInstall;
@@ -828,6 +847,7 @@ function chBuildSourcePackage(pkg) {
     } catch (e) {
       try { console.log('[ch] 整包打包失败: ' + e); } catch (e2) { }
     }
+    if (full) full = chInjectInputShim(full);
 
     var id = null;
     try {
