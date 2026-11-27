@@ -11,6 +11,7 @@
 <script src="../shared/i18n.js"></script>
 <script src="../shared/appcolor.js"></script>
 <script src="../shared/apps.js"></script>
+<script src="../shared/input-shim-src.js"></script>
 <!-- 内置应用清单：扫描 canghai/apps/ 生成，拖文件夹进来后重新生成 -->
 <script src="../apps/apps-manifest.js"></script>
 <!-- GSAP 3.15.0\uff1acore + Draggable + InertiaPlugin\uff0c\u4f9b\u6700\u5c0f\u5316/\u6253\u5f00\u7684\u98de\u884c\u4e0e\u4ee5\u540e\u5e94\u7528\u5185\u9700\u8981\u6ed1\u52a8\u7684\u5730\u65b9\u7528\u3002
@@ -374,6 +375,7 @@ window.__chGsapReady = !!(window.gsap && window.gsap.to);
       <button type="button" class="instBtn" id="instPkgBtn"><b>沧海软件</b><span>.沧海软件 / .canghai / .zip 软件包</span></button>
     </div>
     <div class="fld"><label for="instCode">或者把 HTML 代码粘贴到这里</label><textarea id="instCode" spellcheck="false" placeholder="粘贴完整的 HTML 代码…"></textarea></div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;opacity:.85;margin:2px 0 10px;cursor:pointer"><input type="checkbox" id="instInputShim" checked style="width:16px;height:16px;accent-color:#c9a85c" /> 注入通用输入层（触摸 / 手柄 / 鼠标都能玩，没写过输入的游戏也能用）</label>
     <p class="curErr" id="instErr"></p>
     <div class="curFoot"><button type="button" class="curGhostBtn" id="instCancel">取消</button><button type="button" class="curBigBtn" id="instCodeBtn">用粘贴的代码安装</button></div>
     <input type="file" id="instHtmlFile" accept=".html,.htm,text/html" hidden />
