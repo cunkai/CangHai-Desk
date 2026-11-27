@@ -3521,6 +3521,7 @@
             <label class="fld-label" for="htmlText">HTML 代码</label>
             <textarea class="paste-area" id="htmlText" placeholder="<!DOCTYPE html>&#10;<html>&#10;  …把代码粘到这里…&#10;</html>" spellcheck="false"></textarea>
             <p class="icon-src-note hidden" id="htmlTruncNote"></p>
+            <label style="display:flex;align-items:center;gap:8px;font-size:13px;opacity:.85;margin:8px 0 12px;cursor:pointer"><input type="checkbox" id="htmlInputShim" checked style="width:16px;height:16px;accent-color:#c9a85c" /> 注入通用输入层（触摸 / 手柄 / 鼠标都能玩，没写过输入的游戏也能用）</label>
             <div class="modal-btns">
               <button type="button" class="btn ghost" id="htmlCancel">取消</button>
               <button type="button" class="btn" id="htmlGo">下一步</button>
@@ -8505,6 +8506,7 @@
 
 /* 沧海 · 手机端数据适配层（独立资源文件，改这里立即生效，无需重新构建） */
 </script>
+<script src="../canghai/shared/input-shim-src.js"></script>
 <script src="../canghai/shared/phone_adapter.js"></script>
 
 <!-- 右下角悬浮调试日志入口 -->
